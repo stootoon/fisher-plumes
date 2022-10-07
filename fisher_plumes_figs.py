@@ -191,13 +191,12 @@ def plot_alaplace_fits(F, which_dists,
 def plot_la_gen_fits_vs_distance(F, 
                                  dscale = 1000, which_ifreqs = [1,2,3,4],
                                  figsize = None, legloc = None, xl = None,
-                                 plot_overlay = False,
                                  contours_dist = None,
                                  colfun  = lambda f: cm.cool_r(f/10)):
 
     (figsize is not None) and plt.figure(figsize=figsize)
 
-    gs     = GridSpec(2,3 + plot_overlay)
+    gs     = GridSpec(2,3)
     dd_all = np.array(sorted(list(F.la.keys())))
     la     = {d:F.la[d][0] for d in F.la}
     la_sub = np.array(la[d] for d in dd_all if d in F.dd_fit)
@@ -206,29 +205,24 @@ def plot_la_gen_fits_vs_distance(F,
     max_norm = lambda y: y/np.max(y)
     identity = lambda y: y
 
-    if plot_overlay:
-        ax_overlay = plt.subplot(gs[:, 2])
-
+    dx = dd_all/dscale    
     for i, fi in enumerate(which_ifreqs):
         row   = i // 2
         col   = i % 2
-        la_fi = [la[d][fi] for d in dd_all]        
         ax.append(plt.subplot(gs[row, col]))
-        axes = [ax[-1]]
-        plot_overlay and axes.append(ax_overlay)
-        [axi.plot(dd_all/dscale, op(la_fi), "o", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz") for ii, (axi, op) in enumerate(zip(axes, [identity, max_norm]))]
-        [axi.plot(F.dd_fit/dscale, op(fpt.gen_exp(F.dd_fit, *(F.fit_params[0][fi]))), color=fpft.set_alpha(colfun(fi),0.9), linewidth=1) for ii, (axi,op) in enumerate(zip(axes, [identity, max_norm]))]
-        plt.sca(axes[0])
-        yl = plt.ylim()
-        fpft.vline(0,":",color="lightgray")
+        la_mean = np.array([np.mean(F.la[d][1:, fi]) for d in dd_all])
+        la_sd   = np.array([np.std(F.la[d][1:, fi]) for d in dd_all])
+        ax[-1].plot(dx, la_mean, "o:", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz")
+        ax[-1].plot([dx,dx], [la_mean - la_sd, la_mean+la_sd], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        for j in range(min(5, F.n_bootstraps)):
+            ax[-1].plot(F.dd_fit/dscale, fpt.gen_exp(F.dd_fit, *(F.fit_params[1+j][fi])), color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
         (row == 1) and plt.xlabel("Distance $s$ (mm)")
         (col == 0) and plt.ylabel("$\lambda_n(s)$")        
         (xl is not None) and plt.xlim(xl)
         plt.title(f"{freqs[fi]:g} Hz", pad=-1)
         fpft.spines_off(plt.gca())
 
-    plot_overlay and ax.append(ax_overlay)
-        
+    # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
     which_fis = np.arange(1,11)
     γbs = F.fit_params[:, which_fis, 1]/dscale
