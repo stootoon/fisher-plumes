@@ -19,6 +19,7 @@ DEBUG = logger.debug
 import boulder
 
 def compute_pairs(yvals, pairs_mode="all"):
+    INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
     if pairs_mode == "all":

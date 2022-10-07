@@ -36,6 +36,7 @@ class FisherPlumes:
             self.sims  = deepcopy(other.sims)
             self.pairs = deepcopy(other.pairs)
             self.yvals = deepcopy(other.yvals)
+            self.pairs_mode = other.pairs_mode            
             self.sim0  = deepcopy(other.sim0)
             self.wnd   = other.wnd
             for fld in ["fs", "dimensions"]:
@@ -45,14 +46,14 @@ class FisherPlumes:
             INFO(f"****** LOADING {sim_name=} ******")
             if sim_name == "boulder16":
                 which_coords, kwargs = FisherPlumes.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, **kwargs)            
+                self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, pairs_mode = pairs_mode, **kwargs)            
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
-
             self.name         = sim_name
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
             self.yvals = np.array(sorted(list(self.sims.keys())))
+            self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.sim0 = self.sims[self.yvals[0]]
             for fld in ["fs", "dimensions"]:
@@ -72,7 +73,6 @@ class FisherPlumes:
             X_bs.append(Xi.transpose(perm))
 
         return np.array(X_bs) if to_array else X_bs
-    
 
     def set_window(self, wnd):
         self.wnd = wnd        
@@ -163,7 +163,7 @@ class FisherPlumes:
         n_bs, n_freqs, n_dists = la_sub.shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
-        if self.amps_for_freqs is None:
+        if ('amps_for_freqs' not in self.__dict__) or self.amps_for_freqs is None:
             # Loop over the rows of la_sub
             # Each row (la_subi) has the data for one frequency
             self.fit_params = np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_sub])
@@ -179,9 +179,10 @@ class FisherPlumes:
                                          
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
 
-    def compute_all(self, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
+    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
+        self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
-        fit_amps and self.compute_amps_for_freqs()
+        not fit_amps and self.compute_amps_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_pvalues()
