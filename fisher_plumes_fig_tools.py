@@ -31,3 +31,20 @@ def pplot(*args, **kwargs):
     plt.plot(*args, **kwargs)
     spines_off(plt.gca())
     
+def plot_bivariate_gaussian(mu, C, n_sds = 1, n_points = 1000, mean_style= {"marker":"o"}, sd_style = {"linewidth":1}):
+    U,s,_ = np.linalg.svd(C)
+    A   = np.dot(U, np.diag(np.sqrt(s)))
+    th  = np.linspace(0,2*np.pi,n_points)
+    p   = [np.cos(th), np.sin(th)]
+    q   = np.dot(A, p)
+    hmu = plt.plot(mu[0], mu[1], **mean_style)[0]
+    hsd = [plt.plot(q[0]*i + mu[0], q[1]*i + mu[1], **sd_style)[0] for i in range(1,n_sds+1)]
+    return hmu, hsd
+
+cdfplot    = lambda x, **kwargs: plt.plot(np.sort(x), np.arange(1,len(x)+1)/len(x), **kwargs)
+hist_to_yx = lambda counts, bins: (np.array([0]+ list(counts) + [0]), np.array([bins[0]-(bins[1] - bins[0])/2] + list((bins[1:] + bins[:-1])/2) + [bins[-1] + (bins[1]-bins[0])/2]))
+pdfplotf   = lambda x, bins = 10, **kwargs: (lambda y, x: plt.fill_between(x, y, 0*y, **kwargs))(*hist_to_yx(*np.histogram(x, bins=bins, density=True)))
+pdfplot    = lambda x, bins = 10, **kwargs: (lambda y, x: plt.plot(x, y, **kwargs))(*hist_to_yx(*np.histogram(x, bins=bins, density=True)))
+pdfplotl   = lambda x, bins = 10, **kwargs: (lambda y, x: plt.semilogy(x, y, **kwargs))(*hist_to_yx(*np.histogram(x, bins=bins, density=True)))
+set_alpha  = lambda col, al: list(col[:3]) + [al]
+vline      = lambda x, *args, **kwargs: (lambda x1, yl, *args, **kargs: (plt.plot([x1,x1],yl, *args, **kwargs), plt.gca().set_ylim(yl)))(x, plt.gca().get_ylim(), *args, **kwargs)
