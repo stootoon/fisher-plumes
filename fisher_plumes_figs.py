@@ -187,3 +187,86 @@ def plot_alaplace_fits(F, which_dists,
 
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
         
+
+def plot_la_gen_fits_vs_distance(F, 
+                                 dscale = 1000, which_ifreqs = [1,2,3,4],
+                                 figsize = None, legloc = None, xl = None,
+                                 plot_overlay = False,
+                                 contours_dist = None,
+                                 colfun  = lambda f: cm.cool_r(f/10)):
+
+    (figsize is not None) and plt.figure(figsize=figsize)
+
+    gs     = GridSpec(2,3 + plot_overlay)
+    dd_all = np.array(sorted(list(F.la.keys())))
+    la     = {d:F.la[d][0] for d in F.la}
+    la_sub = np.array(la[d] for d in dd_all if d in F.dd_fit)
+    freqs  = np.arange(F.wnd)/F.wnd*F.fs
+    ax     = []
+    max_norm = lambda y: y/np.max(y)
+    identity = lambda y: y
+
+    if plot_overlay:
+        ax_overlay = plt.subplot(gs[:, 2])
+
+    for i, fi in enumerate(which_ifreqs):
+        row   = i // 2
+        col   = i % 2
+        la_fi = [la[d][fi] for d in dd_all]        
+        ax.append(plt.subplot(gs[row, col]))
+        axes = [ax[-1]]
+        plot_overlay and axes.append(ax_overlay)
+        [axi.plot(dd_all/dscale, op(la_fi), "o", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz") for ii, (axi, op) in enumerate(zip(axes, [identity, max_norm]))]
+        [axi.plot(F.dd_fit/dscale, op(fpt.gen_exp(F.dd_fit, *(F.fit_params[0][fi]))), color=fpft.set_alpha(colfun(fi),0.9), linewidth=1) for ii, (axi,op) in enumerate(zip(axes, [identity, max_norm]))]
+        plt.sca(axes[0])
+        yl = plt.ylim()
+        fpft.vline(0,":",color="lightgray")
+        (row == 1) and plt.xlabel("Distance $s$ (mm)")
+        (col == 0) and plt.ylabel("$\lambda_n(s)$")        
+        (xl is not None) and plt.xlim(xl)
+        plt.title(f"{freqs[fi]:g} Hz", pad=-1)
+        fpft.spines_off(plt.gca())
+
+    plot_overlay and ax.append(ax_overlay)
+        
+    ax.append(plt.subplot(gs[:,-1]))
+    which_fis = np.arange(1,11)
+    γbs = F.fit_params[:, which_fis, 1]/dscale
+    kbs = F.fit_params[:, which_fis, 2]
+    
+    for γ, k in zip(γbs, kbs):
+        plt.scatter(γ, k, c=[fpft.set_alpha(colfun(f),0.4) for i, f in enumerate(freqs[which_fis])],
+                    s = 2, zorder=10)
+
+    hmus = []
+    for ifreq, fi in enumerate(which_fis):
+        γk = np.array([np.array(γbs[:,ifreq]), np.array(kbs[:,ifreq])])
+        mu = np.mean(γk,axis=1)
+        C = np.cov(γk)
+        hmui, hsdsi = fpft.plot_bivariate_gaussian(mu, C, n_sds = 1, n_points = 1000,
+                                                   mean_style= {"marker":"o", "markersize":3, "color":colfun(freqs[fi])},
+                                                   sd_style = {"linewidth":1, "color":colfun(freqs[fi])})
+        hmus.append(hmui)
+
+    plt.legend(handles = hmus, labels=[f"{freqs[fi]:g} Hz" for fi in which_fis],
+               labelspacing=0,
+               frameon=False,
+               fontsize=6,
+               loc='lower left'
+    )
+    
+    xl = plt.xlim()
+    yl = plt.ylim()
+    contours_dist = np.mean(xl) if contours_dist is None else contours_dist
+    γγ, kk = np.meshgrid(np.linspace(*xl, 101), np.linspace(*yl,101))
+    bb = 2*np.log(kk) - kk*np.log(γγ) + (kk - 2) * np.log(contours_dist)
+    plt.contourf(γγ, kk, bb, 12, cmap=cm.gray)
+    
+    fpft.spines_off(plt.gca())
+    plt.ylabel("Exponent $k_n$")
+    plt.xlabel("Length Scale $\gamma_n$ (mm)")
+    plt.title("Fit Parameters")
+    plt.tight_layout(h_pad=1)
+
+    return ax
+    

@@ -178,6 +178,7 @@ class FisherPlumes:
             self.fit_params = np.stack([self.amps_for_freqs, self.fit_params[:,:,0], self.fit_params[:,:,1]], axis=2)
                                          
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
+        self.dd_fit = dd
 
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
         self.set_window(wnd)
