@@ -1,0 +1,10 @@
+{
+    "registry": [
+        {
+            "color": "crimson",
+            "name": "Re100_0_5mm_50Hz_16source_wideDomain.old.h5",
+            "root": "16-source/wide_domain"
+        }	
+    ],
+    "root": "$HOME/working/tootoos/data/probes/crimaldi"
+}
