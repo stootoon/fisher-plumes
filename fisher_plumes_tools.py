@@ -139,3 +139,18 @@ def compute_sin_cos_stft(data, istart, wnd, ov, detrender=Detrenders.tukey_norma
     s = -np.imag(S)*2
     return s.T, c.T, times.astype(int)
 
+# CDF of the asymmetric laplacian
+alaplace_cdf = lambda la, mu, x: (mu/(la + mu))*np.exp(-2*np.abs(x)/mu)*(x<=0)+ ((mu + la*(1 - np.exp(-2*np.abs(x)/la)))/(mu+la))*(x>0)
+
+# COMPUTE P VALUE FOR THE KOLMOGOROV SMIRNOV TEST
+compute_ks_pvalue = lambda la, mu, x: kstest(x, lambda x: alaplace_cdf(la, mu, x)).pvalue
+
+gen_exp     = lambda d, a, s, k: a * np.exp(-np.abs(d/s)**k)
+fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
+                                      p0=[np.max(la),1,1],
+                                      bounds=(0, np.inf))[0]
+fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k: gen_exp(d, a, s, k),
+                                                d, la,
+                                                p0=[1,1],
+                                                bounds=(0, np.inf))[0]
+

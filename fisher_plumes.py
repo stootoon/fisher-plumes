@@ -11,6 +11,7 @@ logger = utils.create_logger("fisher_plumes")
 logger.setLevel(logging.DEBUG)
 
 INFO = logger.info
+DEBUG= logger.debug
 
 class FisherPlumes:
 
@@ -93,24 +94,26 @@ class FisherPlumes:
                 self.ss[key], self.cc[key], self.tt[key] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]]
 
     def compute_amps_for_freqs(self):
+        INFO("Computing amplitude of generalized gaussian fits to λ(s).")
         sc_all = np.concatenate([xkk for Fld in [self.ss, self.cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.  
         # sc_all is now a (# bootstraps, # sine coefs + # cos coefs, # freqs) matrix.
         sc_vars_for_freqs = np.var(sc_all,axis=1)
         self.amps_for_freqs = 2 * sc_vars_for_freqs
 
     def compute_correlations_from_trig_coefs(self):
-        self.rho    = {d:np.concatenate([(self.ss[d1]*self.ss[d2] + self.cc[d1]*self.cc[d2])/2 for (d1,d2) in pairsd], axis=1)
+        INFO("Computing correlations from trig coefficients.")
+        self.rho    = {d:np.concatenate([(self.ss[d1]*self.ss[d2] + self.cc[d1]*self.cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
                        for d,pairsd in self.pairs.items()}
 
     def create_pooling_functions(self):
+        INFO("Creating pooling functions.")
         # Takes a window size and a frequency INDEX and pools the data for the sine and cosine coefficients from each source
         #pool_cs_data = lambda fi:{y:np.array([cc[src][:,fi], ss[src][:,fi]]).flatten() for src in self.ss}
         self.pool_cs_data = lambda fi:{src:np.hstack([self.ss[src][:,:,fi], self.cc[src][:,:,fi]]) for src in self.ss}
         # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
         self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
                                                                       np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
-            
-            
+                        
     def compute_lambdas(self, fmax = None):
         """ 
         Computes bivariate normal fits to the pooled sine and cosine data.
@@ -121,6 +124,7 @@ class FisherPlumes:
         mu[dist][wnd][ifreq] is an array containing the value fo lambda0
         for for the specified window, indexed frequency, and distance.
         """
+        INFO("Computing lambdas.")
         self.create_pooling_functions()
 
         EE    = np.array([[1,-1],[1,1]])/np.sqrt(2)
@@ -142,5 +146,45 @@ class FisherPlumes:
         for d in dists:
             self.la[d] = np.array(self.la[d]).T # .T for bootstraps x data
             self.mu[d] = np.array(self.mu[d]).T         
+
+    def compute_pvalues(self):
+        INFO("Computing p-values.")        
+        self.pvals = {d:np.array([
+            [fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+            for (lad_bs, mud_bs, rhod_bs) in zip(self.la[d], self.mu[d], self.rho[d])]) for d in self.rho}
+
+    def compute_la_gen_fit_to_distance(self, dmax=100000):
+        INFO(f"Computing generalized exponential fit to distance.")
+        dists = np.array(sorted(list(self.la.keys())))
+        dd    = dists[np.abs(dists)<=dmax]
+    
+        INFO(f"Using {len(dd)} distances <= {dmax}")
+        la_sub = np.stack([self.la[d] for d in dists if abs(d) <= dmax],axis=-1)
+        n_bs, n_freqs, n_dists = la_sub.shape
+        
+        INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
+        if self.amps_for_freqs is None:
+            # Loop over the rows of la_sub
+            # Each row (la_subi) has the data for one frequency
+            self.fit_params = np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_sub])
+        else:
+            INFO(f"Not fitting amplitudes, instead using given values.")
+
+            self.fit_params = np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, amps_for_freqs_bs)]
+                                        for (la_sub_bs, amps_for_freqs_bs)  in zip(la_sub, self.amps_for_freqs)])
+            DEBUG(f"{self.fit_params.shape=}.")
+            # Stack the given amplitudes on top of the learned parameters so that the
+            # shapes are the same whether we learn the amplitudes or not.
+            self.fit_params = np.stack([self.amps_for_freqs, self.fit_params[:,:,0], self.fit_params[:,:,1]], axis=2)
+                                         
+        self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
+
+    def compute_all(self, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
+        self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
+        fit_amps and self.compute_amps_for_freqs()
+        self.compute_correlations_from_trig_coefs()
+        self.compute_lambdas()
+        self.compute_pvalues()
+        self.compute_la_gen_fit_to_distance(dmax=dmax)
 
         
