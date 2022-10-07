@@ -57,3 +57,44 @@ def plot_correlations(rho,
     plt.title("Overlayed and Scaled")
     plt.tight_layout(w_pad=0)
     return ax
+
+def plot_coef1_vs_coef2(coefs, ifreq, pairs,
+                        figsize=(8,3),
+                        i_pos_dists_to_plot = [0,2,4],
+                        dcol_scale=120000.,
+                        
+):
+    if type(coefs) is not list: coefs = [coefs]
+        
+    pooled1 = {d:np.array([
+        np.concatenate([coef[y1][0][:, ifreq] for coef in coefs for (y1,y2) in pairs[d]], axis = 0),
+        np.concatenate([coef[y2][0][:, ifreq] for coef in coefs for (y1,y2) in pairs[d]], axis = 0)
+    ]) for d in pairs} # [0] takes the raw data, not the bootstraps
+
+    dists = np.array(sorted(pooled1.keys()))
+    plt.figure(figsize=figsize)
+    th = np.linspace(0,2*np.pi,1001)
+    which_d = [dists[dists>0][i] for i in i_pos_dists_to_plot]
+    for i, d in enumerate(which_d):
+        plt.subplot(1,3,i+1)
+        U,S,_ = np.linalg.svd(np.cov(pooled1[d]))
+        p0 = pooled1[d][0]
+        p1 = pooled1[d][1]
+        p0m= np.mean(p0)
+        p1m= np.mean(p1)
+        plt.plot(p0,p1, "o", color=dist2col(d), markersize=1)
+        plt.plot(p0m, p1m, "k+", markersize=10)
+        
+        for r in [1,2,3]:
+            xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
+            plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
+        plt.xlim([-1.1,1.1]); plt.ylim([-1.1,1.1])
+        plt.gca().set_xticks([-1,0,1]);
+        plt.gca().set_yticks([-1,0,1])
+        fpft.spines_off(plt.gca())
+        plt.axis("square")
+        (i == 0) and plt.ylabel("Coefficient at source 2")
+        plt.xlabel("Coefficient at source 1")
+        plt.title(f"{d/1000:g} mm")
+        plt.grid(True)    
+
