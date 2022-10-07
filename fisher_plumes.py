@@ -188,4 +188,9 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_la_gen_fit_to_distance(dmax=dmax)
 
+    def freqs2inds(self, which_freqs):
+        # Figures out the indices of the fft that correspond to each of the frequencies we want
+        return [int(round(f * self.wnd / self.fs)) for f in which_freqs]
+        
+
         

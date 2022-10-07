@@ -19,10 +19,9 @@ def setup_axes(ax):
     ax.yaxis.set_tick_params(length=1, which="minor")
     ax.tick_params(labelsize=6)
 
-
-color2hex = lambda c: named_colors[c] if c[0] != "#" else c
-hex2rgb_  = lambda h: [int(h[i:i+2],16)/255. for i in range(1,len(h),2)] + [1]
-hex2rgb   = lambda h: hex2rgb_(color2hex(h))
+color2hex  = lambda c: named_colors[c] if c[0] != "#" else c
+hex2rgb_   = lambda h: [int(h[i:i+2],16)/255. for i in range(1,len(h),2)] + [1]
+hex2rgb    = lambda h: hex2rgb_(color2hex(h))
 set_alpha_ = lambda c,a: list(list(c[:3]) + [a])
 set_alpha  = lambda c, a: set_alpha_(c if type(c) in [list,tuple] else hex2rgb(c), a)
 
