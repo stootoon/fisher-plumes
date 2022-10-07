@@ -180,6 +180,12 @@ class FisherPlumes:
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
         self.dd_fit = dd
 
+    def compute_fisher_information(self):
+        self.fisher_information = {d:fpt.compute_fisher_information_for_gen_exp_decay(d,
+                                                                                      self.fit_params[:,:,1],
+                                                                                      self.fit_params[:,:,2])
+                                   for d in self.la}
+                                   
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
@@ -188,6 +194,7 @@ class FisherPlumes:
         self.compute_lambdas()
         self.compute_pvalues()
         self.compute_la_gen_fit_to_distance(dmax=dmax)
+        self.compute_fisher_information()
 
     def freqs2inds(self, which_freqs):
         # Figures out the indices of the fft that correspond to each of the frequencies we want

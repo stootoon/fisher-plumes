@@ -264,3 +264,40 @@ def plot_la_gen_fits_vs_distance(F,
 
     return ax
     
+def plot_fisher_information(#amps, sds, slope, intercept,
+        F,
+        d_lim=[1e-3,100],
+        d_ranges = None,
+        d_scale = 1,
+        d_space_fun = np.linspace,
+        which_ifreqs = [2,4,6,8,10],
+        ifreq_to_freq = 1,
+        fi_scale = 1000,
+        plot_fun = plt.plot,
+):
+    colfun = lambda f: cm.cool_r(which_ifreqs.index(f)/len(which_ifreqs))
+
+    if d_ranges is None:
+        d_ranges = [d_lim]
+
+    n_ranges = len(d_ranges)
+    n_panels = n_ranges + (plot_for_dists is not None)
+    Ifun = fpt.compute_fisher_information_for_gen_exp_decay
+    for i, (d0, d1) in enumerate(d_ranges):
+        d = d_space_fun(d0, d1,11)
+        plt.subplot(1,n_panels,i+1)
+        Ibs = np.array([[Ifun(d, *params[1:]) for params in F.fit_params[:,fi,:]] for fi in which_ifreqs]) # nfreqs x nbs x ndists
+        for fi, Ibs_f in zip(which_ifreqs, Ibs):
+            Imean = np.mean(Ibs_f, axis=0)
+            Istd  = np.std (Ibs_f, axis=0)
+            plot_fun(d/d_scale, Imean, "o-", linewidth=1,markersize=2,color=colfun(fi), label = f"{fi * ifreq_to_freq:g} Hz")
+            plot_fun([d/d_scale, d/d_scale], [Imean-Istd, Imean+Istd], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+            #         
+    
+    plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
+    (i == 0) and plt.ylabel("Fisher Information" + (f"x {fi_scale}" if fi_scale != 1 else ""))
+    plt.xlabel("Distance (mm)")
+    fpft.spines_off(plt.gca())
+        
+
+    plt.tight_layout(pad=0)

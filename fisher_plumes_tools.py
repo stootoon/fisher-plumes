@@ -155,3 +155,7 @@ fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k: gen_exp(d, a, s,
                                                 p0=[1,1],
                                                 bounds=(0, np.inf))[0]
 
+def compute_fisher_information_for_gen_exp_decay(s, γ, k):
+    sn = s/γ
+    return (k/γ)**2 * (sn ** (k - 1))**2/(np.exp(sn ** k) - 1)
+
