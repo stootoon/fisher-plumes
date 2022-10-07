@@ -9,6 +9,8 @@ from matplotlib import cm
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 
+from scipy.stats import mannwhitneyu
+
 dist2col = lambda d, dcol_scale = 120000, cmap = cm.cool_r: cmap(d/dcol_scale)
 
 def plot_correlations(rho, 
@@ -271,6 +273,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         d_scale = 1,
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
+        x_stagger = lambda x, i: x*(1.02**i),
         ifreq_to_freq = 1,
         fi_scale = 1000,
         plot_fun = plt.plot,
@@ -281,18 +284,31 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         d_ranges = [d_lim]
 
     n_ranges = len(d_ranges)
-    n_panels = n_ranges + (plot_for_dists is not None)
+    n_panels = n_ranges
     Ifun = fpt.compute_fisher_information_for_gen_exp_decay
     for i, (d0, d1) in enumerate(d_ranges):
         d = d_space_fun(d0, d1,11)
         plt.subplot(1,n_panels,i+1)
         Ibs = np.array([[Ifun(d, *params[1:]) for params in F.fit_params[:,fi,:]] for fi in which_ifreqs]) # nfreqs x nbs x ndists
-        for fi, Ibs_f in zip(which_ifreqs, Ibs):
-            Imean = np.mean(Ibs_f, axis=0)
-            Istd  = np.std (Ibs_f, axis=0)
-            plot_fun(d/d_scale, Imean, "o-", linewidth=1,markersize=2,color=colfun(fi), label = f"{fi * ifreq_to_freq:g} Hz")
-            plot_fun([d/d_scale, d/d_scale], [Imean-Istd, Imean+Istd], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
-            #         
+        Imean = np.mean(Ibs, axis=1)
+        Istd  = np.std (Ibs, axis=1)
+        Isort = np.argsort(Imean,axis=0)
+        best_freqs        = Isort[-1]
+        second_best_freqs = Isort[-2]
+        p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di], Ibs[second_best_freq,:,di], alternative='greater')[1]
+                  for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
+
+        for i, (fi, Im, Is) in enumerate(zip(which_ifreqs, Imean, Istd)):
+            x = x_stagger(d/d_scale,i)
+            plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(fi), label = f"{fi * ifreq_to_freq:g} Hz")
+            plot_fun([x, x], [Im-Is*3, Im+Is*3], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+
+        for i, (bf,p,Im) in enumerate(zip(best_freqs, p_vals, Imean[best_freqs[0]])):
+            if bf == best_freqs[0]:
+                n_stars = int(np.floor(-np.log10(p)))
+                di = x_stagger(d[i]/d_scale,bf)
+                plt.text(di, Im, "*"*n_stars, fontsize=12)
+
     
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     (i == 0) and plt.ylabel("Fisher Information" + (f"x {fi_scale}" if fi_scale != 1 else ""))
