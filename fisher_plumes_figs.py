@@ -226,13 +226,13 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    which_fis = np.arange(1,11)
+    which_fis = which_ifreqs #np.arange(1,11)
     γbs = F.fit_params[:, which_fis, 1]/dscale
     kbs = F.fit_params[:, which_fis, 2]
     
     for γ, k in zip(γbs, kbs):
-        plt.scatter(γ, k, c=[fpft.set_alpha(colfun(f),0.4) for i, f in enumerate(freqs[which_fis])],
-                    s = 2, zorder=10)
+        plt.scatter(γ, k, c=[fpft.set_alpha(colfun(f),0.8) for i, f in enumerate(freqs[which_fis])],
+                    s = 3, zorder=10)
 
     hmus = []
     for ifreq, fi in enumerate(which_fis):
@@ -251,12 +251,12 @@ def plot_la_gen_fits_vs_distance(F,
                loc='lower left'
     )
     
-    xl = plt.xlim()
-    yl = plt.ylim()
-    contours_dist = np.mean(xl) if contours_dist is None else contours_dist
-    γγ, kk = np.meshgrid(np.linspace(*xl, 101), np.linspace(*yl,101))
-    bb = 2*np.log(kk) - kk*np.log(γγ) + (kk - 2) * np.log(contours_dist)
-    plt.contourf(γγ, kk, bb, 12, cmap=cm.gray)
+    # xl = plt.xlim()
+    # yl = plt.ylim()
+    # contours_dist = np.mean(xl) if contours_dist is None else contours_dist
+    # γγ, kk = np.meshgrid(np.linspace(*xl, 101), np.linspace(*yl,101))
+    # bb = 2*np.log(kk) - kk*np.log(γγ) + (kk - 2) * np.log(contours_dist)
+    # plt.contourf(γγ, kk, bb, 12, cmap=cm.gray)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
@@ -298,6 +298,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di], Ibs[second_best_freq,:,di], alternative='greater')[1]
                   for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
 
+        print(p_vals)
+        
         for i, (fi, Im, Is) in enumerate(zip(which_ifreqs, Imean, Istd)):
             x = x_stagger(d/d_scale,i)
             plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(fi), label = f"{fi * ifreq_to_freq:g} Hz")
