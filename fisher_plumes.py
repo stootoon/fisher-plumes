@@ -75,7 +75,8 @@ class FisherPlumes:
         return np.array(X_bs) if to_array else X_bs
 
     def set_window(self, wnd):
-        self.wnd = wnd        
+        self.wnd = wnd
+        self.freqs = np.arange(wnd)/wnd*self.fs
         INFO(f"Window set to {self.wnd=}.")
 
     def compute_trig_coefs(self, istart = 0, tukey_param = 0.1, **kwargs):
@@ -147,11 +148,13 @@ class FisherPlumes:
             self.la[d] = np.array(self.la[d]).T # .T for bootstraps x data
             self.mu[d] = np.array(self.mu[d]).T         
 
-    def compute_pvalues(self):
-        INFO("Computing p-values.")        
+    def compute_pvalues(self, skip_bootstrap = True):
+        INFO("Computing p-values.")
+        if skip_bootstrap:
+            INFO("(Skipping p-value computation for bootstraps.)")
         self.pvals = {d:np.array([
-            [fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
-            for (lad_bs, mud_bs, rhod_bs) in zip(self.la[d], self.mu[d], self.rho[d])]) for d in self.rho}
+            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+            for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(self.la[d], self.mu[d], self.rho[d]))]) for d in self.rho}
 
     def compute_la_gen_fit_to_distance(self, dmax=100000):
         INFO(f"Computing generalized exponential fit to distance.")
@@ -180,11 +183,15 @@ class FisherPlumes:
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
         self.dd_fit = dd
 
+    def compute_fisher_information_at_distances(self, which_ds):
+        return np.array([fpt.compute_fisher_information_for_gen_exp_decay(d,
+                                                                          self.fit_params[:,:,1],
+                                                                          self.fit_params[:,:,2]) for d in which_ds])
+
     def compute_fisher_information(self):
-        self.fisher_information = {d:fpt.compute_fisher_information_for_gen_exp_decay(d,
-                                                                                      self.fit_params[:,:,1],
-                                                                                      self.fit_params[:,:,2])
-                                   for d in self.la}
+        d_vals = list(self.la.keys())
+        I = self.compute_fisher_information_at_distances(d_vals)
+        self.fisher_information = {d:Id for d, Id in zip(d_vals, I)}
                                    
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
         self.set_window(wnd)
