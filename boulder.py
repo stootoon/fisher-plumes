@@ -15,7 +15,8 @@ import utils
 logging.basicConfig()
 logger = logging.getLogger("boulder")
 logger.setLevel(logging.INFO)
-INFO = logger.info
+INFO  = logger.info
+DEBUG = logger.debug
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(curr_dir, "boulder.json"), "r") as in_file:
@@ -61,7 +62,7 @@ def list_datasets():
     return list(set(simulations["name"].values))
 
 def print_datasets():
-    INFO("\nBoulder simulation data available for:")
+    INFO("Boulder simulation data available for:")
     datasets = list_datasets();
     series = {}
     for ds in datasets:
@@ -107,14 +108,14 @@ def _load_single_simulation(name):
     data = h5py.File(opj(probe_dir, name), "r")
 
     probe_grid = {"x":np.array(data["Model Metadata"]["xGrid"]), "y":np.array(data["Model Metadata"]["yGrid"])}
-    logger.debug("x: {} - {}".format(*utils.fapply([np.min, np.max], [probe_grid["x"]])))
-    logger.debug("y: {} - {}".format(*utils.fapply([np.min, np.max], [probe_grid["y"]])))    
+    DEBUG("x: {} - {}".format(*utils.fapply([np.min, np.max], [probe_grid["x"]])))
+    DEBUG("y: {} - {}".format(*utils.fapply([np.min, np.max], [probe_grid["y"]])))    
 
     t = np.array(data["Model Metadata"]["timeArray"]).flatten()    
-    logger.debug(f"t: {t[0]:1.3f}, {t[1]:1.3f} ... {t[-1]:1.3f}")
-    logger.debug(f"fs: {1/(t[1]-t[0]):1.2f} Hz")
+    DEBUG(f"t: {t[0]:1.3f}, {t[1]:1.3f} ... {t[-1]:1.3f}")
+    DEBUG(f"fs: {1/(t[1]-t[0]):1.2f} Hz")
     probe_data = [] #np.squeeze(np.load(op.join(probe_dir, "probe.data.npy")))
-    #logger.debug("probe_data: {}".format(probe_data.shape))
+    #DEBUG("probe_data: {}".format(probe_data.shape))
     return {"probe_t":np.array(t), "probe_grid":probe_grid, "probe_data":probe_data}
         
 def load(name):
@@ -192,14 +193,16 @@ class BoulderSimulationData:
         sim_dir  = simulations[simulations["name"] == self.name]["root"].values[0]
         probe_dir = op.join(data_root, sim_dir)
         file_path = opj(probe_dir, self.name)
-        logger.debug(f"Loading data from {file_path}.")
+        DEBUG(f"Loading data from {file_path}.")
         return h5py.File(file_path, "r")
     
-    def snapshot(self, which_field, which_time, is_index = False):        
+    def snapshot(self, which_field, which_time, is_index = False):
+        INFO(f"Snapshoting {which_field=} at {which_time=}.")
         h5 = self.load_h5()
         for fld in self.fields:
+            DEBUG(f"Checking {fld}")
             if fld.endswith(which_field):
-                logger.debug(f"Loading data for {which_field=}.")
+                DEBUG(f"Loading data for {which_field=} from h5.{fld}.")
                 sub = h5
                 for p in fld.split("/"):
                     sub = sub[p]
@@ -209,9 +212,9 @@ class BoulderSimulationData:
                     raise ValueError(f"Data for {which_field=} has shape {sub.shape} != expected_shape")
                 index = which_time if is_index else np.argmin(np.abs(self.probe_t - which_time))
                 t_index = self.probe_t[index]
-                logger.debug(f"Returning snapshot at {t_index:g} sec. ({index=}).")
+                DEBUG(f"Returning snapshot at {t_index:g} sec. ({index=}).")
                 return sub[index]
-        raise ValueError("No field found matchig '{which_field}'.")
+        raise ValueError(f"No field found matching '{which_field}'.")
 
     def use_coords(self, coords, names = None, skip_if_exists = True):
         """ Which of the probe coords to actually use. 
@@ -234,27 +237,27 @@ class BoulderSimulationData:
                 continue
             self.coord_strs.append(probe_name)            
             self.coord_inds[self.coord_strs[-1]] = (ix, iy)
-            logger.info(f"Mapped coordinate ({coords[i][0]:6.3f}, {coords[i][1]:6.3f}) to ({cx:6.3f}, {cy:6.3f}), index {(ix,iy)}, name '{self.coord_strs[-1]}'.")
+            INFO(f"Mapped coordinate ({coords[i][0]:6.3f}, {coords[i][1]:6.3f}) to ({cx:6.3f}, {cy:6.3f}), index {(ix,iy)}, name '{self.coord_strs[-1]}'.")
 
         # Now actually load the data
         # data = self.load_h5()
         self.data = {}
         for fld in self.fields:
-            logger.debug(f"Loading {fld}")
+            DEBUG(f"Loading {fld}")
             parts = fld.split("/")
 
             with self.load_h5() as f:
                 # h5_file = self.load_h5() # data # Load it each time as otherwise it seems to keep everything we touched in RAM.
                 for i, p in enumerate(parts):
-                    logger.debug(" "*(i+1) + f"Getting '{p}'")
+                    DEBUG(" "*(i+1) + f"Getting '{p}'")
                     f = f[p]
 
-                logger.debug(f"data[{fld}] has shape {f.shape}")
+                DEBUG(f"data[{fld}] has shape {f.shape}")
                 self.data[p] = [np.array(f[:, ix, iy]) for (ix, iy) in [self.coord_inds[s] for s in self.coord_strs]]                        
 
         for p in self.data:
             self.data[p] = np.array(self.data[p]).T
-            logger.info(f"Field {p} has shape {self.data[p].shape}.")
+            INFO(f"Field {p} has shape {self.data[p].shape}.")
             
         self.colors = {c:cm.winter(np.random.rand()) for c in self.coord_strs}
         return self

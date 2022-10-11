@@ -10,8 +10,8 @@ import utils
 logger = utils.create_logger("fisher_plumes")
 logger.setLevel(logging.DEBUG)
 
-INFO = logger.info
-DEBUG= logger.debug
+INFO  = logger.info
+DEBUG = logger.debug
 
 class FisherPlumes:
 
@@ -46,7 +46,9 @@ class FisherPlumes:
             INFO(f"****** LOADING {sim_name=} ******")
             if sim_name == "boulder16":
                 which_coords, kwargs = FisherPlumes.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, pairs_mode = pairs_mode, **kwargs)            
+                self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
+            elif sim_name == "n12dishT": 
+                self.sims, self.pairs = fpt.load_crick(sim_name, **kwargs)               
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.name         = sim_name
