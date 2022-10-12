@@ -65,7 +65,7 @@ def plot_correlations(rho,
 def plot_coef1_vs_coef2(coefs, ifreq, pairs,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],
-                        dcol_scale=120000.,
+                        dist_col_scale = 120000,
                         
 ):
     if type(coefs) is not list: coefs = [coefs]
@@ -79,6 +79,8 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
     plt.figure(figsize=figsize)
     th = np.linspace(0,2*np.pi,1001)
     which_d = [dists[dists>0][i] for i in i_pos_dists_to_plot]
+
+    dist2col_ = lambda d: dist2col(d,dist_col_scale)
     for i, d in enumerate(which_d):
         plt.subplot(1,3,i+1)
         U,S,_ = np.linalg.svd(np.cov(pooled1[d]))
@@ -86,7 +88,7 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
         p1 = pooled1[d][1]
         p0m= np.mean(p0)
         p1m= np.mean(p1)
-        plt.plot(p0,p1, "o", color=dist2col(d), markersize=1)
+        plt.plot(p0,p1, "o", color=dist2col_(d), markersize=1)
         plt.plot(p0m, p1m, "k+", markersize=10)
         
         for r in [1,2,3]:
