@@ -98,6 +98,8 @@ class CrickSimulationData:
         self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0]
         self.fields     = simulations[simulations["name"] == name]["fields"].values[0]
         self.fs         = simulations[simulations["name"] == name]["fs"].values[0]
+        self.x_lim = [0, self.dimensions[0]]
+        self.y_lim = [0, self.dimensions[1]]
         INFO("Loaded {}".format(name))
         DEBUG("(nx,ny,nz) = ({},{},{})".format(self.nx, self.ny, self.nz))
         px = [p[0] for p in self.probe_coords]
