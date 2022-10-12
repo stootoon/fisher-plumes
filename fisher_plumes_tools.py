@@ -99,6 +99,7 @@ def load_boulder_16_source_sims(which_coords, py_mode = "absolute", pairs_mode =
         sims[k1] = deepcopy(bb)
         sims[k1].data = v.copy()
         sims[k1].fields = [bb.fields[i]]
+        sims[k1].source = bb.source[i]
     yvals = list(sims.keys())
     pairs = compute_pairs(yvals, pairs_mode)
     return sims, pairs

@@ -10,6 +10,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
 
+import imageio as iio # For importing field snapshot PNGs
+
 from scipy.stats import skew, kurtosis
 
 import utils
@@ -182,3 +184,37 @@ class CrickSimulationData:
     
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
+
+    def get_used_probe_coords(self):
+        return self.used_probe_coords
+    
+    def snapshot(self, fld, t):
+        yval = int(self.source[-1]*1000000)        
+        INFO(f"Snapshoting {fld} for y={yval/1000} at {t=}.")
+        snapshot_dir = "/camp/lab/schaefera/working/tootoos/git/crick-cfd/projects/distance-discrimination/simulations/cylgrid/ff_int_sym_slow_high_tres_wide/n12dishT/proc/"
+        png_file     = os.path.join(snapshot_dir, f"Y0.{yval/1000:g}", f"Y0.{yval/1000:g}.png", f"{fld}_d0_{int(t*100)*10+1:06d}.png")        
+        INFO(f"Reading field from {png_file=}.")
+        if not os.path.exists(png_file):
+            raise FileExistsError(f"Could not find {png_file=}.")
+        img = iio.imread(png_file)
+        return np.array(img[:,:,0])/255.
+
+    def get_key(self):
+        return int(self.source[1]*1000000)
+    
+    def save_snapshot(self, t, data_dir = "."):
+        fld = self.fields[0]
+        fld_data  = self.snapshot(fld, t)
+        y_val     = self.get_key()
+        file_name = os.path.join(data_dir, f"y{y_val/1000:g}_{fld}_t{t:g}.p")
+        with open(file_name,"wb") as f:
+            pickle.dump(fld_data, f)
+            INFO(f"Wrote data for {fld} at y={y_val/1000:g} {t=} to {file_name}")
+    
+    def load_saved_snapshot(self, t, data_dir = "."):
+        fld       = self.fields[0]
+        key       = self.get_key()
+        file_name = f"y{key/1000:g}_{fld}_t{t:g}.p"
+        full_file = os.path.join(data_dir, file_name)
+        INFO(f"Loading {fld=} at {t=:g} from {full_file=}.")
+        return np.load(os.path.join(data_dir, file_name), allow_pickle=True)[32:406][:,41:489]

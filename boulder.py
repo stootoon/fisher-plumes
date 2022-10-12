@@ -3,6 +3,7 @@ from os import path as op
 from os.path import join as opj
 import json
 import h5py
+import pickle
 import re
 
 import pandas as pd
@@ -215,6 +216,24 @@ class BoulderSimulationData:
                 DEBUG(f"Returning snapshot at {t_index:g} sec. ({index=}).")
                 return sub[index]
         raise ValueError(f"No field found matching '{which_field}'.")
+
+    def get_key(self):
+        return int(self.source[1]*1000000)
+    
+    def save_snapshot(self, t, data_dir = "."):
+        fld = self.fields[0][-3:]
+        fld_data  = self.snapshot(fld, t)
+        file_name = os.path.join(data_dir, f"{fld}_t{t:g}.p")
+        with open(file_name,"wb") as f:
+            pickle.dump(fld_data, f)
+            INFO(f"Wrote data for {fld} @ {t=} to {file_name}")
+                    
+    def load_saved_snapshot(self, t, data_dir = "."):
+        fld = self.fields[0][-3:]
+        file_name = f"{fld}_t{t:g}.p"
+        full_file = os.path.join(data_dir, file_name)
+        INFO(f"Loading {fld=} at {t=:g} from {full_file=}.")
+        return np.load(os.path.join(data_dir, file_name), allow_pickle=True).T
 
     def use_coords(self, coords, names = None, skip_if_exists = True):
         """ Which of the probe coords to actually use. 

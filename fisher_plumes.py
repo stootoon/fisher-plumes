@@ -48,7 +48,7 @@ class FisherPlumes:
                 which_coords, kwargs = FisherPlumes.get_args(["which_coords"], kwargs)            
                 self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
             elif sim_name == "n12dishT": 
-                self.sims, self.pairs = fpt.load_crick(sim_name, **kwargs)               
+                self.sims, self.pairs = fpt.load_crick(sim_name, pairs_mode = pairs_mode,  **kwargs)               
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.name         = sim_name
