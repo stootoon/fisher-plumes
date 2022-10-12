@@ -109,6 +109,8 @@ def plot_alaplace_fits(F, which_dists,
                        ifreq_lim = [], xl = [-0.2,0.5], which_ifreq = 1, 
                        figsize=None, vmax=None,
                        cm_heat = cm.rainbow,
+                       heatmap_xmax = np.inf,
+                       heatmap_default_xticks = False,
                        plot_dvals = False):
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -181,7 +183,7 @@ def plot_alaplace_fits(F, which_dists,
     
     [plt.plot(d/1000, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
     plt.gca().xaxis.set_ticks_position("bottom")
-    plt.gca().set_xticks(pdists/1000)
+    (not heatmap_default_xticks) and plt.gca().set_xticks(pdists/1000)
     plt.xticks(rotation=45, fontsize=8)    
     plt.xlabel("Distance (mm)")
     plt.ylabel("Frequency (Hz)", labelpad=-1)
@@ -189,7 +191,7 @@ def plot_alaplace_fits(F, which_dists,
     plt.axis("auto")
     plt.colorbar()
     pdmax = pdists[np.argmin(np.abs(pdists - 100*1000))]
-    plt.xlim((pdists[0]-dd/2)/1000,(pdmax+dd/2)/1000) #pdists[-1]/1000-0.5)
+    plt.xlim((pdists[0]-dd/2)/1000,min((pdmax+dd/2)/1000, heatmap_xmax)) #pdists[-1]/1000-0.5)
 
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
         
