@@ -209,5 +209,9 @@ class FisherPlumes:
         # Figures out the indices of the fft that correspond to each of the frequencies we want
         return [int(round(f * self.wnd / self.fs)) for f in which_freqs]
         
+    def save_snapshots(self, t, data_dir = "."):
+        [s.save_snapshot(t, data_dir = data_dir) for _, s in self.sims.items()]
 
+    def load_saved_snapshots(self, t, data_dir = "."):
+        return np.array([s.load_saved_snapshot(t, data_dir = data_dir) for _, s in self.sims.items()])
         
