@@ -351,51 +351,22 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 
     plt.tight_layout(pad=0)
 
-
-def save_fields(fisher_plumes, which_fields, t = 40, data_dir = "./data"):
-    for k, F in fisher_plumes.items():
-        if k not in save_fields: continue
-        for yval, sim in F.sims.items():
-            fld = sim.fields[0]
-            print(yval, fld)
-            if k == "bw":
-                sfx = fld[-3:]
-                fld_data  = sim.snapshot(fld, t)
-                file_name = os.path.join("data", f"{sfx}_t{t:g}.p")
-                with open(file_name,"wb") as f:
-                    pickle.dump(fld_data, f)
-                    print(f"Wrote data for {fld} @ {t=} to {file_name}")
-            elif k == "cr":
-                fld_data  = sim.snapshot(fld, t)
-                file_name = os.path.join("data", f"y{yval/1000:g}_S1_t{t:g}.p")
-                with open(file_name,"wb") as f:
-                    pickle.dump(fld_data, f)
-                    print(f"Wrote data for {fld} at y={yval/1000:g} {t=} to {file_name}")
-                                        
-def load_field(fld, t, name=None, data_dir='./data'):
-    if fld != "S1":
-        file_name = f"{fld}_t{t:g}.p"
-        full_file = os.path.join(data_dir, file_name)
-        print(f"Loading {fld=} at {t=:g} for {name=} from {full_file=}.")
-        return np.load(os.path.join(data_dir, file_name), allow_pickle=True).T
-    else:
-        file_name = f"y{name}_{fld}_t{t:g}.p"
-        full_file = os.path.join(data_dir, file_name)
-        print(f"Loading {fld=} at {t=:g} for {name=} from {full_file=}.")
-        return np.load(os.path.join(data_dir, file_name), allow_pickle=True)[32:406][:,41:489]
-
     
-def plot_plumes_demo(F, name="bw"):
+def plot_plumes_demo(F, t_snap, 
+                     which_keys,
+                     data_dir = "./data",
+                     which_idists = [0,1,2],
+                     t_wnd = [-4,4],
+                     y_lim = (0,3),
+                     corr_xticks = arange(0,201 if name=='bw' else 101,50),
+                     corr_yticks = arange(0,1,0.5)                     
+):
+    fields = F.load_saved_snapshots(t = t_snap, data_dir = data_dir)
     plt.figure(figsize=(8,3))
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
-    dx, dy = F.sim0.dimensions
-    if name == 'bw':
-        pp = boulder.concs2rgb(boulder_fields[1,"a"], boulder_fields[1,"b"])
-        ax_plume.matshow(pp, extent = [0, dx, -dy/2, dy/2])
-    else:
-        pp = boulder.concs2rgb(crick_fields[490], crick_fields[510])
-        ax_plume.matshow(pp, extent = [0, dx, 0, dy])
+    pp = boulder.concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
+    ax_plume.matshow(pp, extent = F.sim0.x_lim + F.sim0.y_lim)
     px, py = F.sim0.get_used_probe_coords()[0]
     ax_plume.plot(px, py, "kx", markersize=5)
     ax_plume.xaxis.set_ticks_position('bottom')
@@ -404,18 +375,14 @@ def plot_plumes_demo(F, name="bw"):
     ylabel("y (m)", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
     
-    dists = np.array(sorted(F.sims.keys()))
+    dists  = np.array(sorted(F.sims.keys()))
     middle = mean(dists)
-    dists = dists[dists>middle]
-    which_idists = [0,1,2]
-    tlim = np.array([-4,4] if name == "bw" else [-0.5, 0.5]) + t_snapshot
-    ysc  = 100 if name == "bw" else 1./2500
-    yl   = (0,10) if name == "bw" else (0,5)
+    dists  = dists[dists>middle]
+    t_lim  = np.array(t_wnd) + t_snapshot
     ax_trace = []
     for i, di in enumerate(which_idists):
         ax_trace.append(subplot(gs[i,1]))
         d_mid = int(dists[di] - middle)
-        print(d_mid)
         a = F.sims[middle + d_mid].data.flatten()*ysc
         b = F.sims[middle - d_mid].data.flatten()*ysc
         t = F.sim0.t
@@ -437,7 +404,7 @@ def plot_plumes_demo(F, name="bw"):
         ρ   = corrcoef(a, b)[0,1]
         # text(tlim[0], yl[1], f"$\Delta$ = {2*dists[di]/1000:g} mm\n$\\rho$ = {ρ_w:1.3f} (window)\n$\\rho$ = {ρ:1.3f} (all)", fontsize=6, verticalalignment="top")
         title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
-    #break    
+
         
     ax_corr_dist = subplot(gs[:,-1])
     rho   = F.rho

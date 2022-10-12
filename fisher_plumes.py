@@ -210,8 +210,8 @@ class FisherPlumes:
         return [int(round(f * self.wnd / self.fs)) for f in which_freqs]
         
     def save_snapshots(self, t, data_dir = "."):
-        [s.save_snapshot(t, data_dir = data_dir) for _, s in self.sims.items()]
+        {k:s.save_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
 
     def load_saved_snapshots(self, t, data_dir = "."):
-        return np.array([s.load_saved_snapshot(t, data_dir = data_dir) for _, s in self.sims.items()])
+        return {k:s.load_saved_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
         
