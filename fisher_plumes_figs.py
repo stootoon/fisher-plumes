@@ -15,6 +15,81 @@ from boulder import concs2rgb
 scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
+
+def plot_plumes_demo(F, t_snapshot, 
+                     which_keys,
+                     data_dir = "./data",
+                     which_idists = [0,1,2],
+                     t_wnd = [-4,4],
+                     y_lim = (0,3),
+                     dt = 0.5
+):
+    fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
+    plt.figure(figsize=(8,3))
+    gs = GridSpec(3,3)
+    ax_plume = plt.subplot(gs[:,0])
+    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
+    ax_plume.matshow(pp, extent = F.sim0.x_lim + F.sim0.y_lim)
+    px, py = F.sim0.get_used_probe_coords()[0]
+    ax_plume.plot(px, py, "kx", markersize=5)
+    ax_plume.xaxis.set_ticks_position('bottom')
+    ax_plume.axis("auto")
+    plt.xlabel("x (m)", labelpad=-1)
+    plt.ylabel("y (m)", labelpad=-1)
+    #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
+    
+    dists  = np.array(sorted(F.sims.keys()))
+    middle = np.mean(dists)
+    dists  = dists[dists>middle]
+    t_lim  = np.array(t_wnd) + t_snapshot
+    ax_trace = []
+    for i, di in enumerate(which_idists):
+        ax_trace.append(plt.subplot(gs[i,1]))
+        d_mid = int(dists[di] - middle)
+        a = F.sims[middle + d_mid].data.flatten()
+        b = F.sims[middle - d_mid].data.flatten()
+        t = F.sim0.t
+        sc = max(a.std(), b.std())
+        a /= sc
+        b /= sc
+        ax_trace[-1].plot(t,a,color="r", label=f"{middle + d_mid}", linewidth=1)
+        ax_trace[-1].plot(t,b,color="b", label=f"{middle - d_mid}", linewidth=1)
+        (i < 2) and ax_trace[-1].set_xticklabels([])
+        (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
+        fpft.spines_off(ax_trace[-1])
+        ax_trace[-1].set_xlim(*t_lim)
+        ax_trace[-1].set_xticks(np.arange(t_lim[0],t_lim[-1]+0.01,dt))
+        ax_trace[-1].set_ylim(*y_lim)
+        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
+        ax_trace[-1].tick_params(axis='both', labelsize=8)
+        ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
+        #ax_trace[-1].legend(frameon=False,labelspacing=0,fontsize=6)
+        wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
+        aw, bw = wndf(a), wndf(b)
+        ρ_w = np.corrcoef(aw,bw)[0,1]
+        ρ   = np.corrcoef(a, b)[0,1]
+        # text(tlim[0], yl[1], f"$\Delta$ = {2*dists[di]/1000:g} mm\n$\\rho$ = {ρ_w:1.3f} (window)\n$\\rho$ = {ρ:1.3f} (all)", fontsize=6, verticalalignment="top")
+        plt.title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
+
+        
+    ax_corr_dist = plt.subplot(gs[:,-1])
+    rho   = F.rho
+    dists = np.array(sorted(list(rho.keys()))) 
+    rho   = {d:rho[d][0] for d in dists} # Take the raw data, not the bootstraps
+    rhom  = np.array([np.mean(np.sum(rho[d],axis=0)) for d in dists])
+    rhos  = np.array([ np.std(np.sum(rho[d],axis=0)) for d in dists])
+    col   = "gray"
+    plt.fill_between(dists/1000, rhom-rhos,rhom+rhos, color=fpft.set_alpha(mpl.colors.to_rgba(col),0.2));
+    fpft.pplot(dists/1000, rhom , "o-", markersize=4,color=col);
+    ax_corr_dist.grid(True, linestyle=":")
+    #ax_corr_dist.set_yticklabels(["-1","","0","","1"])
+    ax_corr_dist.set_ylabel("Correlation",labelpad=-1)
+    ax_corr_dist.set_xlabel("Intersource distance (mm)", labelpad=-1)
+    plt.tight_layout(pad=0,w_pad=0,h_pad=1)
+
+    return ax_plume, ax_trace, ax_corr_dist
+
+
 def plot_correlations(rho, 
                       xl = (-50, 50),
                       slices = {"all":slice(1,10000), "first":slice(1,2),   "second":slice(10,11)},
@@ -357,75 +432,3 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     plt.tight_layout(pad=0)
 
     
-def plot_plumes_demo(F, t_snapshot, 
-                     which_keys,
-                     data_dir = "./data",
-                     which_idists = [0,1,2],
-                     t_wnd = [-4,4],
-                     y_lim = (0,3),
-                     dt = 0.5
-):
-    fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
-    plt.figure(figsize=(8,3))
-    gs = GridSpec(3,3)
-    ax_plume = plt.subplot(gs[:,0])
-    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
-    ax_plume.matshow(pp, extent = F.sim0.x_lim + F.sim0.y_lim)
-    px, py = F.sim0.get_used_probe_coords()[0]
-    ax_plume.plot(px, py, "kx", markersize=5)
-    ax_plume.xaxis.set_ticks_position('bottom')
-    ax_plume.axis("auto")
-    plt.xlabel("x (m)", labelpad=-1)
-    plt.ylabel("y (m)", labelpad=-1)
-    #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
-    
-    dists  = np.array(sorted(F.sims.keys()))
-    middle = np.mean(dists)
-    dists  = dists[dists>middle]
-    t_lim  = np.array(t_wnd) + t_snapshot
-    ax_trace = []
-    for i, di in enumerate(which_idists):
-        ax_trace.append(plt.subplot(gs[i,1]))
-        d_mid = int(dists[di] - middle)
-        a = F.sims[middle + d_mid].data.flatten()
-        b = F.sims[middle - d_mid].data.flatten()
-        t = F.sim0.t
-        sc = max(a.std(), b.std())
-        a /= sc
-        b /= sc
-        ax_trace[-1].plot(t,a,color="r", label=f"{middle + d_mid}", linewidth=1)
-        ax_trace[-1].plot(t,b,color="b", label=f"{middle - d_mid}", linewidth=1)
-        (i < 2) and ax_trace[-1].set_xticklabels([])
-        (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
-        fpft.spines_off(ax_trace[-1])
-        ax_trace[-1].set_xlim(*t_lim)
-        ax_trace[-1].set_xticks(np.arange(t_lim[0],t_lim[-1]+0.01,dt))
-        ax_trace[-1].set_ylim(*y_lim)
-        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
-        ax_trace[-1].tick_params(axis='both', labelsize=8)
-        ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
-        #ax_trace[-1].legend(frameon=False,labelspacing=0,fontsize=6)
-        wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
-        aw, bw = wndf(a), wndf(b)
-        ρ_w = np.corrcoef(aw,bw)[0,1]
-        ρ   = np.corrcoef(a, b)[0,1]
-        # text(tlim[0], yl[1], f"$\Delta$ = {2*dists[di]/1000:g} mm\n$\\rho$ = {ρ_w:1.3f} (window)\n$\\rho$ = {ρ:1.3f} (all)", fontsize=6, verticalalignment="top")
-        plt.title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
-
-        
-    ax_corr_dist = plt.subplot(gs[:,-1])
-    rho   = F.rho
-    dists = np.array(sorted(list(rho.keys()))) 
-    rho   = {d:rho[d][0] for d in dists} # Take the raw data, not the bootstraps
-    rhom  = np.array([np.mean(np.sum(rho[d],axis=0)) for d in dists])
-    rhos  = np.array([ np.std(np.sum(rho[d],axis=0)) for d in dists])
-    col   = "gray"
-    plt.fill_between(dists/1000, rhom-rhos,rhom+rhos, color=fpft.set_alpha(mpl.colors.to_rgba(col),0.2));
-    fpft.pplot(dists/1000, rhom , "o-", markersize=4,color=col);
-    ax_corr_dist.grid(True, linestyle=":")
-    #ax_corr_dist.set_yticklabels(["-1","","0","","1"])
-    ax_corr_dist.set_ylabel("Correlation",labelpad=-1)
-    ax_corr_dist.set_xlabel("Intersource distance (mm)", labelpad=-1)
-    plt.tight_layout(pad=0,w_pad=0,h_pad=1)
-
-    return ax_plume, ax_trace, ax_corr_dist
