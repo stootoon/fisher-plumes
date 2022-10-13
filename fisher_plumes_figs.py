@@ -275,11 +275,15 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       n_contours = 12, contours_cmap=cm.gray,
                                       plot_scatter = True,
                                       plot_legend = True,
+                                      log_scale = False,
+                                      xt = None,
+                                      yt = None,
                                       scatter_alpha= 0.8, scatter_size=3,
                                       colfun = lambda f: freq2col(f, 10, cmap=cm.cool_r)
 ):
-    γbs = F.fit_params[:, which_fis, 1]/d_scale
-    kbs = F.fit_params[:, which_fis, 2]
+    fun = np.log10 if log_scale else (lambda X: X)
+    γbs = fun(F.fit_params[:, which_fis, 1]/d_scale)
+    kbs = fun(F.fit_params[:, which_fis, 2])
     freqs = np.arange(F.wnd)/F.wnd*F.fs
 
     if plot_scatter:
@@ -303,18 +307,41 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                labelspacing=0,
                frameon=False,
                fontsize=6,
-               loc='lower left'
     )
     
-    xl = plt.xlim()
-    yl = plt.ylim()
+    xl = list(plt.xlim())
+    if xt is not None:
+        xl[0] = min(xl[0], np.min(xt))
+        xl[1] = max(xl[1], np.max(xt))
+        
+    yl = list(plt.ylim())
+    if yt is not None:
+        yl[0] = min(yl[0], np.min(yt))
+        yl[1] = max(yl[1], np.max(yt))
 
     if n_contours:
         contours_dist_mm = np.array(contours_dist)/d_scale
         γγ, kk = np.meshgrid(np.linspace(*xl, 101), np.linspace(*yl,101))
-        I = 2*np.log10(kk) - kk*np.log10(γγ) + (kk - 2) * np.log10(contours_dist_mm)
+        if log_scale:
+            I = 2*kk - (10**kk)*γγ + (10**kk - 2) * np.log10(contours_dist_mm)
+        else:
+            I = 2*np.log10(kk) - kk*np.log10(γγ) + (kk - 2) * np.log10(contours_dist_mm)
         plt.contourf(γγ, kk, I, n_contours, cmap=contours_cmap)  
 
+    if xt is None:
+        xt = plt.xticks()[0];
+    else:
+        plt.xticks(xt, labels=[f"{(10**xti) if log_scale else xti:g}" for xti in xt])
+
+    if yt is None:
+        yt = plt.yticks()[0];
+    else:
+        plt.yticks(yt, labels=[f"{(10**yti) if log_scale else yti:g}" for yti in yt])
+        
+    #if yt is None: yt = plt.yticks()[0];
+    #log_scale and plt.gca().set_yticklabels([f"{10**yti:0.1f}" for yti in yt])
+    
+        
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
     plt.xlabel("Length Scale $\gamma_n$ (mm)")
@@ -325,7 +352,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
 def plot_la_gen_fits_vs_distance(F, 
                                  d_scale = 1000, which_ifreqs = [1,2,3,4],
                                  figsize = None, legloc = None, xl = None,
-                                 colfun = lambda f: freq2col(f, 10)
+                                 colfun = lambda f: freq2col(f, 10),
+                                 **kwargs
 ):
 
     (figsize is not None) and plt.figure(figsize=figsize)
@@ -358,7 +386,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, d_scale = d_scale, n_contours = 0)
+    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, d_scale = d_scale, n_contours = 0, **kwargs)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
@@ -378,7 +406,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         ifreq_to_freq = 1,
         fi_scale = 1000,
         plot_fun = plt.plot,
-        colfun = lambda f: cm.cool_r(f/10.)        
+        colfun = lambda f: cm.cool_r(f/10.),
+        **kwargs
 ):
 
     d_ranges = [d_lim] if d_range is None else [d_range]
@@ -394,7 +423,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
                                           n_contours = 12, contours_cmap=cm.gray,
                                           plot_legend = (i==0),
                                           plot_scatter = False,
-                                          colfun = colfun)
+                                          colfun = colfun, **kwargs)
         ax.set_title(f"{d/d_scale:g} mm")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
             
