@@ -432,21 +432,20 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 
         Ibs = F.compute_fisher_information_at_distances(d).transpose([2,1,0]) # freq x bs x dist
         Ibs  *= d_scale**2 # To get it in units of mm^{-2}
-        Imean = np.mean(Ibs, axis=1) # Bootstrap mean
-        Istd  = np.std (Ibs, axis=1)
-
+        Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
+        
         plt.subplot(gs[:3,:])        
-        for i, (fi, Im, Is) in enumerate(zip(which_ifreqs, Imean[which_ifreqs], Istd[which_ifreqs])):
+        for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
             x = x_stagger(d/d_scale,i)
             plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
-            plot_fun([x, x], [Im-Is*3, Im+Is*3], color = fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
+            plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
 
-        Isort = np.argsort(Imean[1:],axis=0) # [1:] to skip DC
+        Isort = np.argsort(Imed[1:],axis=0) # [1:] to skip DC
         best_freqs        = Isort[-1] + 1
         second_best_freqs = Isort[-2] + 1
         p_vals = np.array([ttest_1samp(Ibs[best_freq, :, di] -  Ibs[second_best_freq,:,di],0, alternative='greater')[1]
                   for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
-        for i, (bf,p,Im) in enumerate(zip(best_freqs, p_vals, Imean[best_freqs[0]])):
+        for i, (bf,p,Im) in enumerate(zip(best_freqs, p_vals, Imed[best_freqs[0]])):
             if bf == best_freqs[0]:
                n_stars = int(np.floor(-np.log10(p)))
                di = x_stagger(d[i]/d_scale,bf)
