@@ -11,10 +11,55 @@ import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
 
+import utils
+
+logger = utils.create_logger("fisher_plumes_tools")
+logger.setLevel(logging.DEBUG)
+
+INFO  = logger.info
+WARN  = logger.warning
+DEBUG = logger.debug
+
 
 scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
+
+def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None, cols=["r","b"]):
+    dists  = np.array(sorted(F.sims.keys()))
+    middle = np.mean(dists)        
+    dists  = dists[dists>middle]
+       
+    ax_trace = []
+    for i, di in enumerate(which_idists):
+        ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
+        d_mid = int(dists[di] - middle)
+        a = F.sims[middle + d_mid].data.flatten()
+        b = F.sims[middle - d_mid].data.flatten()
+        t = F.sim0.t
+        sc = max(a.std(), b.std())
+        a /= sc
+        b /= sc
+        ax_trace[-1].plot(t,a,color=cols[0], label=f"{middle + d_mid}", linewidth=1)
+        ax_trace[-1].plot(t,b,color=cols[1], label=f"{middle - d_mid}", linewidth=1)
+        (i < 2) and ax_trace[-1].set_xticklabels([])
+        (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
+        fpft.spines_off(ax_trace[-1])
+        ax_trace[-1].set_xlim(*t_lim)
+        ax_trace[-1].set_xticks(np.arange(t_lim[0],t_lim[-1]+0.01,dt))
+        y_lim is not None and ax_trace[-1].set_ylim(*y_lim)
+        y_lim = ax_trace[-1].get_ylim()
+        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
+        ax_trace[-1].tick_params(axis='both', labelsize=8)
+        ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
+        wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
+        aw, bw = wndf(a), wndf(b)
+        ρ_w = np.corrcoef(aw,bw)[0,1]
+        ρ   = np.corrcoef(a, b)[0,1]
+        ax_trace[-1].set_title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
+
+    return ax_trace
+
 
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
@@ -38,39 +83,9 @@ def plot_plumes_demo(F, t_snapshot,
     plt.ylabel("y (m)", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
     
-    dists  = np.array(sorted(F.sims.keys()))
-    middle = np.mean(dists)
-    dists  = dists[dists>middle]
-    t_lim  = np.array(t_wnd) + t_snapshot
-    ax_trace = []
-    for i, di in enumerate(which_idists):
-        ax_trace.append(plt.subplot(gs[i,1]))
-        d_mid = int(dists[di] - middle)
-        a = F.sims[middle + d_mid].data.flatten()
-        b = F.sims[middle - d_mid].data.flatten()
-        t = F.sim0.t
-        sc = max(a.std(), b.std())
-        a /= sc
-        b /= sc
-        ax_trace[-1].plot(t,a,color="r", label=f"{middle + d_mid}", linewidth=1)
-        ax_trace[-1].plot(t,b,color="b", label=f"{middle - d_mid}", linewidth=1)
-        (i < 2) and ax_trace[-1].set_xticklabels([])
-        (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
-        fpft.spines_off(ax_trace[-1])
-        ax_trace[-1].set_xlim(*t_lim)
-        ax_trace[-1].set_xticks(np.arange(t_lim[0],t_lim[-1]+0.01,dt))
-        ax_trace[-1].set_ylim(*y_lim)
-        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
-        ax_trace[-1].tick_params(axis='both', labelsize=8)
-        ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
-        #ax_trace[-1].legend(frameon=False,labelspacing=0,fontsize=6)
-        wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
-        aw, bw = wndf(a), wndf(b)
-        ρ_w = np.corrcoef(aw,bw)[0,1]
-        ρ   = np.corrcoef(a, b)[0,1]
-        # text(tlim[0], yl[1], f"$\Delta$ = {2*dists[di]/1000:g} mm\n$\\rho$ = {ρ_w:1.3f} (window)\n$\\rho$ = {ρ:1.3f} (all)", fontsize=6, verticalalignment="top")
-        plt.title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
-
+    ax_trace = plot_two_plumes(F, which_idists, t_lim  = np.array(t_wnd) + t_snapshot,
+                               dt = dt, y_lim = y_lim,
+                               axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)])
         
     ax_corr_dist = plt.subplot(gs[:,-1])
     rho   = F.rho
@@ -140,7 +155,7 @@ def plot_correlations(rho,
 def plot_coef1_vs_coef2(coefs, ifreq, pairs,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],
-                        dist_col_scale = 120000,
+                        dist_col_scale = 120000, axes = None,
                         
 ):
     if type(coefs) is not list: coefs = [coefs]
@@ -156,8 +171,11 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
     which_d = [dists[dists>0][i] for i in i_pos_dists_to_plot]
 
     dist2col_ = lambda d: dist2col(d,dist_col_scale)
+    if (axes is not None) and len(axes) != len(which_d):
+        raise ValueError("Number of axes provided {len(axes)} != number of distances {len(which_d)}.")
+    
     for i, d in enumerate(which_d):
-        plt.subplot(1,3,i+1)
+        plt.subplot(1,3,i+1) if axes is None else plt.sca(axes[i])
         U,S,_ = np.linalg.svd(np.cov(pooled1[d]))
         p0 = pooled1[d][0]
         p1 = pooled1[d][1]
@@ -179,7 +197,17 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
         plt.title(f"{d/1000:g} mm")
         plt.grid(True)    
 
-
+def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,21], y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
+    n_dists = len(idists_to_plot)
+    n_rows  = int(np.ceil(n_dists/n_per_row))
+    gs      = GridSpec(n_rows, (1 + rel_trace_width)*n_per_row)
+    trace_axes = [plt.subplot(gs[i//n_per_row,
+                                 1 + (1 + rel_trace_width)*(i % n_per_row):1+rel_trace_width + (1 + rel_trace_width)*(i % n_per_row)]) for i,_ in enumerate(idists_to_plot)]
+    coef_axes  = [plt.subplot(gs[i//n_per_row, (1 + rel_trace_width)*(i % n_per_row)]) for i,_ in enumerate(idists_to_plot)]
+    plot_coef1_vs_coef2([F.ss, F.cc], F.freqs2inds([freq])[0], F.pairs, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_two_plumes(F, idists_to_plot, t_lim, dt = dt, y_lim = y_lim, axes = trace_axes)
+    return coef_axes, trace_axes
+    
 def plot_alaplace_fits(F, which_dists,
                        ifreq_lim = [], xl = [-0.2,0.5], which_ifreq = 1, 
                        figsize=None, vmax=None,
