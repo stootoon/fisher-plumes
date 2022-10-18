@@ -12,6 +12,7 @@ import fisher_plumes_tools as fpt
 from boulder import concs2rgb
 
 import utils
+import logging
 
 logger = utils.create_logger("fisher_plumes_tools")
 logger.setLevel(logging.DEBUG)
@@ -25,23 +26,27 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None, cols=["r","b"]):
-    dists  = np.array(sorted(F.sims.keys()))
-    middle = np.mean(dists)        
-    dists  = dists[dists>middle]
-       
+def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+    dists  = np.array(sorted(F.rho.keys()))       
+    if pos_dists: dists  = dists[dists>0]
     ax_trace = []
     for i, di in enumerate(which_idists):
         ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
-        d_mid = int(dists[di] - middle)
-        a = F.sims[middle + d_mid].data.flatten()
-        b = F.sims[middle - d_mid].data.flatten()
+        p = F.pairs[dists[di]]        
+        if centered:
+            balance = [np.exp(np.abs(np.log(np.abs(x/y)))) for (x,y) in p]
+            ipair   = np.argmin(balance) # Find the pair where x~y
+        else:
+            ipair = 0
+        ia, ib = p[ipair]
+        a = F.sims[ia].data.flatten()
+        b = F.sims[ib].data.flatten()
         t = F.sim0.t
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
-        ax_trace[-1].plot(t,a,color=cols[0], label=f"{middle + d_mid}", linewidth=1)
-        ax_trace[-1].plot(t,b,color=cols[1], label=f"{middle - d_mid}", linewidth=1)
+        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/1000:g} mm", linewidth=1)
+        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/1000:g} mm", linewidth=1)
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])
@@ -56,7 +61,7 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         aw, bw = wndf(a), wndf(b)
         ρ_w = np.corrcoef(aw,bw)[0,1]
         ρ   = np.corrcoef(a, b)[0,1]
-        ax_trace[-1].set_title(f"$\Delta$ = {2*d_mid/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
+        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
 
     return ax_trace
 
@@ -201,9 +206,12 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,
     n_dists = len(idists_to_plot)
     n_rows  = int(np.ceil(n_dists/n_per_row))
     gs      = GridSpec(n_rows, (1 + rel_trace_width)*n_per_row)
-    trace_axes = [plt.subplot(gs[i//n_per_row,
-                                 1 + (1 + rel_trace_width)*(i % n_per_row):1+rel_trace_width + (1 + rel_trace_width)*(i % n_per_row)]) for i,_ in enumerate(idists_to_plot)]
-    coef_axes  = [plt.subplot(gs[i//n_per_row, (1 + rel_trace_width)*(i % n_per_row)]) for i,_ in enumerate(idists_to_plot)]
+    
+    gs_trace_fun = lambda i: gs[i//n_per_row, 1 + (1 + rel_trace_width)*(i % n_per_row):1+rel_trace_width + (1 + rel_trace_width)*(i % n_per_row)]
+    gs_coef_fun  = lambda i: gs[i//n_per_row, (1 + rel_trace_width)*(i % n_per_row)]
+    trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
+    coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
+    
     plot_coef1_vs_coef2([F.ss, F.cc], F.freqs2inds([freq])[0], F.pairs, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
