@@ -222,6 +222,7 @@ def plot_alaplace_fits(F, which_dists,
                        cm_heat = cm.rainbow,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
+                       d_scale = 1, 
                        plot_dvals = False):
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -252,7 +253,7 @@ def plot_alaplace_fits(F, which_dists,
         plt.xlim(xl)
 
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
-        plt.title(f"{d/1000:g} mm")
+        plt.title(f"{d/d_scale:g} mm")
 
         if plot_dvals:
             rx = np.array(sorted(rr))
@@ -289,20 +290,20 @@ def plot_alaplace_fits(F, which_dists,
         ifreq_lim = [0, p.shape[0]]
     p = p[ifreq_lim[0]:ifreq_lim[1],:]
     plt.matshow(-np.log10(p), #+np.min(p[p>0])/10),
-            extent = [(pdists[0]-dd/2)/1000, (pdists[-1]+dd/2)/1000, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
+            extent = [(pdists[0]-dd/2)/d_scale, (pdists[-1]+dd/2)/d_scale, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
                 vmin=0, vmax=vmax,fignum=False, cmap=cm_heat, origin="lower");
     
-    [plt.plot(d/1000, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
+    [plt.plot(d/d_scale, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
     plt.gca().xaxis.set_ticks_position("bottom")
-    (not heatmap_default_xticks) and plt.gca().set_xticks(pdists/1000)
+    (not heatmap_default_xticks) and plt.gca().set_xticks(pdists/d_scale)
     plt.xticks(rotation=45, fontsize=8)    
     plt.xlabel("Distance (mm)")
     plt.ylabel("Frequency (Hz)", labelpad=-1)
     plt.title("Mismatch",pad=-2)
     plt.axis("auto")
     plt.colorbar()
-    pdmax = pdists[np.argmin(np.abs(pdists - 100*1000))]
-    plt.xlim((pdists[0]-dd/2)/1000,min((pdmax+dd/2)/1000, heatmap_xmax)) #pdists[-1]/1000-0.5)
+    pdmax = pdists[np.argmin(np.abs(pdists - 100*d_scale))]
+    plt.xlim((pdists[0]-dd/2)/d_scale,min((pdmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
 
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
         
