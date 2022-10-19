@@ -450,7 +450,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 ):
 
     d0,d1 = d_lim
-    dd = d_space_fun(d0, d1,11) if d_range is None else np.array(d_range)
+    dd = d_space_fun(d0, d1,101)
+    INFO(f"{dd[0]=:g}, {dd[-1]=:g}")
     Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
     Idd_med = np.median(Idd[1:],axis=0) * d_scale**2
 
@@ -476,23 +477,24 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 
     
     plt.subplot(gs[:3,:])
-    Ilow, Imed, Ihigh = np.array([F.I_pcs[k] for k in sorted(F.I_pcs)])
+    Ilow, Imed, Ihigh = np.array([F.I_pcs[k] for k in sorted(F.I_pcs)]) * d_scale**2
     for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
         plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
-        #plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        x = x_stagger(F.I_dists/d_scale, i)
+        plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(F.freqs[fi]))        
+        plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
     for i, (bf,p) in enumerate(zip(F.I_best_freqs, F.I_pvals)):
-        pass
-    #     if bf in [best_freqs[0], best_freqs[-1]]:
-    #         n_stars = int(np.floor(-np.log10(p)))
-    #         di = x_stagger(dd[i]/d_scale,bf)
-    #         Im = Imed[bf][i]            
-    #         if (n_stars>0):
-    #             print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
-    #         plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
+        if bf in [F.I_best_freqs[0], F.I_best_freqs[-1]]:
+            n_stars = int(np.floor(-np.log10(p)))
+            di = x_stagger(F.I_dists[i]/d_scale,bf)
+            Im = Imed[bf][i]            
+            if (n_stars>0):
+                print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
+            plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
     
-    # plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
+    plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     plt.xlabel("Distance (mm)", labelpad=-1)
     fpft.spines_off(plt.gca())

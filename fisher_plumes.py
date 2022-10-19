@@ -194,9 +194,15 @@ class FisherPlumes:
                                                                           self.fit_params[:,:,1],
                                                                           self.fit_params[:,:,2]) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
 
-    def compute_fisher_information(self):
+    def compute_fisher_information(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information.")
-        d_vals = list(sorted(self.la.keys()))
+        d_vals = [d for d in list(sorted(self.la.keys())) if d>0]
+        if len(d_add): d_vals += d_add
+        d_vals = sorted(list(set(d_vals)))
+        if d_min < d_vals[0]: d_vals = [d_min] + d_vals
+        if d_max > d_vals[-1]: d_vals.append(d_max)
+        INFO(f"Evaluating at distances: {d_vals}.")
+        
         self.I_dists = np.array(d_vals)
         self.I = self.compute_fisher_information_at_distances(d_vals)
         pcs = [5, 50, 95]
