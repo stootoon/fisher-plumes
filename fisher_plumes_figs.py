@@ -290,7 +290,7 @@ def plot_alaplace_fits(F, which_dists,
     p = p[ifreq_lim[0]:ifreq_lim[1],:]
     plt.matshow(-np.log10(p), #+np.min(p[p>0])/10),
             extent = [(pdists[0]-dd/2)/1000, (pdists[-1]+dd/2)/1000, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
-                vmin=0, vmax=vmax,fignum=False, cmap=cm_heat, origin="ij");
+                vmin=0, vmax=vmax,fignum=False, cmap=cm_heat, origin="lower");
     
     [plt.plot(d/1000, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
     plt.gca().xaxis.set_ticks_position("bottom")
@@ -312,6 +312,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       plot_scatter = True,
                                       plot_legend = True,
                                       log_scale = False,
+                                      label_color = "black",
                                       xt = None,
                                       yt = None,
                                       scatter_alpha= 0.8, scatter_size=3,
@@ -340,9 +341,10 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         hmus.append(hmui)
 
         plot_legend and plt.legend(handles = hmus, labels=[f"{freqs[fi]:g} Hz" for fi in which_fis],
-               labelspacing=0,
-               frameon=False,
-               fontsize=6,
+                                   labelcolor = label_color,
+                                   labelspacing=0,
+                                   frameon=False,
+                                   fontsize=6,
     )
     
     xl = list(plt.xlim())
@@ -459,7 +461,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/4.)
     
-    print(which_ifreqs)
+    INFO(f"Plotting {which_ifreqs=}.")
     n_dvals = len(d_vals)
     gs      = GridSpec(5,n_dvals)
 
@@ -470,6 +472,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
                                           n_contours = 12, contours_cmap=cm.gray,
                                           plot_legend = (i==0),
                                           plot_scatter = False,
+                                          label_color = "white",
                                           colfun = colfun, **kwargs)
         ax.set_title(f"{d/d_scale:g} mm")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
@@ -491,7 +494,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
             di = x_stagger(F.I_dists[i]/d_scale,bf)
             Im = Imed[bf][i]            
             if (n_stars>0):
-                print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
+                INFO(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
             plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
     
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
