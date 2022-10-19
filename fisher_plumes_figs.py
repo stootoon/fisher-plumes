@@ -408,12 +408,14 @@ def plot_la_gen_fits_vs_distance(F,
         row   = i // 2
         col   = i % 2
         ax.append(plt.subplot(gs[row, col]))
-        la_mean = np.array([np.mean(F.la[d][1:, fi]) for d in dd_all])
-        la_sd   = np.array([np.std(F.la[d][1:, fi]) for d in dd_all])
-        ax[-1].plot(dx, la_mean, "o:", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz")
-        ax[-1].plot([dx,dx], [la_mean - la_sd, la_mean+la_sd], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        X = np.stack([F.la[d][1:, fi] for d in dd_all],axis=1) # 1: is to take the bootstraps (0 is the raw data)
+        la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
+        ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz")
+        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
         for j in range(min(5, F.n_bootstraps)):
-            ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[1+j][fi])), color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+            ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[1+j][fi])),
+                        color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
+                        linewidth=1, zorder=-5)
         (row == 1) and plt.xlabel("Distance $s$ (mm)")
         (col == 0) and plt.ylabel("$\lambda_n(s)$")        
         (xl is not None) and plt.xlim(xl)
@@ -433,8 +435,8 @@ def plot_la_gen_fits_vs_distance(F,
 def plot_fisher_information(#amps, sds, slope, intercept,
         F,
         d_lim=[1e-3,100],
-        d_vals = [0.1,1,10],
         d_range = None,
+        d_vals = [0.1,1,10],
         d_scale = 1,
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
@@ -442,19 +444,38 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         ifreq_to_freq = 1,
         fi_scale = 1000,
         plot_fun = plt.plot,
+        freq_max = np.inf,
         colfun = lambda f: cm.cool_r(f/10.),
         **kwargs
 ):
 
-    d_ranges = [d_lim] if d_range is None else [d_range]
-    assert len(d_ranges)==1, f"Expected only one d_range, got {len(d_ranges)=}."
+    d0,d1 = d_lim
+    dd = d_space_fun(d0, d1,11) if d_range is None else np.array(d_range)
 
+    Ibs = F.compute_fisher_information_at_distances(dd).transpose([2,1,0]) # freq x bs x dist
+    Ibs  *= d_scale**2 # To get it in units of mm^{-2}
+    Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
+
+    ifreq_max = F.freqs2inds([freq_max])[0]
+    Isort = np.argsort(Imed[1:ifreq_max+1],axis=0) # [1:] to skip DC
+
+    best_freqs        = Isort[-1] + 1
+    second_best_freqs = Isort[-2] + 1
+    
+    p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di] , Ibs[second_best_freq,:,di], alternative='greater')[1]
+              for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
+
+    which_ifreqs = [ifreq[0] for ifreq in [best_freqs, second_best_freqs]] + [ifreq[-1] for ifreq in [best_freqs, second_best_freqs]]
+    
+    colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/4.)
+    
+    print(which_ifreqs)
     n_dvals = len(d_vals)
     gs      = GridSpec(5,n_dvals)
 
     for i, d in enumerate(d_vals):
         ax = plt.subplot(gs[3:,i])
-        plot_gen_exp_parameter_fits_panel(F, np.arange(1,11), contours_dist = d,
+        plot_gen_exp_parameter_fits_panel(F, which_ifreqs, contours_dist = d,
                                           d_scale = d_scale,
                                           n_contours = 12, contours_cmap=cm.gray,
                                           plot_legend = (i==0),
@@ -463,29 +484,21 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         ax.set_title(f"{d/d_scale:g} mm")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
             
-    for i, (d0, d1) in enumerate(d_ranges):
-        d = d_space_fun(d0, d1,11)
 
-        Ibs = F.compute_fisher_information_at_distances(d).transpose([2,1,0]) # freq x bs x dist
-        Ibs  *= d_scale**2 # To get it in units of mm^{-2}
-        Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
-        
-        plt.subplot(gs[:3,:])        
-        for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
-            x = x_stagger(d/d_scale,i)
-            plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
-            plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
+    plt.subplot(gs[:3,:])
+    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
+        x = x_stagger(dd/d_scale,i)
+        plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
+        plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
-        Isort = np.argsort(Imed[1:],axis=0) # [1:] to skip DC
-        best_freqs        = Isort[-1] + 1
-        second_best_freqs = Isort[-2] + 1
-        p_vals = np.array([ttest_1samp(Ibs[best_freq, :, di] -  Ibs[second_best_freq,:,di],0, alternative='greater')[1]
-                  for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
-        for i, (bf,p,Im) in enumerate(zip(best_freqs, p_vals, Imed[best_freqs[0]])):
-            if bf == best_freqs[0]:
-               n_stars = int(np.floor(-np.log10(p)))
-               di = x_stagger(d[i]/d_scale,bf)
-               plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
+    for i, (bf,p) in enumerate(zip(best_freqs, p_vals)):
+        if bf in [best_freqs[0], best_freqs[-1]]:
+            n_stars = int(np.floor(-np.log10(p)))
+            di = x_stagger(dd[i]/d_scale,bf)
+            Im = Imed[bf][i]            
+            if (n_stars>0):
+                print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
+            plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
     
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
@@ -494,5 +507,6 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         
 
     plt.tight_layout(pad=0)
+    return Ibs
 
     

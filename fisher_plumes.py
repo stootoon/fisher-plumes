@@ -1,5 +1,6 @@
 import os, sys
 import numpy as np
+from scipy.stats import mannwhitneyu
 import logging
 from copy import deepcopy
 
@@ -25,7 +26,7 @@ class FisherPlumes:
             del kwargs[req]
         return *vals, kwargs
 
-    def __init__(self, sim_name, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, freq_max = np.inf, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if type(sim_name) is not str:
             INFO(f"{sim_name=} was not a string, assuming it's a FisherPlumes object.")
             other = sim_name
@@ -39,6 +40,7 @@ class FisherPlumes:
             self.pairs_mode = other.pairs_mode            
             self.sim0  = deepcopy(other.sim0)
             self.wnd   = other.wnd
+            self.freq_max = other.freq_max
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = other.sim0.__dict__[fld]
             INFO(f"Copied data fields from FisherPlumes object.")
@@ -57,6 +59,7 @@ class FisherPlumes:
             self.yvals = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
+            self.freq_max = freq_max
             self.sim0 = self.sims[self.yvals[0]]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
@@ -131,7 +134,7 @@ class FisherPlumes:
         self.create_pooling_functions()
 
         EE    = np.array([[1,-1],[1,1]])/np.sqrt(2)
-        compute_variances = lambda X: np.sort(np.var(np.dot(EE.T,X),axis=1))
+        compute_variances = lambda X: np.var(np.dot(EE.T,X),axis=1)
 
         dists = sorted(list(self.pairs.keys()))
         self.la, self.mu = {d:[] for d in dists}, {d:[] for d in dists}
@@ -143,8 +146,9 @@ class FisherPlumes:
                 data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
                 vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
                 # Append the data for this frequency
-                self.mu[d].append(vars[0]) #[0], [1] because the lambda values are sorted                
-                self.la[d].append(vars[1])
+                self.la[d].append(vars[0]) # Projection along (1,1)             
+                self.mu[d].append(vars[1]) # Projection along (1,-1)
+
     
         for d in dists:
             self.la[d] = np.array(self.la[d]).T # .T for bootstraps x data
@@ -192,7 +196,19 @@ class FisherPlumes:
 
     def compute_fisher_information(self):
         d_vals = list(self.la.keys())
-        I = self.compute_fisher_information_at_distances(d_vals)
+        self.I_dvals = d_vals
+        self.I = self.compute_fisher_information_at_distances(d_vals).transpose([1,2,0]) # bs * freq * dists
+        Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
+        
+        ifreq_max = F.freqs2inds([self.freq_max])[0]
+        Isort = np.argsort(Imed[1:ifreq_max+1],axis=0) # [1:] to skip DC
+
+        best_freqs        = Isort[-1] + 1
+        second_best_freqs = Isort[-2] + 1
+    
+        p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di] , Ibs[second_best_freq,:,di], alternative='greater')[1]
+                           for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
+        
         self.fisher_information = {d:Id for d, Id in zip(d_vals, I)}
                                    
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
