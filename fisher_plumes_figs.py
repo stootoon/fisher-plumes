@@ -451,21 +451,10 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 
     d0,d1 = d_lim
     dd = d_space_fun(d0, d1,11) if d_range is None else np.array(d_range)
+    Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
+    Idd_med = np.median(Idd[1:],axis=0) * d_scale**2
 
-    Ibs = F.compute_fisher_information_at_distances(dd).transpose([2,1,0]) # freq x bs x dist
-    Ibs  *= d_scale**2 # To get it in units of mm^{-2}
-    Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
-
-    ifreq_max = F.freqs2inds([freq_max])[0]
-    Isort = np.argsort(Imed[1:ifreq_max+1],axis=0) # [1:] to skip DC
-
-    best_freqs        = Isort[-1] + 1
-    second_best_freqs = Isort[-2] + 1
-    
-    p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di] , Ibs[second_best_freq,:,di], alternative='greater')[1]
-              for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
-
-    which_ifreqs = [ifreq[0] for ifreq in [best_freqs, second_best_freqs]] + [ifreq[-1] for ifreq in [best_freqs, second_best_freqs]]
+    which_ifreqs = [ifreq[0] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]] + [ifreq[-1] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]]
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/4.)
     
@@ -485,28 +474,31 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
             
 
-    plt.subplot(gs[:3,:])
-    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
-        x = x_stagger(dd/d_scale,i)
-        plot_fun(x, Im, "o-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
-        plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
-
-    for i, (bf,p) in enumerate(zip(best_freqs, p_vals)):
-        if bf in [best_freqs[0], best_freqs[-1]]:
-            n_stars = int(np.floor(-np.log10(p)))
-            di = x_stagger(dd[i]/d_scale,bf)
-            Im = Imed[bf][i]            
-            if (n_stars>0):
-                print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
-            plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
     
-    plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
+    plt.subplot(gs[:3,:])
+    Ilow, Imed, Ihigh = np.array([F.I_pcs[k] for k in sorted(F.I_pcs)])
+    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
+        x = x_stagger(dd/d_scale, i)
+        plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
+        #plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+
+    for i, (bf,p) in enumerate(zip(F.I_best_freqs, F.I_pvals)):
+        pass
+    #     if bf in [best_freqs[0], best_freqs[-1]]:
+    #         n_stars = int(np.floor(-np.log10(p)))
+    #         di = x_stagger(dd[i]/d_scale,bf)
+    #         Im = Imed[bf][i]            
+    #         if (n_stars>0):
+    #             print(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
+    #         plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
+    
+    # plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     plt.xlabel("Distance (mm)", labelpad=-1)
     fpft.spines_off(plt.gca())
         
 
     plt.tight_layout(pad=0)
-    return Ibs
+    return Idd, Idd_med
 
     

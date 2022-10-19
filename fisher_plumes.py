@@ -184,7 +184,7 @@ class FisherPlumes:
             DEBUG(f"{self.fit_params.shape=}.")
             # Stack the given amplitudes on top of the learned parameters so that the
             # shapes are the same whether we learn the amplitudes or not.
-            self.fit_params = np.stack([self.amps_for_freqs, self.fit_params[:,:,0], self.fit_params[:,:,1]], axis=2)
+            self.fit_params = np.stack([self.amps_for_freqs] + [self.fit_params[:,:,i] for i in range(self.fit_params.shape[-1])], axis=2)
                                          
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
         self.dd_fit = dd
@@ -192,24 +192,25 @@ class FisherPlumes:
     def compute_fisher_information_at_distances(self, which_ds):
         return np.array([fpt.compute_fisher_information_for_gen_exp_decay(d,
                                                                           self.fit_params[:,:,1],
-                                                                          self.fit_params[:,:,2]) for d in which_ds])
+                                                                          self.fit_params[:,:,2]) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
 
     def compute_fisher_information(self):
-        d_vals = list(self.la.keys())
-        self.I_dvals = d_vals
-        self.I = self.compute_fisher_information_at_distances(d_vals).transpose([1,2,0]) # bs * freq * dists
-        Ilow,Imed,Ihigh = np.percentile(Ibs, [5, 50, 95], axis=1)
+        INFO(f"Computing Fisher information.")
+        d_vals = list(sorted(self.la.keys()))
+        self.I_dists = np.array(d_vals)
+        self.I = self.compute_fisher_information_at_distances(d_vals)
+        pcs = [5, 50, 95]
+        self.I_pcs = {pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(self.I[1:], pcs, axis=0))}
         
-        ifreq_max = F.freqs2inds([self.freq_max])[0]
-        Isort = np.argsort(Imed[1:ifreq_max+1],axis=0) # [1:] to skip DC
-
-        best_freqs        = Isort[-1] + 1
-        second_best_freqs = Isort[-2] + 1
-    
-        p_vals = np.array([mannwhitneyu(Ibs[best_freq, :, di] , Ibs[second_best_freq,:,di], alternative='greater')[1]
-                           for di, (best_freq, second_best_freq) in enumerate(zip(best_freqs, second_best_freqs))])
+        ifreq_max = self.freqs2inds([self.freq_max])[0]
+        Isort = np.argsort(self.I_pcs[50][1:ifreq_max+1],axis=0) # [1:] to skip DC
         
-        self.fisher_information = {d:Id for d, Id in zip(d_vals, I)}
+        self.I_best_freqs        = Isort[-1] + 1
+        self.I_second_best_freqs = Isort[-2] + 1
+        self.I_pvals = np.array([mannwhitneyu(self.I[:, best_freq, di] , self.I[:, second_best_freq,di], alternative='greater')[1]
+                               for di, (best_freq, second_best_freq) in enumerate(zip(self.I_best_freqs, self.I_second_best_freqs))])
+        
+        self.I_dict = {d:Id for d, Id in zip(d_vals, self.I)}
                                    
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
         self.set_window(wnd)
@@ -220,6 +221,7 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_la_gen_fit_to_distance(dmax=dmax)
         self.compute_fisher_information()
+        INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
         # Figures out the indices of the fft that correspond to each of the frequencies we want

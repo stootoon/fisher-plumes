@@ -181,13 +181,13 @@ alaplace_cdf = lambda la, mu, x: (mu/(la + mu))*np.exp(-2*np.abs(x)/mu)*(x<=0)+ 
 # COMPUTE P VALUE FOR THE KOLMOGOROV SMIRNOV TEST
 compute_ks_pvalue = lambda la, mu, x: kstest(x, lambda x: alaplace_cdf(la, mu, x)).pvalue
 
-gen_exp     = lambda d, a, s, k: a * np.exp(-np.abs(d/s)**k)
+gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
 fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
-                                      p0=[np.max(la),1,1],
+                                      p0=[np.max(la),1,1,0],
                                       bounds=(0, np.inf))[0]
-fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k: gen_exp(d, a, s, k),
+fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
                                                 d, la,
-                                                p0=[1,1],
+                                                p0=[1,1,0],
                                                 bounds=(0, np.inf))[0]
 
 def compute_fisher_information_for_gen_exp_decay(s, γ, k):
