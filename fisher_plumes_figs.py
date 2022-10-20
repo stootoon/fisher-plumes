@@ -458,6 +458,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         fi_scale = 1000,
         plot_fun = plt.plot,
         freq_max = np.inf,
+        bf_ytick = None,
         colfun = lambda f: cm.cool_r(f/10.),
         **kwargs
 ):
@@ -491,21 +492,12 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(F.freqs[fi]))        
         plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
-    # for i, (bf,p) in enumerate(zip(F.I_best_freqs, F.I_pvals)):
-    #     if bf in [F.I_best_freqs[0], F.I_best_freqs[-1]]:
-    #         n_stars = int(np.floor(-np.log10(p)))
-    #         di = x_stagger(F.I_dists[i]/d_scale,bf)
-    #         Im = Imed[bf][i]            
-    #         if (n_stars>0):
-    #             INFO(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
-    #         plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
-    
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     #plt.xlabel("Distance (mm)", labelpad=-1)
     ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.text(2.3,8e-7,"Distance", fontsize=11)
+    ax_fisher.text(0.4,-0.065,"Distance", fontsize=11, transform=ax_fisher.transAxes)
     fpft.spines_off(plt.gca())
 
     ax_best_freq = plt.subplot(gs[3,:])
@@ -521,7 +513,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     plt.ylabel("Best freq.\n(Hz)", labelpad=-1)
     ax_best_freq.set_xticklabels([])
     ax_best_freq.set_xlim(ax_fisher.get_xlim())
-    ax_best_freq.set_yticks(np.arange(0,13,4))    
+    if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)    
     fpft.spines_off(plt.gca(), ["bottom", "right"])
 
     
