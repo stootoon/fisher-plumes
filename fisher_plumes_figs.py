@@ -314,6 +314,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       plot_legend = True,
                                       log_scale = False,
                                       label_color = "black",
+                                      plot_others = False,
                                       xt = None,
                                       yt = None,
                                       scatter_alpha= 0.8, scatter_size=3,
@@ -328,7 +329,16 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         for γ, k in zip(γbs, kbs):
             plt.scatter(γ, k,
                         c=[fpft.set_alpha(colfun(f), scatter_alpha) for i, f in enumerate(freqs[which_fis])],
-                        s = scatter_size, zorder=10)    
+                        s = scatter_size)
+
+    if plot_others:
+        ind_max = F.freqs2inds([F.freq_max])[0]
+        other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
+        cols = [fpft.set_alpha(cm.Oranges((fi/F.wnd)*F.fs/F.freq_max),0.5) for fi in other_inds]
+        γm = np.mean(fun(F.fit_params[:, other_inds, 1]/d_scale),axis=0)
+        κm = np.mean(fun(F.fit_params[:, other_inds, 2]),axis=0)
+        plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
+        
     
     hmus = []
     for ifreq, fi in enumerate(which_fis):
@@ -458,53 +468,76 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
     Idd_med = np.median(Idd[1:],axis=0) * d_scale**2
 
-    which_ifreqs = [ifreq[0] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]] + [ifreq[-1] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]]
+    #which_ifreqs = [ifreq[0] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]] + [ifreq[-1] for ifreq in [F.I_best_freqs, F.I_second_best_freqs]]
+    which_ifreqs = []
+    for ibf in F.I_best_ifreqs:
+        if ibf not in which_ifreqs:
+            which_ifreqs.append(ibf)
+    #which_ifreqs = sorted(which_ifreqs)
+    #which_ifreqs = which_ifreqs[:4]
     
-    colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/4.)
+    colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
     
     INFO(f"Plotting {which_ifreqs=}.")
     n_dvals = len(d_vals)
-    gs      = GridSpec(5,n_dvals)
+    gs      = GridSpec(6,n_dvals)
 
-    for i, d in enumerate(d_vals):
-        ax = plt.subplot(gs[3:,i])
-        plot_gen_exp_parameter_fits_panel(F, which_ifreqs, contours_dist = d,
-                                          d_scale = d_scale,
-                                          n_contours = 12, contours_cmap=cm.gray,
-                                          plot_legend = (i==0),
-                                          plot_scatter = False,
-                                          label_color = "white",
-                                          colfun = colfun, **kwargs)
-        ax.set_title(f"{d/d_scale:g} mm")
-        (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
-            
-
-    
-    plt.subplot(gs[:3,:])
+    ax_fisher = plt.subplot(gs[:3,:])
     Ilow, Imed, Ihigh = np.array([F.I_pcs[k] for k in sorted(F.I_pcs)]) * d_scale**2
-    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
+    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs[:4], Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
         plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(F.freqs[fi]), label = f"{fi * ifreq_to_freq:g} Hz")
         x = x_stagger(F.I_dists/d_scale, i)
         plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(F.freqs[fi]))        
         plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
-    for i, (bf,p) in enumerate(zip(F.I_best_freqs, F.I_pvals)):
-        if bf in [F.I_best_freqs[0], F.I_best_freqs[-1]]:
-            n_stars = int(np.floor(-np.log10(p)))
-            di = x_stagger(F.I_dists[i]/d_scale,bf)
-            Im = Imed[bf][i]            
-            if (n_stars>0):
-                INFO(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
-            plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
+    # for i, (bf,p) in enumerate(zip(F.I_best_freqs, F.I_pvals)):
+    #     if bf in [F.I_best_freqs[0], F.I_best_freqs[-1]]:
+    #         n_stars = int(np.floor(-np.log10(p)))
+    #         di = x_stagger(F.I_dists[i]/d_scale,bf)
+    #         Im = Imed[bf][i]            
+    #         if (n_stars>0):
+    #             INFO(f"{i}, Putting {'*' * n_stars} at {di=:0.3f}, {dd[i]/d_scale:0.3f}, {Im:0.3f} for {bf=}")
+    #         plt.text(di, Im, "*"*min(n_stars,3), fontsize=12)
     
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
-    plt.xlabel("Distance (mm)", labelpad=-1)
+    #plt.xlabel("Distance (mm)", labelpad=-1)
+    ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
+    [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
+    ax_fisher.text(2.3,8e-7,"Distance", fontsize=11)
     fpft.spines_off(plt.gca())
-        
 
-    plt.tight_layout(pad=0)
+    ax_best_freq = plt.subplot(gs[3,:])
+    ax_best_freq.semilogx(F.I_dists/d_scale, F.inds2freqs(F.I_best_ifreqs),
+                          ":",color="lightgray",markersize=3, linewidth=1)
+    ax_best_freq.scatter(F.I_dists/d_scale,
+                         F.inds2freqs(F.I_best_ifreqs),
+                         c=[colfun(fi) for fi in F.I_best_ifreqs],
+                         s=10)
+    
+    ax_best_freq.xaxis.tick_top()    
+    #plt.xlabel("Distance (mm)", labelpad=-2)
+    plt.ylabel("Best freq.\n(Hz)", labelpad=-1)
+    ax_best_freq.set_xticklabels([])
+    ax_best_freq.set_xlim(ax_fisher.get_xlim())
+    ax_best_freq.set_yticks(np.arange(0,13,4))    
+    fpft.spines_off(plt.gca(), ["bottom", "right"])
+
+    
+    for i, d in enumerate(d_vals):
+        ax = plt.subplot(gs[4:,i])
+        plot_gen_exp_parameter_fits_panel(F, which_ifreqs, contours_dist = d,
+                                          d_scale = d_scale,
+                                          n_contours = 12, contours_cmap=cm.gray,
+                                          plot_legend = (i==0),
+                                          plot_scatter = False,
+                                          plot_others = False,
+                                          label_color = "white",
+                                          colfun = colfun, **kwargs)
+        ax.set_title(f"{d/d_scale:g} mm")
+        (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
+            
     return Idd, Idd_med
 
     

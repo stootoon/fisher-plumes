@@ -1,6 +1,7 @@
 import os, sys
 import numpy as np
-from scipy.stats import mannwhitneyu
+from scipy.stats import mannwhitneyu, mode
+from scipy.special import betainc
 import logging
 from copy import deepcopy
 
@@ -194,7 +195,7 @@ class FisherPlumes:
                                                                           self.fit_params[:,:,1],
                                                                           self.fit_params[:,:,2]) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
 
-    def compute_fisher_information(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
+    def compute_fisher_information_old(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information.")
         d_vals = [d for d in list(sorted(self.la.keys())) if d>0]
         if len(d_add): d_vals += d_add
@@ -211,13 +212,44 @@ class FisherPlumes:
         ifreq_max = self.freqs2inds([self.freq_max])[0]
         Isort = np.argsort(self.I_pcs[50][1:ifreq_max+1],axis=0) # [1:] to skip DC
         
-        self.I_best_freqs        = Isort[-1] + 1
+        self.I_best_freqs        = Isort[-1] + 1 # Find the frequency with the highest bootstrap median
         self.I_second_best_freqs = Isort[-2] + 1
         self.I_pvals = np.array([mannwhitneyu(self.I[:, best_freq, di] , self.I[:, second_best_freq,di], alternative='greater')[1]
                                for di, (best_freq, second_best_freq) in enumerate(zip(self.I_best_freqs, self.I_second_best_freqs))])
         
         self.I_dict = {d:Id for d, Id in zip(d_vals, self.I)}
-                                   
+
+    def compute_fisher_information(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
+        INFO(f"Computing Fisher information (v2).")
+        d_vals = [d for d in list(sorted(self.la.keys())) if d>0]
+        if len(d_add): d_vals += d_add
+        d_vals = sorted(list(set(d_vals)))
+        if d_min < d_vals[0]: d_vals = [d_min] + d_vals
+        if d_max > d_vals[-1]: d_vals.append(d_max)
+        INFO(f"Evaluating at distances: {d_vals}.")
+        
+        self.I_dists = np.array(d_vals)
+        self.I = self.compute_fisher_information_at_distances(d_vals)
+        self.I_dict = {d:Id for d, Id in zip(d_vals, self.I)}
+        
+        pcs = [5, 50, 95]
+        self.I_pcs = {pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(self.I[1:], pcs, axis=0))}
+        
+        ifreq_max = self.freqs2inds([self.freq_max])[0]
+
+        Isort      = np.argsort(self.I[1:][:, 1:ifreq_max+1,:],axis=1)
+        n_freqs    = Isort.shape[1]
+        best_ifreqs = Isort[:,-1,:]
+        res = mode(best_ifreqs, keepdims=False)        
+        self.I_best_ifreqs = res.mode + 1
+        # The p-values are those of binomial random variable
+        # Have a probability of 1/# frequencies
+        # and N = #bootstraps trials.
+        # We want to see how many times a given frequency would come out on top
+        # if it was happening by chance, and that's determined by the Binomial cdf
+        # Which is the Incomplete beta function below
+        self.I_pvals = np.array([betainc(ci, self.n_bootstraps - ci - 1, 1./n_freqs) for ci in res.count])
+        
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
@@ -232,7 +264,11 @@ class FisherPlumes:
     def freqs2inds(self, which_freqs):
         # Figures out the indices of the fft that correspond to each of the frequencies we want
         return [int(round(f * self.wnd / self.fs)) for f in which_freqs]
-        
+
+    def inds2freqs(self, which_inds):
+        # Figures out the frequencies that indices correspond to
+        return [fi/self.wnd * self.fs for fi in which_inds]
+    
     def save_snapshots(self, t, data_dir = "."):
         {k:s.save_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
 
