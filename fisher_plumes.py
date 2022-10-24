@@ -163,6 +163,14 @@ class FisherPlumes:
             [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
             for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(self.la[d], self.mu[d], self.rho[d]))]) for d in self.rho}
 
+    def compute_r2values(self, skip_bootstrap = True):
+        INFO("Computing R^2-values.")
+        if skip_bootstrap:
+            INFO("(Skipping R^2-value computation for bootstraps.)")
+        self.r2vals = {d:np.array([
+            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+            for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(self.la[d], self.mu[d], self.rho[d]))]) for d in self.rho}
+        
     def compute_la_gen_fit_to_distance(self, dmax=100000):
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la.keys())))
@@ -257,6 +265,7 @@ class FisherPlumes:
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_pvalues()
+        self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax=dmax)
         self.compute_fisher_information()
         INFO(f"Done computing all for {wnd=}.")

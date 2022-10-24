@@ -181,6 +181,10 @@ alaplace_cdf = lambda la, mu, x: (mu/(la + mu))*np.exp(-2*np.abs(x)/mu)*(x<=0)+ 
 # COMPUTE P VALUE FOR THE KOLMOGOROV SMIRNOV TEST
 compute_ks_pvalue = lambda la, mu, x: kstest(x, lambda x: alaplace_cdf(la, mu, x)).pvalue
 
+# COMPUTE R2 VALUE COMPARING THE PREDICTED AND FIT CDFs
+cdfvals = lambda x: np.arange(1,len(x)+1)/len(x)
+compute_r2_value  = lambda la, mu, x: 1 - np.mean((cdfvals(x) -  alaplace_cdf(la, mu, np.sort(x)))**2)/np.var(cdfvals(x))
+
 gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
 fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
                                       p0=[np.max(la),1,1,0],

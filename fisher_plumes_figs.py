@@ -219,8 +219,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,
     
 def plot_alaplace_fits(F, which_dists,
                        ifreq_lim = [], xl = [-0.2,0.5], which_ifreq = 1, 
-                       figsize=None, vmax=None,
-                       cm_heat = cm.rainbow,
+                       figsize=None, vmin=None,vmax=None,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
                        d_scale = 1, 
@@ -279,33 +278,38 @@ def plot_alaplace_fits(F, which_dists,
     if plot_dvals:
         [axdi.set_ylim(yld) for axdi in ax_dcdf]
         #axd[-1].set_ylim(0, dmax)
-            
-    ax_hm = [plt.subplot(gs[:,-1])]
 
-    freqs = np.arange(F.wnd)/F.wnd*F.fs
-    
-    pdists = np.array(sorted(F.pvals))
-    dd = np.mean(np.diff(pdists))
-    p = np.array([F.pvals[d][0] for d in sorted(F.pvals)]).T
-    if len(ifreq_lim)==0:
-        ifreq_lim = [0, p.shape[0]]
-    p = p[ifreq_lim[0]:ifreq_lim[1],:]
-    plt.matshow(-np.log10(p), #+np.min(p[p>0])/10),
-            extent = [(pdists[0]-dd/2)/d_scale, (pdists[-1]+dd/2)/d_scale, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
-                vmin=0, vmax=vmax,fignum=False, cmap=cm_heat, origin="lower");
-    
-    [plt.plot(d/d_scale, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
-    plt.gca().xaxis.set_ticks_position("bottom")
-    (not heatmap_default_xticks) and plt.gca().set_xticks(pdists/d_scale)
-    plt.xticks(rotation=45, fontsize=8)    
-    plt.xlabel("Distance (mm)")
-    plt.ylabel("Frequency (Hz)", labelpad=-1)
-    plt.title("Mismatch",pad=-2)
-    plt.axis("auto")
-    plt.colorbar()
-    pdmax = pdists[np.argmin(np.abs(pdists - 100*d_scale))]
-    plt.xlim((pdists[0]-dd/2)/d_scale,min((pdmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
+    ax_hm = []
+    for i,vals in enumerate([F.pvals, F.r2vals]):
+        ax_hm.append(plt.subplot(gs[i,-1]))
 
+        freqs = np.arange(F.wnd)/F.wnd*F.fs
+
+        dists = np.array(sorted(vals))
+        dd = np.mean(np.diff(dists))
+        v = np.array([vals[d][0] for d in sorted(vals)]).T
+        if len(ifreq_lim)==0:
+            ifreq_lim = [0, v.shape[0]]
+        v = v[ifreq_lim[0]:ifreq_lim[1],:]
+
+        plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
+                extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
+                    vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
+                    cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
+        
+        [plt.plot(d/d_scale, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
+        plt.gca().xaxis.set_ticks_position("bottom")
+        (not heatmap_default_xticks) and plt.gca().set_xticks(dists/d_scale)
+        plt.xticks(rotation=45, fontsize=8)    
+        plt.xlabel("Distance (mm)")
+        plt.gca().set_xticklabels([])
+        plt.ylabel("Frequency (Hz)", labelpad=-1)
+        plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
+        plt.axis("auto")
+        plt.colorbar()
+        dmax = dists[np.argmin(np.abs(dists - 100*d_scale))]
+        plt.xlim((dists[0]-dd/2)/d_scale,min((dmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
+    
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
 
     return ax_cdf, ax_dcdf, ax_hm
