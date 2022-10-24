@@ -100,12 +100,11 @@ class FisherPlumes:
                 ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, detrender=detrender, **kwargs);
                 self.ss[key], self.cc[key], self.tt[key] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]]
 
-    def compute_amps_for_freqs(self):
-        INFO("Computing amplitude of generalized gaussian fits to λ(s).")
+    def compute_vars_for_freqs(self):
+        INFO("Computing variances for harmonics.")
         sc_all = np.concatenate([xkk for Fld in [self.ss, self.cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.  
         # sc_all is now a (# bootstraps, # sine coefs + # cos coefs, # freqs) matrix.
-        sc_vars_for_freqs = np.var(sc_all,axis=1)
-        self.amps_for_freqs = 2 * sc_vars_for_freqs
+        self.vars_for_freqs = np.var(sc_all,axis=1)
 
     def compute_correlations_from_trig_coefs(self):
         INFO("Computing correlations from trig coefficients.")
@@ -181,19 +180,19 @@ class FisherPlumes:
         n_bs, n_freqs, n_dists = la_sub.shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
-        if ('amps_for_freqs' not in self.__dict__) or self.amps_for_freqs is None:
+        if ('vars_for_freqs' not in self.__dict__) or self.vars_for_freqs is None:
             # Loop over the rows of la_sub
             # Each row (la_subi) has the data for one frequency
             self.fit_params = np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_sub])
         else:
             INFO(f"Not fitting amplitudes, instead using given values.")
 
-            self.fit_params = np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, amps_for_freqs_bs)]
-                                        for (la_sub_bs, amps_for_freqs_bs)  in zip(la_sub, self.amps_for_freqs)])
+            self.fit_params = np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, 2*vars_for_freqs_bs)]
+                                        for (la_sub_bs, vars_for_freqs_bs)  in zip(la_sub, self.vars_for_freqs)])
             DEBUG(f"{self.fit_params.shape=}.")
             # Stack the given amplitudes on top of the learned parameters so that the
             # shapes are the same whether we learn the amplitudes or not.
-            self.fit_params = np.stack([self.amps_for_freqs] + [self.fit_params[:,:,i] for i in range(self.fit_params.shape[-1])], axis=2)
+            self.fit_params = np.stack([2*self.vars_for_freqs] + [self.fit_params[:,:,i] for i in range(self.fit_params.shape[-1])], axis=2)
                                          
         self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
         self.dd_fit = dd
@@ -201,7 +200,10 @@ class FisherPlumes:
     def compute_fisher_information_at_distances(self, which_ds):
         return np.array([fpt.compute_fisher_information_for_gen_exp_decay(d,
                                                                           self.fit_params[:,:,1],
-                                                                          self.fit_params[:,:,2]) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
+                                                                          self.fit_params[:,:,2],
+                                                                          self.fit_params[:,:,3],
+                                                                          self.vars_for_freqs                                                                       
+        ) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
 
     def compute_fisher_information_old(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information.")
@@ -258,10 +260,10 @@ class FisherPlumes:
         # Which is the Incomplete beta function below
         self.I_pvals = np.array([betainc(ci, self.n_bootstraps - ci - 1, 1./n_freqs) for ci in res.count])
         
-    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_amps = True):
+    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_vars = True):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
-        not fit_amps and self.compute_amps_for_freqs() 
+        not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_pvalues()
