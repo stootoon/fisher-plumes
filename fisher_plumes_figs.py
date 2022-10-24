@@ -178,9 +178,9 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
     dist2col_ = lambda d: dist2col(d,dist_col_scale)
     if (axes is not None) and len(axes) != len(which_d):
         raise ValueError("Number of axes provided {len(axes)} != number of distances {len(which_d)}.")
-    
+    axes = [] if axes is None else axes
     for i, d in enumerate(which_d):
-        plt.subplot(1,3,i+1) if axes is None else plt.sca(axes[i])
+        axes.append(plt.subplot(1,len(which_d),i+1)) if len(axes)<len(which_d) else plt.sca(axes[i])
         U,S,_ = np.linalg.svd(np.cov(pooled1[d]))
         p0 = pooled1[d][0]
         p1 = pooled1[d][1]
@@ -200,7 +200,8 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
         (i == 0) and plt.ylabel("Coefficient at source 2")
         plt.xlabel("Coefficient at source 1")
         plt.title(f"{d/1000:g} mm")
-        plt.grid(True)    
+        plt.grid(True)
+    return axes
 
 def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,21], y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
     n_dists = len(idists_to_plot)
@@ -228,12 +229,13 @@ def plot_alaplace_fits(F, which_dists,
         plt.figure(figsize=figsize)
 
     gs   = GridSpec(2 if plot_dvals else 1, len(which_dists)+1)
-    axd  = []
     dmax = -1
     yld  = []
+    ax_dcdf= []    
+    ax_cdf = []
     for di, d in enumerate(which_dists):
         print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[d][0][which_ifreq]):1.3f}")
-        plt.subplot(gs[:-1 if plot_dvals else 1,di])
+        ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         xvals = np.linspace(xl[0],xl[-1],1001)
         la_   = F.la[d][0][which_ifreq]
         mu_   = F.mu[d][0][which_ifreq]
@@ -268,18 +270,17 @@ def plot_alaplace_fits(F, which_dists,
             fpft.spines_off(plt.gca())
             fpft.vline(0, ":", color = "lightgray")            
             plt.xlim(xl)
-            axd.append(axdi)
+            ax_dcdf.append(axdi)
             plt.grid(True, axis='y', linestyle=":")
             #(di != 0 ) and axdi.set_yticklabels([])
             plt.xlabel("x",labelpad=-2)
             (di == 0) and plt.ylabel("|F$_{data}$($x$) - F$_{fit}$($x$)|")
 
     if plot_dvals:
-        [axdi.set_ylim(yld) for axdi in axd]
+        [axdi.set_ylim(yld) for axdi in ax_dcdf]
         #axd[-1].set_ylim(0, dmax)
             
-        
-    plt.subplot(gs[:,-1])
+    ax_hm = [plt.subplot(gs[:,-1])]
 
     freqs = np.arange(F.wnd)/F.wnd*F.fs
     
@@ -306,6 +307,8 @@ def plot_alaplace_fits(F, which_dists,
     plt.xlim((pdists[0]-dd/2)/d_scale,min((pdmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
 
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
+
+    return ax_cdf, ax_dcdf, ax_hm
         
 def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       d_scale = 1,
@@ -516,7 +519,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)    
     fpft.spines_off(plt.gca(), ["bottom", "right"])
 
-    
+
+    ax_d = []
     for i, d in enumerate(d_vals):
         ax = plt.subplot(gs[4:,i])
         plot_gen_exp_parameter_fits_panel(F, which_ifreqs, contours_dist = d,
@@ -529,7 +533,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
                                           colfun = colfun, **kwargs)
         ax.set_title(f"{d/d_scale:g} mm")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
+        ax_d.append(ax)
             
-    return Idd, Idd_med
+    return ax_fisher, ax_best_freq, ax_d
 
     
