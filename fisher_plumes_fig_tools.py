@@ -48,10 +48,15 @@ pdfplot    = lambda x, bins = 10, **kwargs: (lambda y, x: plt.plot(x, y, **kwarg
 pdfplotl   = lambda x, bins = 10, **kwargs: (lambda y, x: plt.semilogy(x, y, **kwargs))(*hist_to_yx(*np.histogram(x, bins=bins, density=True)))
 set_alpha  = lambda col, al: list(col[:3]) + [al]
 vline      = lambda x, *args, **kwargs: (lambda x1, yl, *args, **kargs: (plt.plot([x1,x1],yl, *args, **kwargs), plt.gca().set_ylim(yl)))(x, plt.gca().get_ylim(), *args, **kwargs)
-    
+def expand_lims(lims, factor):
+    d = (lims[1] - lims[0])*factor
+    m = (lims[1] + lims[0])/2
+    return [m-d/2, m+d/2]
+
+
 def label_axes(ax_list, labs, dx=0, dy=0, x = None, y = None,
-               align_x = None, align_x_fun = np.mean,
-               align_y = None, align_y_fun = np.mean,
+               align_x = [], align_x_fun = np.mean,
+               align_y = [], align_y_fun = np.mean,
                *args, **kwargs):
     fig = plt.gcf()
     renderer = fig.canvas.get_renderer()

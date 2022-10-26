@@ -98,7 +98,7 @@ class FisherPlumes:
             for i in range(n_data):
                 key = (src) if n_data == 1 else (src, i)
                 ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, detrender=detrender, **kwargs);
-                self.ss[key], self.cc[key], self.tt[key] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]]
+                self.ss[key], self.cc[key], self.tt[key] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
         INFO("Computing variances for harmonics.")
@@ -258,7 +258,7 @@ class FisherPlumes:
         # We want to see how many times a given frequency would come out on top
         # if it was happening by chance, and that's determined by the Binomial cdf
         # Which is the Incomplete beta function below
-        self.I_pvals = np.array([betainc(ci, self.n_bootstraps - ci - 1, 1./n_freqs) for ci in res.count])
+        self.I_pvals = np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in res.count])
         
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_vars = True):
         self.set_window(wnd)
@@ -278,7 +278,7 @@ class FisherPlumes:
 
     def inds2freqs(self, which_inds):
         # Figures out the frequencies that indices correspond to
-        return [fi/self.wnd * self.fs for fi in which_inds]
+        return self.freqs[which_inds]
     
     def save_snapshots(self, t, data_dir = "."):
         {k:s.save_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
