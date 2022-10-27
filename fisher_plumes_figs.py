@@ -27,6 +27,7 @@ dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
 def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+    d_scale = F.pitch_in_um
     dists  = np.array(sorted(F.rho.keys()))       
     if pos_dists: dists  = dists[dists>0]
     ax_trace = []
@@ -45,8 +46,8 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
-        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/1000:g} mm", linewidth=1)
-        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/1000:g} mm", linewidth=1)
+        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/d_scale:g} p", linewidth=1)
+        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/d_scale:g} p", linewidth=1)
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])
@@ -61,7 +62,7 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         aw, bw = wndf(a), wndf(b)
         ρ_w = np.corrcoef(aw,bw)[0,1]
         ρ   = np.corrcoef(a, b)[0,1]
-        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/1000:g} mm, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
+        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/d_scale:g} p, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
 
     return ax_trace
 
@@ -74,6 +75,7 @@ def plot_plumes_demo(F, t_snapshot,
                      y_lim = (0,3),
                      dt = 0.5
 ):
+    d_scale = F.pitch_in_um
     fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
     plt.figure(figsize=(8,3))
     gs = GridSpec(3,3)
@@ -99,26 +101,26 @@ def plot_plumes_demo(F, t_snapshot,
     rhom  = np.array([np.mean(np.sum(rho[d],axis=0)) for d in dists])
     rhos  = np.array([ np.std(np.sum(rho[d],axis=0)) for d in dists])
     col   = "gray"
-    plt.fill_between(dists/1000, rhom-rhos,rhom+rhos, color=fpft.set_alpha(mpl.colors.to_rgba(col),0.2));
-    fpft.pplot(dists/1000, rhom , "o-", markersize=4,color=col);
+    plt.fill_between(dists/d_scale, rhom-rhos,rhom+rhos, color=fpft.set_alpha(mpl.colors.to_rgba(col),0.2));
+    fpft.pplot(dists/d_scale, rhom , "o-", markersize=4,color=col);
     ax_corr_dist.grid(True, linestyle=":")
     #ax_corr_dist.set_yticklabels(["-1","","0","","1"])
     ax_corr_dist.set_ylabel("Correlation",labelpad=-1)
-    ax_corr_dist.set_xlabel("Intersource distance (mm)", labelpad=-1)
+    ax_corr_dist.set_xlabel("Intersource distance (p)", labelpad=-1)
     plt.tight_layout(pad=0,w_pad=0,h_pad=1)
 
     return ax_plume, ax_trace, ax_corr_dist
 
 
-def plot_correlations(rho, 
-                      xl = (-50, 50),
+def plot_correlations(rho,
+                      d_scale,
                       slices = {"all":slice(1,10000), "first":slice(1,2),   "second":slice(10,11)}, # Which frequency slices to use
                       cols   = {"all":cm.gray(0.4),   "first":cm.cool(1.0), "second":cm.cool(0.2)},
                       n_rows = 1,
                       plot_order = None, 
                       figsize=None,
 ):
-
+    
     dists    = np.array(sorted(list(rho.keys()))) 
     rho      = {d:rho[d][0] for d in dists} # [0] to take the raw data
     rho_mean = {k:np.array([np.mean(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
@@ -139,25 +141,23 @@ def plot_correlations(rho,
         sc= 1
         y = rho_mean[k]/sc
         ee= rho_std[k]/sc
-        dists_mm = dists/1000
-        plt.fill_between(dists_mm, y-ee, y+ee, color=fpft.set_alpha(mpl.colors.to_rgba(cols[k]),0.2));
-        fpft.pplot(dists_mm, y , "o-", markersize=4,color=cols[k]);
-        plt.xlabel("Distance (mm)")
+        dists_p = dists/d_scale
+        plt.fill_between(dists_p, y-ee, y+ee, color=fpft.set_alpha(mpl.colors.to_rgba(cols[k]),0.2));
+        fpft.pplot(dists_p, y , "o-", markersize=4,color=cols[k]);
+        plt.xlabel("Distance (p)")
         (icol == 0) and plt.ylabel("Correlation")
         plt.title(k)
-        plt.xlim(xl)
     
     ax.append(plt.subplot(gs[int(n_slices//n_cols), int(n_slices % n_cols)]))
     for i, k in enumerate(slices):
-        fpft.pplot(dists_mm, rho_mean[k]/max(rho_mean[k]), "-", markersize=4, color=cols[k], label=k);
-        plt.xlim(xl)
+        fpft.pplot(dists_p, rho_mean[k]/max(rho_mean[k]), "-", markersize=4, color=cols[k], label=k);
     plt.legend(frameon=False, fontsize=8)
-    plt.xlabel("Distance (mm)")        
+    plt.xlabel("Distance (p)")        
     plt.title("Overlayed and Scaled")
     plt.tight_layout(w_pad=0)
     return ax
 
-def plot_coef1_vs_coef2(coefs, ifreq, pairs,
+def plot_coef1_vs_coef2(coefs, ifreq, pairs, d_scale,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],
                         dist_col_scale = 120000, axes = None,
@@ -199,7 +199,7 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs,
         plt.axis("square")
         (i == 0) and plt.ylabel("Coefficient at source 2")
         plt.xlabel("Coefficient at source 1")
-        plt.title(f"{d/1000:g} mm")
+        plt.title(f"{d/d_scale:.2g} p")
         plt.grid(True)
     return axes
 
@@ -213,7 +213,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss, F.cc], F.freqs2inds([freq])[0], F.pairs, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_coef1_vs_coef2([F.ss, F.cc], F.freqs2inds([freq])[0], F.pairs, F.pitch_in_um, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
@@ -222,11 +222,12 @@ def plot_alaplace_fits(F, which_dists,
                        figsize=None, vmin=None,vmax=None,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
-                       d_scale = 1, 
                        plot_dvals = False):
     if figsize is not None:
         plt.figure(figsize=figsize)
 
+    d_scale = F.pitch_in_um
+    
     gs   = GridSpec(2 if plot_dvals else 1, len(which_dists)+1)
     dmax = -1
     yld  = []
@@ -257,7 +258,7 @@ def plot_alaplace_fits(F, which_dists,
         plt.xlim(xl)
 
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
-        plt.title(f"{d/d_scale:g} mm")
+        plt.title(f"{d/d_scale:.2g} p")
 
         if plot_dvals:
             rx = np.array(sorted(rr))
@@ -285,8 +286,6 @@ def plot_alaplace_fits(F, which_dists,
     for i,vals in enumerate([F.pvals, F.r2vals]):
         ax_hm.append(plt.subplot(gs[i,-1]))
 
-        freqs = np.arange(F.wnd)/F.wnd*F.fs
-
         dists = np.array(sorted(vals))
         dd = np.mean(np.diff(dists))
         v = np.array([vals[d][0] for d in sorted(vals)]).T
@@ -295,7 +294,7 @@ def plot_alaplace_fits(F, which_dists,
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
 
         plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
-                extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, freqs[ifreq_lim[0]]-0.5, freqs[ifreq_lim[1]]-0.5],
+                extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-0.5, F.freqs[ifreq_lim[1]]-0.5],
                     vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
@@ -303,7 +302,7 @@ def plot_alaplace_fits(F, which_dists,
         plt.gca().xaxis.set_ticks_position("bottom")
         (not heatmap_default_xticks) and plt.gca().set_xticks(dists/d_scale)
         plt.xticks(rotation=45, fontsize=8)    
-        plt.xlabel("Distance (mm)")
+        plt.xlabel("Distance (p)")
         plt.gca().set_xticklabels([])
         plt.ylabel("Frequency (Hz)", labelpad=-1)
         plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
@@ -317,7 +316,6 @@ def plot_alaplace_fits(F, which_dists,
     return ax_cdf, ax_dcdf, ax_hm
         
 def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
-                                      d_scale = 1,
                                       n_contours = 12, contours_cmap=cm.gray,
                                       plot_scatter = True,
                                       plot_legend = True,
@@ -330,6 +328,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       colfun = lambda f: freq2col(f, 10, cmap=cm.cool_r)
 ):
     INFO(f"plot_gen_exp_paramter_fits_panel with {which_fis=}, {log_scale=}.")
+    d_scale = F.pitch_in_um
     fun = np.log10 if log_scale else (lambda X: X)
     γbs = fun(F.fit_params[:, which_fis, 1]/d_scale)
     kbs = fun(F.fit_params[:, which_fis, 2])
@@ -378,12 +377,12 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         yl[1] = max(yl[1], np.max(yt))
 
     if n_contours:
-        contours_dist_mm = np.array(contours_dist)/d_scale
+        contours_dist_p = np.array(contours_dist)/d_scale
         γγ, kk = np.meshgrid(np.linspace(*xl, 101), np.linspace(*yl,101))
         if log_scale:
-            I = 2*kk - (10**kk)*γγ + (10**kk - 2) * np.log10(contours_dist_mm)
+            I = 2*kk - (10**kk)*γγ + (10**kk - 2) * np.log10(contours_dist_p)
         else:
-            I = 2*np.log10(kk) - kk*np.log10(γγ) + (kk - 2) * np.log10(contours_dist_mm)
+            I = 2*np.log10(kk) - kk*np.log10(γγ) + (kk - 2) * np.log10(contours_dist_p)
         plt.contourf(γγ, kk, I, n_contours, cmap=contours_cmap)  
 
     if xt is None:
@@ -402,13 +401,13 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     fpft.spines_off(plt.gca())
 
     plt.ylabel("Exponent $k_n$")
-    plt.xlabel("Length Scale $\gamma_n$ (mm)")
+    plt.xlabel("Length Scale $\gamma_n$ (p)")
     plt.title("Fit Parameters")
 
         
     
 def plot_la_gen_fits_vs_distance(F, 
-                                 d_scale = 1000, which_ifreqs = [1,2,3,4],
+                                 which_ifreqs = [1,2,3,4],
                                  figsize = None, legloc = None, xl = None,
                                  colfun = lambda f: freq2col(f, 10),
                                  **kwargs
@@ -416,6 +415,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     (figsize is not None) and plt.figure(figsize=figsize)
 
+    d_scale = F.pitch_in_um
     gs     = GridSpec(2,3)
     dd_all = np.array(sorted(list(F.la.keys())))
     la     = {d:F.la[d][0] for d in F.la}
@@ -438,7 +438,7 @@ def plot_la_gen_fits_vs_distance(F,
             ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[1+j][fi])),
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
                         linewidth=1, zorder=-5)
-        (row == 1) and plt.xlabel("Distance $s$ (mm)")
+        (row == 1) and plt.xlabel("Distance $s$ (p)")
         (col == 0) and plt.ylabel("$\lambda_n(s)$")        
         (xl is not None) and plt.xlim(xl)
         plt.title(f"{freqs[fi]:g} Hz", pad=-2)
@@ -446,11 +446,11 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, d_scale = d_scale, n_contours = 0, **kwargs)
+    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, n_contours = 0, **kwargs)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
-    plt.xlabel("Length Scale $\gamma_n$ (mm)")
+    plt.xlabel("Length Scale $\gamma_n$ (p)")
     plt.title("Fit Parameters")
     return ax
     
@@ -459,7 +459,6 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         d_lim=[1e-3,100],
         d_range = None,
         d_vals = [0.1,1,10],
-        d_scale = 1,
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
         x_stagger = lambda x, i: x*(1.02**i),
@@ -470,7 +469,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         colfun = lambda f: cm.cool_r(f/10.),
         **kwargs
 ):
-
+    d_scale = F.pitch_in_um
     d0,d1 = d_lim
     d1 = max(d1, np.max(F.I_dists)) # So that the line plot spans at least as far as the medians+/-whiskers
     dd = d_space_fun(d0, d1,101)
@@ -496,10 +495,10 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
-    plt.ylabel("Fisher Information (mm$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
+    plt.ylabel("Fisher Information (p$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.text(0.4,-0.065,"Distance", fontsize=11, transform=ax_fisher.transAxes)
+    ax_fisher.text(0.4,0.025,"Distance (p)", fontsize=11, transform=ax_fisher.transAxes)
     fpft.spines_off(plt.gca())
 
     ax_best_freq = plt.subplot(gs[3,:])
@@ -521,14 +520,13 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     for i, d in enumerate(d_vals):
         ax = plt.subplot(gs[4:,i])
         plot_gen_exp_parameter_fits_panel(F, sorted(which_ifreqs), contours_dist = d,
-                                          d_scale = d_scale,
                                           n_contours = 12, contours_cmap=cm.gray,
                                           plot_legend = (i==0),
                                           plot_scatter = False,
                                           plot_others = False,
                                           label_color = "white",
                                           colfun = lambda f: colfun(which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]), **kwargs)
-        ax.set_title(f"{d/d_scale:g} mm")
+        ax.set_title(f"{d/d_scale:.2g} p")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
         ax_d.append(ax)
             

@@ -20,7 +20,7 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, freq_max = np.inf, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, pitch_in_um = 1, freq_max = np.inf, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if type(sim_name) is not str:
             INFO(f"{sim_name=} was not a string, assuming it's a FisherPlumes object.")
             other = sim_name
@@ -33,6 +33,7 @@ class FisherPlumes:
             self.yvals = deepcopy(other.yvals)
             self.pairs_mode = other.pairs_mode            
             self.sim0  = deepcopy(other.sim0)
+            self.pitch_in_um = other.pitch_in_um
             self.wnd   = other.wnd
             self.freq_max = other.freq_max
             for fld in ["fs", "dimensions"]:
@@ -54,6 +55,7 @@ class FisherPlumes:
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
+            self.pitch_in_um = pitch_in_um            
             self.sim0 = self.sims[self.yvals[0]]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
