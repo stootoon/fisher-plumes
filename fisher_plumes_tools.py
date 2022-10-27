@@ -16,9 +16,6 @@ INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
 
-import boulder
-import crick
-
 def compute_pairs(yvals, pairs_mode="all"):
     INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
@@ -71,65 +68,6 @@ def validate_coords(which_coords):
     if type(which_coords[0]) is not tuple:
         raise ValueError(f"{type(which_coords[0])=} was not tuple.")
     return which_coords
-
-def load_boulder_16_source_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.old'):
-    py_mode = validate_py_mode(py_mode)
-    file_name = prefix
-    if suffix: file_name += "_"+suffix
-    file_name += ".h5"
-    logger.info(f"Loading data from {file_name=}.")
-    bb = boulder.load(file_name)
-    fixed_sources = []
-    for x,y in bb.source:
-        if np.abs(y)>0.3:
-            WARN(f"Found incorrect source {y=}.")
-            y/=10
-            WARN(f"Corrected to {y=}.")            
-        fixed_sources.append([x,y])
-    if "old" in file_name:
-        WARN("Doubling y coordinates because they were wrong in the original data.")
-        fixed_sources = [(x,2*y) for x,y in fixed_sources]
-        
-    bb.source = np.array(fixed_sources)
-    bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1] + bb.y_lim[0])) for (px, py) in which_coords])
-    sims = {}
-    for i, (k, v) in enumerate(bb.data.items()):
-        # k = int(("-" if k[-1] == "a" else "")+k[1]) # Names are c2a, c3b etc. so convert to yvals -8 to 8
-        k1 = int(bb.source[i][1] * 1000000) # Get the y-value of the source in um
-        sims[k1] = deepcopy(bb)
-        sims[k1].data = v.copy()
-        sims[k1].fields = [bb.fields[i]]
-        sims[k1].source = bb.source[i]
-    yvals = list(sims.keys())
-    pairs = compute_pairs(yvals, pairs_mode)
-    return sims, pairs
-
-def load_crick(sim_name = "n12dishT", which_coords=[(1,  0.5)], py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
-    logger.info(f"load_sims for {sim_name=} with {which_coords=} ({py_mode=}).")
-
-    py_mode      = validate_py_mode(py_mode)
-    which_coords = validate_coords(which_coords)
-
-    if type(which_coords[0]) is not tuple:
-        raise ValueError(f"{type(which_coords[0])=} was not tuple.")
-    
-    datasets = [s for s in crick.list_datasets() if "{}_".format(sim_name) in s]
-
-    yvals    = [int(s[-3:]) for s in datasets]
-
-    sims = {}
-    for y in yvals:
-        k = int(y*1000) # y location in microns
-        sims[k] = crick.load("ff_int_sym_slow_high_tres_wide_{}_Y0.{:03d}".format(sim_name, y))
-        sims[k].use_coords([(px, py * sims[k].dimensions[1] ** (py_mode == "rel")) for (px,py) in which_coords])
-
-    yvals = sorted(sims)
-    logger.info("Yvals: {}".format(yvals))
-    logger.info("Computing distance pairings.")
-    pairs = compute_pairs(yvals, pairs_mode)
-    pair_vals = sorted(pairs)
-    logger.info("{} distance pairings found, from {} to {}".format(len(pair_vals), min(pair_vals), max(pair_vals)))
-    return sims, pairs
 
 class Detrenders:
     @staticmethod

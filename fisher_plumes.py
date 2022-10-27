@@ -9,6 +9,9 @@ from copy import deepcopy
 import fisher_plumes_tools as fpt
 import utils
 
+import boulder
+import crick
+
 logger = utils.create_logger("fisher_plumes")
 logger.setLevel(logging.DEBUG)
 
@@ -16,16 +19,6 @@ INFO  = logger.info
 DEBUG = logger.debug
 
 class FisherPlumes:
-
-    @staticmethod
-    def get_args(req_args, kwargs):
-        vals = []
-        for req in req_args:
-            if req not in kwargs:
-                raise ValueError(f"{req} not found in kwargs.")
-            vals.append(kwargs[req])
-            del kwargs[req]
-        return *vals, kwargs
 
     def __init__(self, sim_name, freq_max = np.inf, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if type(sim_name) is not str:
@@ -48,10 +41,10 @@ class FisherPlumes:
         else:
             INFO(f"****** LOADING {sim_name=} ******")
             if sim_name == "boulder16":
-                which_coords, kwargs = FisherPlumes.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs = fpt.load_boulder_16_source_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
+                which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
+                self.sims, self.pairs = boulder.load_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
             elif sim_name == "n12dishT": 
-                self.sims, self.pairs = fpt.load_crick(sim_name, pairs_mode = pairs_mode,  **kwargs)               
+                self.sims, self.pairs = crick.load_sims(sim_name, pairs_mode = pairs_mode,  **kwargs)               
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.name         = sim_name

@@ -2,12 +2,10 @@ import os, sys, logging
 from os import path as op
 from os.path import join as opj
 import pickle
-import builtins
 import json
 
 import pandas as pd
 import numpy as np
-from matplotlib import pyplot as plt
 from matplotlib import cm
 
 import imageio as iio # For importing field snapshot PNGs
@@ -15,6 +13,7 @@ import imageio as iio # For importing field snapshot PNGs
 from scipy.stats import skew, kurtosis
 
 import utils
+import fisher_plumes_tools as fpt
 
 logging.basicConfig()
 logger = logging.getLogger("crick")
@@ -220,3 +219,32 @@ class CrickSimulationData:
         full_file = os.path.join(data_dir, file_name)
         INFO(f"Loading {fld=} at {t=:g} from {full_file=}.")
         return np.load(os.path.join(data_dir, file_name), allow_pickle=True)[32:406][:,41:489]
+
+
+def load_sims(sim_name = "n12dishT", which_coords=[(1,  0.5)], py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
+    INFO(f"load_sims for {sim_name=} with {which_coords=} ({py_mode=}).")
+
+    py_mode      = fpt.validate_py_mode(py_mode)
+    which_coords = fpt.validate_coords(which_coords)
+
+    if type(which_coords[0]) is not tuple:
+        raise ValueError(f"{type(which_coords[0])=} was not tuple.")
+    
+    datasets = [s for s in list_datasets() if "{}_".format(sim_name) in s]
+
+    yvals    = [int(s[-3:]) for s in datasets]
+
+    sims = {}
+    for y in yvals:
+        k = int(y*1000) # y location in microns
+        sims[k] = load("ff_int_sym_slow_high_tres_wide_{}_Y0.{:03d}".format(sim_name, y))
+        sims[k].use_coords([(px, py * sims[k].dimensions[1] ** (py_mode == "rel")) for (px,py) in which_coords])
+
+    yvals = sorted(sims)
+    INFO("Yvals: {}".format(yvals))
+    INFO("Computing distance pairings.")
+    pairs = fpt.compute_pairs(yvals, pairs_mode)
+    pair_vals = sorted(pairs)
+    INFO("{} distance pairings found, from {} to {}".format(len(pair_vals), min(pair_vals), max(pair_vals)))
+    return sims, pairs
+    

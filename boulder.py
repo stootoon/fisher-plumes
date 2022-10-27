@@ -7,16 +7,19 @@ import pickle
 import re
 
 import pandas as pd
+from copy import deepcopy
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
 
 import utils
+import fisher_plumes_tools as fpt
 
 logging.basicConfig()
 logger = logging.getLogger("boulder")
 logger.setLevel(logging.INFO)
 INFO  = logger.info
+WARN  = logger.warning
 DEBUG = logger.debug
 
 curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -288,3 +291,34 @@ class BoulderSimulationData:
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
 
+def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.old'):
+    py_mode = fpt.validate_py_mode(py_mode)
+    file_name = prefix
+    if suffix: file_name += "_"+suffix
+    file_name += ".h5"
+    logger.info(f"Loading data from {file_name=}.")
+    bb = load(file_name)
+    fixed_sources = []
+    for x,y in bb.source:
+        if np.abs(y)>0.3:
+            WARN(f"Found incorrect source {y=}.")
+            y/=10
+            WARN(f"Corrected to {y=}.")            
+        fixed_sources.append([x,y])
+    if "old" in file_name:
+        WARN("Doubling y coordinates because they were wrong in the original data.")
+        fixed_sources = [(x,2*y) for x,y in fixed_sources]
+        
+    bb.source = np.array(fixed_sources)
+    bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1] + bb.y_lim[0])) for (px, py) in which_coords])
+    sims = {}
+    for i, (k, v) in enumerate(bb.data.items()):
+        # k = int(("-" if k[-1] == "a" else "")+k[1]) # Names are c2a, c3b etc. so convert to yvals -8 to 8
+        k1 = int(bb.source[i][1] * 1000000) # Get the y-value of the source in um
+        sims[k1] = deepcopy(bb)
+        sims[k1].data = v.copy()
+        sims[k1].fields = [bb.fields[i]]
+        sims[k1].source = bb.source[i]
+    yvals = list(sims.keys())
+    pairs = fpt.compute_pairs(yvals, pairs_mode)
+    return sims, pairs

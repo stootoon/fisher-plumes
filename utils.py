@@ -34,3 +34,14 @@ def create_logger(name):
     ch.setFormatter(logging.Formatter(fmt='%(module)24s %(asctime)s %(levelname)8s: %(message)s', datefmt='%Y/%m/%d %H:%M:%S'))
     logger.addHandler(ch)
     return logger
+
+def get_args(req_args, kwargs):
+    vals = []
+    for req in req_args:
+        if req not in kwargs:
+            raise ValueError(f"{req} not found in kwargs.")
+        vals.append(kwargs[req])
+        del kwargs[req]
+    return *vals, kwargs
+
+
