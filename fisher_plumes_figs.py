@@ -282,6 +282,7 @@ def plot_alaplace_fits(F, which_dists,
     if plot_dvals:
         [axdi.set_ylim(yld) for axdi in ax_dcdf]
 
+    freq_res = F.fs/F.wnd
     ax_hm = []
     for i,vals in enumerate([F.pvals, F.r2vals]):
         ax_hm.append(plt.subplot(gs[i,-1]))
@@ -292,13 +293,15 @@ def plot_alaplace_fits(F, which_dists,
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
-
+        
+        extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]        
+        print(f"Setting extent to {extent}.")
         plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
-                extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-0.5, F.freqs[ifreq_lim[1]]-0.5],
+                extent = extent,
                     vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
-        [plt.plot(d/d_scale, which_ifreq, ".", color=dist2col(d)) for d in which_dists]
+        [plt.plot(d/d_scale, F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists]
         plt.gca().xaxis.set_ticks_position("bottom")
         (not heatmap_default_xticks) and plt.gca().set_xticks(dists/d_scale)
         plt.xticks(rotation=45, fontsize=8)    
