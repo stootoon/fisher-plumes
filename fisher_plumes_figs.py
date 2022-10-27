@@ -303,10 +303,8 @@ def plot_alaplace_fits(F, which_dists,
         
         [plt.plot(d/d_scale, F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists]
         plt.gca().xaxis.set_ticks_position("bottom")
-        (not heatmap_default_xticks) and plt.gca().set_xticks(dists/d_scale)
-        plt.xticks(rotation=45, fontsize=8)    
-        plt.xlabel("Distance (p)")
-        plt.gca().set_xticklabels([])
+        plt.xlabel("Distance (p)",labelpad=-1)
+        #(i == 0) and plt.gca().set_xticklabels([])
         plt.ylabel("Frequency (Hz)", labelpad=-1)
         plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
         plt.axis("auto")
