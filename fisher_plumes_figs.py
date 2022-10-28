@@ -228,7 +228,7 @@ def plot_alaplace_fits(F, which_dists,
 
     d_scale = F.pitch_in_um
     
-    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists)+1)
+    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists)+2)
     dmax = -1
     yld  = []
     ax_dcdf= []    
@@ -285,32 +285,37 @@ def plot_alaplace_fits(F, which_dists,
     freq_res = F.fs/F.wnd
     ax_hm = []
     for i,vals in enumerate([F.pvals, F.r2vals]):
-        ax_hm.append(plt.subplot(gs[i,-1]))
+        ax_hm.append(plt.subplot(gs[i,-2:]))
 
         dists = np.array(sorted(vals))
+        n_dists = len(dists)
         dd = np.mean(np.diff(dists))
         v = np.array([vals[d][0] for d in sorted(vals)]).T
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
         
-        extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]        
+        #extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]
+        # The distances are non-uniform, so just have one tick each and label them according to the actual distance
+        extent = [-0.5, n_dists-0.5, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]
         print(f"Setting extent to {extent}.")
         plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
                 extent = extent,
                     vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
-        [plt.plot(d/d_scale, F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists]
+        [plt.plot(list(dists).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists]
+        plt.xticks(np.arange(n_dists), labels=[f"{di/d_scale:.2g}" for di in dists],
+                   fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
-        plt.xlabel("Distance (p)",labelpad=-1)
+        plt.xlabel("Distance (p)",labelpad=0)
         #(i == 0) and plt.gca().set_xticklabels([])
         plt.ylabel("Frequency (Hz)", labelpad=-1)
         plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
         plt.axis("auto")
         plt.colorbar()
-        dmax = dists[np.argmin(np.abs(dists - 100*d_scale))]
-        plt.xlim((dists[0]-dd/2)/d_scale,min((dmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
+        #dmax = dists[np.argmin(np.abs(dists - 100*d_scale))]
+        #plt.xlim((dists[0]-dd/2)/d_scale,min((dmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
     
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
 
