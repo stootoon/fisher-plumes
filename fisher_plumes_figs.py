@@ -62,7 +62,8 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         aw, bw = wndf(a), wndf(b)
         ρ_w = np.corrcoef(aw,bw)[0,1]
         ρ   = np.corrcoef(a, b)[0,1]
-        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/d_scale:g} p, $\\rho_w$ = {ρ_w:1.3f}, $\\rho$ = {ρ:1.3f}", fontsize=8, verticalalignment="top")
+        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/d_scale:.2g} p, $\\rho_w$ = {ρ_w:.2f}, $\\rho$ = {ρ:.2g}", fontsize=8, verticalalignment="top")
+        ax_trace[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
 
     return ax_trace
 
@@ -73,6 +74,7 @@ def plot_plumes_demo(F, t_snapshot,
                      which_idists = [0,1,2],
                      t_wnd = [-4,4],
                      y_lim = (0,3),
+                     mean_subtract_y_coords = True,
                      dt = 0.5
 ):
     d_scale = F.pitch_in_um
@@ -81,13 +83,18 @@ def plot_plumes_demo(F, t_snapshot,
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
     pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
-    ax_plume.matshow(pp, extent = F.sim0.x_lim + F.sim0.y_lim)
-    px, py = F.sim0.get_used_probe_coords()[0]
+    meters_to_pitch = lambda x: x*1000000/F.pitch_in_um
+    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
+    ax_plume.matshow(pp, extent =
+                     [meters_to_pitch(x) for x in F.sim0.x_lim] +
+                     [meters_to_pitch(y - dy) for y in F.sim0.y_lim])
+    px, py = [meters_to_pitch(z) for z in F.sim0.get_used_probe_coords()[0]]
+    py -= meters_to_pitch(dy)
     ax_plume.plot(px, py, "kx", markersize=5)
     ax_plume.xaxis.set_ticks_position('bottom')
     ax_plume.axis("auto")
-    plt.xlabel("x (m)", labelpad=-1)
-    plt.ylabel("y (m)", labelpad=-1)
+    plt.xlabel("x (p)", labelpad=-1)
+    plt.ylabel("y (p)", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
     
     ax_trace = plot_two_plumes(F, which_idists, t_lim  = np.array(t_wnd) + t_snapshot,
@@ -107,6 +114,7 @@ def plot_plumes_demo(F, t_snapshot,
     #ax_corr_dist.set_yticklabels(["-1","","0","","1"])
     ax_corr_dist.set_ylabel("Correlation",labelpad=-1)
     ax_corr_dist.set_xlabel("Intersource distance (p)", labelpad=-1)
+    ax_corr_dist.xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
     plt.tight_layout(pad=0,w_pad=0,h_pad=1)
 
     return ax_plume, ax_trace, ax_corr_dist
