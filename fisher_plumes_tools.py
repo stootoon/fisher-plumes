@@ -1,7 +1,6 @@
 import os, sys
 import logging
 import numpy as np
-from copy import deepcopy
 from scipy.signal import stft, tukey
 from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize

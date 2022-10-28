@@ -46,8 +46,8 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
-        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/d_scale:g} p", linewidth=1)
-        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/d_scale:g} p", linewidth=1)
+        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/d_scale:.2g} p", linewidth=1)
+        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/d_scale:.2g} p", linewidth=1)
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])

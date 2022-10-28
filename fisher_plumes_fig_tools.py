@@ -68,7 +68,6 @@ def label_axes(ax_list, labs, dx=0, dy=0, x = None, y = None,
     for i, (ax, lab) in enumerate(zip(ax_list, labs)):
         bb = ax.get_tightbbox(renderer)
         bb = TransformedBbox(bb, itrans)
-        #print(lab, bb.x0, bb.y1)
         dxi = dx[i] if hasattr(dx, "__len__") else dx
         dyi = dy[i] if hasattr(dy, "__len__") else dy
         xi = bb.x0 + dxi if x is None else x[i]
