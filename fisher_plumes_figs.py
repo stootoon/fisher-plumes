@@ -260,6 +260,9 @@ def plot_alaplace_fits(F, which_dists,
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
         plt.title(f"{d/d_scale:.2g} p")
 
+        ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
+        ax_cdf[-1].yaxis.set_major_formatter(lambda x, pos: f"{x:g}")        
+
         if plot_dvals:
             rx = np.array(sorted(rr))
             ex = np.arange(1, len(rr)+1)/len(rr)
@@ -278,6 +281,8 @@ def plot_alaplace_fits(F, which_dists,
             #(di != 0 ) and axdi.set_yticklabels([])
             plt.xlabel("x",labelpad=-2)
             (di == 0) and plt.ylabel("|F$_{data}$($x$) - F$_{fit}$($x$)|")
+            axdi.xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
+            axdi.yaxis.set_major_formatter(lambda x, pos: f"{x:g}")                    
 
     if plot_dvals:
         [axdi.set_ylim(yld) for axdi in ax_dcdf]
