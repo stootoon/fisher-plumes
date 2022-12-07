@@ -12,7 +12,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.450",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.450",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.450",
             "source": [
                 0.4,
                 0.45
@@ -29,7 +29,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.480",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.480",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.480",
             "source": [
                 0.4,
                 0.48
@@ -46,7 +46,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.490",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.490",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.490",
             "source": [
                 0.4,
                 0.49
@@ -63,7 +63,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.495",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.495",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.495",
             "source": [
                 0.4,
                 0.495
@@ -80,7 +80,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.498",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.498",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.498",
             "source": [
                 0.4,
                 0.498
@@ -97,7 +97,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.500",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.500",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.500",
             "source": [
                 0.4,
                 0.5
@@ -114,7 +114,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.502",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.502",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.502",
             "source": [
                 0.4,
                 0.502
@@ -131,7 +131,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.505",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.505",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.505",
             "source": [
                 0.4,
                 0.505
@@ -148,7 +148,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.510",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.510",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.510",
             "source": [
                 0.4,
                 0.51
@@ -165,7 +165,7 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.520",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.520",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.520",
             "source": [
                 0.4,
                 0.52
@@ -182,12 +182,12 @@
             ],
             "fs": 1000.0,
             "name": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.550",
-            "root": "cylgrid/ff_int_sym_slow_high_tres_wide_n12dishT_Y0.550",
+            "root": "ff_int_sym_slow_high_tres_wide_n12dishT_Y0.550",
             "source": [
                 0.4,
                 0.55
             ]
         }
     ],
-    "root": "$HOME/working/tootoos/data/probes"
+    "root": "CRICK_DATA_ROOT"
 }
