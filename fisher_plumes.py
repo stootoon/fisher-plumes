@@ -220,7 +220,7 @@ class FisherPlumes:
 
     def compute_fisher_information(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information (v2).")
-        d_vals = [d for d in list(sorted(self.la.keys())) if d>0]
+        d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
         if len(d_add): d_vals += d_add
         d_vals = sorted(list(set(d_vals)))
         if d_min < d_vals[0]: d_vals = [d_min] + d_vals
@@ -229,25 +229,25 @@ class FisherPlumes:
         
         self.I_dists = np.array(d_vals)
         self.I = self.compute_fisher_information_at_distances(d_vals)
-        self.I_dict = {d:Id for d, Id in zip(d_vals, self.I)}
+        self.I_dict = [{d:Id for d, Id in zip(d_vals, I)} for I in self.I]
         
         pcs = [5, 50, 95]
-        self.I_pcs = {pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(self.I[1:], pcs, axis=0))}
+        self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
         
         ifreq_max = self.freqs2inds([self.freq_max])[0]
 
-        Isort      = np.argsort(self.I[1:][:, 1:ifreq_max+1,:],axis=1)
-        n_freqs    = Isort.shape[1]
-        best_ifreqs = Isort[:,-1,:]
-        res = mode(best_ifreqs, keepdims=False)        
-        self.I_best_ifreqs = res.mode + 1
+        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I]
+        n_freqs    = Isort[0].shape[1]
+        best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort]
+        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in best_ifreqs]       
+        self.I_best_ifreqs = [r.mode + 1 for r in res]
         # The p-values are those of binomial random variable
         # Have a probability of 1/# frequencies
         # and N = #bootstraps trials.
         # We want to see how many times a given frequency would come out on top
         # if it was happening by chance, and that's determined by the Binomial cdf
         # Which is the Incomplete beta function below
-        self.I_pvals = np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in res.count])
+        self.I_pvals = [np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in r.count]) for r in res]
         
     def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_vars = True):
         self.set_window(wnd)
