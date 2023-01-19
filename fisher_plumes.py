@@ -5,6 +5,7 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
+import pdb
 #sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
@@ -88,7 +89,7 @@ class FisherPlumes:
         wnd    = self.wnd
         n_probes = utils.d1(self.sims).data.shape[1]
         INFO(f"Computing coefficients for {n_probes} probes.")        
-        self.ss, self.cc, self.tt = [{}]*n_probes,[{}]*n_probes,[{}]*n_probes
+        self.ss, self.cc, self.tt = [{} for _ in range(n_probes)],[{} for _ in range(n_probes)],[{} for _ in range(n_probes)]
         
         detrender = lambda x: fpt.Detrenders.tukey_normalizer(x, tukey_param)
         for src in self.sims:
@@ -105,14 +106,14 @@ class FisherPlumes:
 
     def compute_correlations_from_trig_coefs(self):
         INFO("Computing correlations from trig coefficients.")
-        self.rho    = {d:np.concatenate([(self.ss[d1]*self.ss[d2] + self.cc[d1]*self.cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
-                       for d,pairsd in self.pairs.items()}
+        self.rho    = [{d:np.concatenate([(ss[d1]*ss[d2] + cc[d1]*cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
+                       for d,pairsd in self.pairs.items()} for ss,cc in zip(self.ss, self.cc)]
 
     def create_pooling_functions(self):
         INFO("Creating pooling functions.")
         # Takes a window size and a frequency INDEX and pools the data for the sine and cosine coefficients from each source
-        #pool_cs_data = lambda fi:{y:np.array([cc[src][:,fi], ss[src][:,fi]]).flatten() for src in self.ss}
-        self.pool_cs_data = lambda fi:{src:np.hstack([self.ss[src][:,:,fi], self.cc[src][:,:,fi]]) for src in self.ss}
+        #Create one function for each probe
+        self.pool_cs_data = [(lambda fi:{src:np.hstack([ss[src][:,:,fi], cc[src][:,:,fi]]) for src in ss}) for ss,cc in zip(self.ss, self.cc)]
         # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
         self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
                                                                       np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
@@ -134,73 +135,88 @@ class FisherPlumes:
         compute_variances = lambda X: np.var(np.dot(EE.T,X),axis=1)
 
         dists = sorted(list(self.pairs.keys()))
-        self.la, self.mu = {d:[] for d in dists}, {d:[] for d in dists}
+        n_probes = len(self.ss)
+        self.la, self.mu = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
         freqs = np.arange(self.wnd)/self.wnd * self.fs
         if fmax is None: fmax = self.fs/2
-        for fi,f in enumerate(freqs[freqs<=fmax]):
-            pooled_data = self.pool_cs_data(fi)
+        DEBUG(f"{sum(freqs<=fmax)=}.")
+        for iprb in range(n_probes):
+            for fi,f in enumerate(freqs[freqs<=fmax]):
+                pooled_data = self.pool_cs_data[iprb](fi)
+                for d in dists:
+                    data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
+                    vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
+                    fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data.shape=}"),DEBUG(f"{vars.shape=}"))
+                    # Append the data for this frequency
+                    self.la[iprb][d].append(vars[0]) # Projection along (1,1)             
+                    self.mu[iprb][d].append(vars[1]) # Projection along (1,-1)
+        
+        for iprb in range(n_probes):
             for d in dists:
-                data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
-                vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
-                # Append the data for this frequency
-                self.la[d].append(vars[0]) # Projection along (1,1)             
-                self.mu[d].append(vars[1]) # Projection along (1,-1)
+                self.la[iprb][d] = np.array(self.la[iprb][d]).T # .T for bootstraps x data
+                self.mu[iprb][d] = np.array(self.mu[iprb][d]).T
 
+        DEBUG(f"{utils.d1(self.la[0]).shape=}")
     
-        for d in dists:
-            self.la[d] = np.array(self.la[d]).T # .T for bootstraps x data
-            self.mu[d] = np.array(self.mu[d]).T         
-
     def compute_pvalues(self, skip_bootstrap = True):
         INFO("Computing p-values.")
         if skip_bootstrap:
             INFO("(Skipping p-value computation for bootstraps.)")
-        self.pvals = {d:np.array([
-            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
-            for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(self.la[d], self.mu[d], self.rho[d]))]) for d in self.rho}
+        self.pvals = [
+            {d:np.array([
+                [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+                for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
 
     def compute_r2values(self, skip_bootstrap = True):
         INFO("Computing R^2-values.")
         if skip_bootstrap:
             INFO("(Skipping R^2-value computation for bootstraps.)")
-        self.r2vals = {d:np.array([
+        self.r2vals = [
+            {d:np.array([
             [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
-            for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(self.la[d], self.mu[d], self.rho[d]))]) for d in self.rho}
+                for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
     def compute_la_gen_fit_to_distance(self, dmax=100000):
         INFO(f"Computing generalized exponential fit to distance.")
-        dists = np.array(sorted(list(self.la.keys())))
+        dists = np.array(sorted(list(self.la[0].keys())))
         dd    = dists[np.abs(dists)<=dmax]
     
         INFO(f"Using {len(dd)} distances <= {dmax}")
-        la_sub = np.stack([self.la[d] for d in dists if abs(d) <= dmax],axis=-1)
-        n_bs, n_freqs, n_dists = la_sub.shape
+        la_sub = [np.stack([la[d] for d in dists if abs(d) <= dmax],axis=-1) for la in self.la]
+        n_bs, n_freqs, n_dists = la_sub[0].shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
         if ('vars_for_freqs' not in self.__dict__) or self.vars_for_freqs is None:
             # Loop over the rows of la_sub
             # Each row (la_subi) has the data for one frequency
-            self.fit_params = np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_sub])
+            self.fit_params = [np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_subi])
+                               for la_subi in la_sub]
         else:
             INFO(f"Not fitting amplitudes, instead using given values.")
 
-            self.fit_params = np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, 2*vars_for_freqs_bs)]
-                                        for (la_sub_bs, vars_for_freqs_bs)  in zip(la_sub, self.vars_for_freqs)])
-            DEBUG(f"{self.fit_params.shape=}.")
+            self.fit_params = [np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, 2*vars_for_freqs_bs)]
+                                         for (la_sub_bs, vars_for_freqs_bs) in zip(la_subi, vars_for_freqsi)])
+                               for la_subi, vars_for_freqsi in zip(la_sub, self.vars_for_freqs)]
+            DEBUG(f"{self.fit_params[0].shape=}.")
+            DEBUG(f"{self.vars_for_freqs[0].shape=}.")
             # Stack the given amplitudes on top of the learned parameters so that the
             # shapes are the same whether we learn the amplitudes or not.
-            self.fit_params = np.stack([2*self.vars_for_freqs] + [self.fit_params[:,:,i] for i in range(self.fit_params.shape[-1])], axis=2)
-                                         
-        self.fit_params[:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
+            self.fit_params = [
+                np.stack([2*vars_for_freqsi] + [fit_paramsi[:,:,i] for i in range(fit_paramsi.shape[-1])], axis=2)
+                for vars_for_freqsi, fit_paramsi in zip(self.vars_for_freqs, self.fit_params)]
+
+        for iprb in range(len(self.fit_params)):
+            self.fit_params[iprb][:,:,1] *= np.std(dd)  # Scale the length scale back to their raw values.
         self.dd_fit = dd
 
     def compute_fisher_information_at_distances(self, which_ds):
-        return np.array([fpt.compute_fisher_information_for_gen_exp_decay(d,
-                                                                          self.fit_params[:,:,1],
-                                                                          self.fit_params[:,:,2],
-                                                                          self.fit_params[:,:,3],
-                                                                          self.vars_for_freqs                                                                       
+        return [np.array([fpt.compute_fisher_information_for_gen_exp_decay(d,
+                                                                          fit_params[:,:,1],
+                                                                          fit_params[:,:,2],
+                                                                          fit_params[:,:,3],
+                                                                          vars_for_freqs                                                                       
         ) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
+                for fit_params, vars_for_freqs in zip(self.fit_params, self.vars_for_freqs)]
 
     def compute_fisher_information_old(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information.")
