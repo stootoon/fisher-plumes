@@ -85,21 +85,23 @@ class FisherPlumes:
         if self.wnd is None:
             raise ValueError("Window size is unset. Use set_window to set it.")
 
-        wnd = self.wnd
-        self.ss, self.cc, self.tt = {}, {}, {}
+        wnd    = self.wnd
+        n_probes = utils.d1(self.sims).data.shape[1]
+        INFO(f"Computing coefficients for {n_probes} probes.")        
+        self.ss, self.cc, self.tt = [{}]*n_probes,[{}]*n_probes,[{}]*n_probes
+        
         detrender = lambda x: fpt.Detrenders.tukey_normalizer(x, tukey_param)
         for src in self.sims:
-            n_data = self.sims[src].data.shape[1]
-            for i in range(n_data):
-                key = (src) if n_data == 1 else (src, i)
+            for i in range(n_probes):
                 ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, detrender=detrender, **kwargs);
-                self.ss[key], self.cc[key], self.tt[key] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
+                self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
         INFO("Computing variances for harmonics.")
-        sc_all = np.concatenate([xkk for Fld in [self.ss, self.cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.  
-        # sc_all is now a (# bootstraps, # sine coefs + # cos coefs, # freqs) matrix.
-        self.vars_for_freqs = np.var(sc_all,axis=1)
+        sc_all = [np.concatenate([xkk for Fld in [ss, cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.
+                  for ss,cc in zip(self.ss, self.cc)] # Loop over probes
+        # sc_all[i] is now a (# bootstraps, # sine coefs + # cos coefs, # freqs) matrix.
+        self.vars_for_freqs = [np.var(sc_alli,axis=1) for sc_alli in sc_all]
 
     def compute_correlations_from_trig_coefs(self):
         INFO("Computing correlations from trig coefficients.")

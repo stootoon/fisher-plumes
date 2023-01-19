@@ -291,7 +291,7 @@ class BoulderSimulationData:
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
 
-def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.old'):
+def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig'):
     py_mode = fpt.validate_py_mode(py_mode)
     file_name = prefix
     if suffix: file_name += "_"+suffix

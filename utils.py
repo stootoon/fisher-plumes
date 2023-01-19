@@ -10,6 +10,8 @@ chain = lambda af: lambda x: reduce(lambda a, f: f(a), af[1:],af[0](x))
 
 fapply = lambda farr, a: [f(a) for f in farr] # applies each function in farr to a
 
+d1 = lambda d: d[list(d.keys())[0]] # Return the first element of a dictionary
+
 # Destructure a dictionary
 def dd(*args): 
     return lambda d: [d[a] for a in args]
