@@ -229,17 +229,22 @@ class FisherPlumes:
         
         self.I_dists = np.array(d_vals)
         self.I = self.compute_fisher_information_at_distances(d_vals)
-        self.I_dict = [{d:Id for d, Id in zip(d_vals, I)} for I in self.I]
-        
+
+        n_freqs = utils.d1(self.la[0]).shape[1]
+        expected_shape = (self.n_bootstraps+1, n_freqs, len(d_vals))
+        assert self.I[0].shape == expected_shape, f"{self.I[0].shape=} <> {expected_shape=}."
+        DEBUG(f"{self.I[0].shape=} has the expected value.")
+
         pcs = [5, 50, 95]
+        # Compute the percentiles over bootstraps ([1:] in the first dimension)
         self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
         
         ifreq_max = self.freqs2inds([self.freq_max])[0]
 
-        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I]
+        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I] # Sort frequencies by information
         n_freqs    = Isort[0].shape[1]
-        best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort]
-        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in best_ifreqs]       
+        best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort] # Find the most informative frequency for each bootstrap and distance
+        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in best_ifreqs] # Find the frequency that was most frequently most informative
         self.I_best_ifreqs = [r.mode + 1 for r in res]
         # The p-values are those of binomial random variable
         # Have a probability of 1/# frequencies

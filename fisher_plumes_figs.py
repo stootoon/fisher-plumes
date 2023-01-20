@@ -11,6 +11,8 @@ import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
 
+import pdb
+
 import utils
 import logging
 
@@ -26,9 +28,9 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
     d_scale = F.pitch_in_um
-    dists  = np.array(sorted(F.rho.keys()))       
+    dists  = np.array(sorted(F.rho[which_probe].keys()))       
     if pos_dists: dists  = dists[dists>0]
     ax_trace = []
     for i, di in enumerate(which_idists):
@@ -40,8 +42,8 @@ def plot_two_plumes(F, which_idists, t_lim, dt = 0.5, y_lim = None, axes = None,
         else:
             ipair = 0
         ia, ib = p[ipair]
-        a = F.sims[ia].data.flatten()
-        b = F.sims[ib].data.flatten()
+        a = F.sims[ia].data[:, which_probe].flatten()
+        b = F.sims[ib].data[:, which_probe].flatten()
         t = F.sim0.t
         sc = max(a.std(), b.std())
         a /= sc
@@ -211,7 +213,7 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs, d_scale,
         plt.grid(True)
     return axes
 
-def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,21], y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
+def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0, dt = 0.5, t_lim = [19,21], y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
     n_dists = len(idists_to_plot)
     n_rows  = int(np.ceil(n_dists/n_per_row))
     gs      = GridSpec(n_rows, (1 + rel_trace_width)*n_per_row)
@@ -221,11 +223,12 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, dt = 0.5, t_lim = [19,
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss, F.cc], F.freqs2inds([freq])[0], F.pairs, F.pitch_in_um, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
-    plot_two_plumes(F, idists_to_plot, t_lim, dt = dt, y_lim = y_lim, axes = trace_axes)
+    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs, F.pitch_in_um, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
 def plot_alaplace_fits(F, which_dists,
+                       which_probe = 0,
                        ifreq_lim = [], which_ifreq = 1, 
                        figsize=None, vmin=None,vmax=None,
                        heatmap_xmax = np.inf,
@@ -242,14 +245,14 @@ def plot_alaplace_fits(F, which_dists,
     ax_dcdf= []    
     ax_cdf = []
     for di, d in enumerate(which_dists):
-        print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[d][0][which_ifreq]):1.3f}")
+        print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
-        rr    = F.rho[d][0][which_ifreq]
+        rr    = F.rho[which_probe][d][0][which_ifreq]
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],1.2)        
         xvals = np.linspace(xl[0],xl[-1],1001)
 
-        la_   = F.la[d][0][which_ifreq]
-        mu_   = F.mu[d][0][which_ifreq]
+        la_   = F.la[which_probe][d][0][which_ifreq]
+        mu_   = F.mu[which_probe][d][0][which_ifreq]
         ypred = fpt.alaplace_cdf(la_, mu_, xvals)
 
         hdata = fpft.cdfplot(rr,color=dist2col(d), linewidth=1, label='F$_{data}$($x$)')
@@ -297,7 +300,7 @@ def plot_alaplace_fits(F, which_dists,
 
     freq_res = F.fs/F.wnd
     ax_hm = []
-    for i,vals in enumerate([F.pvals, F.r2vals]):
+    for i,vals in enumerate([F.pvals[which_probe], F.r2vals[which_probe]]):
         ax_hm.append(plt.subplot(gs[i,-2:]))
 
         dists = np.array(sorted(vals))
@@ -308,7 +311,7 @@ def plot_alaplace_fits(F, which_dists,
             ifreq_lim = [0, v.shape[0]]
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
         
-        #extent = [(dists[0]-dd/2)/d_scale, (dists[-1]+dd/2)/d_scale, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]
+
         # The distances are non-uniform, so just have one tick each and label them according to the actual distance
         extent = [-0.5, n_dists-0.5, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]
         print(f"Setting extent to {extent}.")
@@ -335,6 +338,7 @@ def plot_alaplace_fits(F, which_dists,
     return ax_cdf, ax_dcdf, ax_hm
         
 def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
+                                      which_probe=0,
                                       n_contours = 12, contours_cmap=cm.gray,
                                       plot_scatter = True,
                                       plot_legend = True,
@@ -349,8 +353,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     INFO(f"plot_gen_exp_paramter_fits_panel with {which_fis=}, {log_scale=}.")
     d_scale = F.pitch_in_um
     fun = np.log10 if log_scale else (lambda X: X)
-    γbs = fun(F.fit_params[:, which_fis, 1]/d_scale)
-    kbs = fun(F.fit_params[:, which_fis, 2])
+    γbs = fun(F.fit_params[which_probe][:, which_fis, 1]/d_scale)
+    kbs = fun(F.fit_params[which_probe][:, which_fis, 2])
 
     if plot_scatter:
         for γ, k in zip(γbs, kbs):
@@ -362,8 +366,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         ind_max = F.freqs2inds([F.freq_max])[0]
         other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
         cols = [fpft.set_alpha(cm.Oranges((fi/F.wnd)*F.fs/F.freq_max),0.5) for fi in other_inds]
-        γm = np.mean(fun(F.fit_params[:, other_inds, 1]/d_scale),axis=0)
-        κm = np.mean(fun(F.fit_params[:, other_inds, 2]),axis=0)
+        γm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 1]/d_scale),axis=0)
+        κm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 2]),axis=0)
         plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
         
     
@@ -425,7 +429,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
 
         
     
-def plot_la_gen_fits_vs_distance(F, 
+def plot_la_gen_fits_vs_distance(F,
+                                 which_probe = 0,
                                  which_ifreqs = [1,2,3,4],
                                  figsize = None, legloc = None, xl = None,
                                  colfun = lambda f: freq2col(f, 10),
@@ -436,8 +441,8 @@ def plot_la_gen_fits_vs_distance(F,
 
     d_scale = F.pitch_in_um
     gs     = GridSpec(2,3)
-    dd_all = np.array(sorted(list(F.la.keys())))
-    la     = {d:F.la[d][0] for d in F.la}
+    dd_all = np.array(sorted(list(F.la[which_probe].keys())))
+    la     = {d:F.la[which_probe][d][0] for d in F.la[which_probe]}
     la_sub = np.array(la[d] for d in dd_all if d in F.dd_fit)
     freqs  = np.arange(F.wnd)/F.wnd*F.fs
     ax     = []
@@ -449,12 +454,12 @@ def plot_la_gen_fits_vs_distance(F,
         row   = i // 2
         col   = i % 2
         ax.append(plt.subplot(gs[row, col]))
-        X = np.stack([F.la[d][1:, fi] for d in dd_all],axis=1) # 1: is to take the bootstraps (0 is the raw data)
+        X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all],axis=1) # 1: is to take the bootstraps (0 is the raw data)
         la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
         ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz")
         ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
         for j in range(min(5, F.n_bootstraps)):
-            ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[1+j][fi])),
+            ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi])),
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
                         linewidth=1, zorder=-5)
         (row == 1) and plt.xlabel("Distance $s$ (p)")
@@ -465,7 +470,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, n_contours = 0, **kwargs)
+    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, n_contours = 0, **kwargs)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
@@ -475,6 +480,7 @@ def plot_la_gen_fits_vs_distance(F,
     
 def plot_fisher_information(#amps, sds, slope, intercept,
         F,
+        which_probe=0,
         d_lim=[1e-3,100],
         d_range = None,
         d_vals = [0.1,1,10],
@@ -490,13 +496,13 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 ):
     d_scale = F.pitch_in_um
     d0,d1 = d_lim
-    d1 = max(d1, np.max(F.I_dists)) # So that the line plot spans at least as far as the medians+/-whiskers
+    d1 = max(d1, np.max(F.I_dists[which_probe])) # So that the line plot spans at least as far as the medians+/-whiskers
     dd = d_space_fun(d0, d1,101)
     INFO(f"{dd[0]=:g}, {dd[-1]=:g}")
     Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
-    Idd_med = np.median(Idd[1:],axis=0) * d_scale**2
+    Idd_med = np.median(Idd[which_probe][1:],axis=0) * d_scale**2 # Median over bootsraps
 
-    which_ifreqs = list(set(F.I_best_ifreqs))
+    which_ifreqs = list(set(F.I_best_ifreqs[which_probe]))
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
     
@@ -505,7 +511,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     gs      = GridSpec(6,n_dvals)
 
     ax_fisher = plt.subplot(gs[:3,:])
-    Ilow, Imed, Ihigh = np.array([F.I_pcs[k] for k in sorted(F.I_pcs)]) * d_scale**2
+    Ilow, Imed, Ihigh = np.array([F.I_pcs[which_probe][pc] for pc in sorted(F.I_pcs[which_probe])]) * d_scale**2
+
     for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs[:4], Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
         plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi]:g} Hz")
@@ -521,11 +528,11 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     fpft.spines_off(plt.gca())
 
     ax_best_freq = plt.subplot(gs[3,:])
-    ax_best_freq.semilogx(F.I_dists/d_scale, F.freqs[F.I_best_ifreqs],
+    ax_best_freq.semilogx(F.I_dists/d_scale, F.freqs[F.I_best_ifreqs[which_probe]],
                           ":",color="lightgray",markersize=3, linewidth=1)
     ax_best_freq.scatter(F.I_dists/d_scale,
-                         F.freqs[F.I_best_ifreqs],
-                         c=[colfun(fi) for fi in F.I_best_ifreqs],
+                         F.freqs[F.I_best_ifreqs[which_probe]],
+                         c=[colfun(fi) for fi in F.I_best_ifreqs[which_probe]],
                          s=10)
     
     ax_best_freq.xaxis.tick_top()    
