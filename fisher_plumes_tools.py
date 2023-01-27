@@ -135,7 +135,7 @@ fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k, b: gen_exp(d, a,
                                                 bounds=(0, np.inf))[0]
 def DUMP_IF_FAIL(f, *args, extra= {}, **kwargs):
     try:
-        f(*args, **kwargs)
+        return f(*args, **kwargs)
     except Exception as e:
         DEBUG(f"DUMP_IF_FAIL caught an exception.")
         with open("dumpiffail.p","wb") as f:

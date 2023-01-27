@@ -5,13 +5,14 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
-import pdb
 #sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
 
 import boulder
 import crick
+
+from matplotlib import pyplot as plt
 
 logger = utils.create_logger("fisher_plumes")
 logger.setLevel(logging.DEBUG)
@@ -109,14 +110,14 @@ class FisherPlumes:
         self.rho    = [{d:np.concatenate([(ss[d1]*ss[d2] + cc[d1]*cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
                        for d,pairsd in self.pairs.items()} for ss,cc in zip(self.ss, self.cc)]
 
-    def create_pooling_functions(self):
-        INFO("Creating pooling functions.")
-        # Takes a window size and a frequency INDEX and pools the data for the sine and cosine coefficients from each source
-        #Create one function for each probe
-        self.pool_cs_data = [(lambda fi:{src:np.hstack([ss[src][:,:,fi], cc[src][:,:,fi]]) for src in ss}) for ss,cc in zip(self.ss, self.cc)]
-        # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
-        self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
-                                                                      np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
+    # def create_pooling_functions(self):
+    #     INFO("Creating pooling functions.")
+    #     # Takes a window size and a frequency INDEX and pools the data for the sine and cosine coefficients from each source
+    #     #Create one function for each probe
+    #     self.pool_cs_data = [(lambda fi:{src:np.hstack([ss[src][:,:,fi], cc[src][:,:,fi]]) for src in ss}) for ss,cc in zip(self.ss, self.cc)]
+    #     # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
+    #     self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
+    #                                                                   np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
 
     def pool_trig_coefs_for_distance(self, d):
         cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
@@ -124,7 +125,69 @@ class FisherPlumes:
         cs_pooled = [np.transpose(np.stack((cs0_prb, cs1_prb), 3), [0,3,1,2]) for (cs0_prb, cs1_prb) in zip(cs_0, cs_1)]
         return cs_pooled
         # cs_pooled[iprb][bs, 2, #windows, fi]
-        
+
+    def test_trig_coef_pooling(self):
+        DEBUG("Testing trig coef pooling.")
+        ss_orig = deepcopy(self.ss)
+        cc_orig = deepcopy(self.cc)
+        ss = deepcopy(self.ss)
+        cc = deepcopy(self.cc)
+        for iprb in range(len(ss)):
+            for y in ss[iprb].keys():
+                spy = ss[iprb][y]
+                ss[iprb][y] = self.ss[iprb][y].astype('complex128')
+                cc[iprb][y] = self.cc[iprb][y].astype('complex128')        
+                for ibs in range(spy.shape[0]):
+                    for itime in range(spy.shape[1]):
+                        for ifreq in range(spy.shape[2]):
+                            ss[iprb][y][ibs,itime,ifreq] = (y*10000 + ibs*100+ifreq+itime/1000.) + 1j*(iprb+1)
+                            cc[iprb][y][ibs,itime,ifreq] = (y*10000 + ibs*100+ifreq+itime/1000.) - 1j*(iprb+1)                    
+
+        iprb  = min(len(self.ss)-1,1) 
+        dist  = list(self.pairs.keys())[1]
+        ifreq = 1
+        ibs   = min(1,self.n_bootstraps)
+        y01   = 1
+        DEBUG(f"Testing with {iprb=} {dist=} {ifreq=} {ibs=} {y01=}.")
+
+        self.ss = ss
+        self.cc = cc
+        pooled  = self.pool_trig_coefs_for_distance(dist)[iprb][:,:,:,ifreq] # bs, (y0,y1), time, freq
+
+        expected  = [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. + 1j*(iprb+1) for (y0,y1) in self.pairs[dist] for itime in range(self.ss[iprb][y0].shape[1])]
+        expected += [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. - 1j*(iprb+1) for (y0,y1) in self.pairs[dist] for itime in range(self.ss[iprb][y0].shape[1])]
+        expected  = np.array(expected)
+
+        exp_vals = sorted(np.imag(expected))
+        obs_vals = sorted(np.imag(pooled[ibs][y01][:]))            
+        if not np.allclose(exp_vals, obs_vals):
+            plt.plot(exp_vals, label="expected")
+            plt.plot(obs_vals, label="observed")
+            plt.legend()            
+            plt.savefig("mismatch.pdf")
+            plt.close()
+            DEBUG("Wrote mismatch.pdf")
+            raise ValueError("Imaginary values mismatched.")
+        else:
+            DEBUG("Imaginary values were OK.")
+
+        exp_vals = sorted(np.real(expected))
+        obs_vals = sorted(np.real(pooled[ibs][y01][:]))
+        if not np.allclose(exp_vals, obs_vals):
+            plt.plot(exp_vals, label="expected")
+            plt.plot(obs_vals, label="observed")
+            plt.legend()
+            plt.savefig("mismatch.pdf")
+            plt.close()
+            DEBUG("Wrote mismatch.pdf")            
+            raise ValueError("Real values mismatched.")
+        else:
+            DEBUG("Real values were OK.")
+
+        # Tests passed so restore the original values
+        self.ss = ss_orig
+        self.cc = cc_orig
+
     def compute_lambdas(self, fmax = None):
         """ 
         Computes bivariate normal fits to the pooled sine and cosine data.
@@ -136,7 +199,7 @@ class FisherPlumes:
         for for the specified window, indexed frequency, and distance.
         """
         INFO("Computing lambdas.")
-        self.create_pooling_functions()
+        #self.create_pooling_functions()
 
         EE    = np.array([[1,-1],[1,1]])/np.sqrt(2)
         compute_variances = lambda X: np.var(np.dot(EE.T,X),axis=1)
@@ -147,11 +210,12 @@ class FisherPlumes:
         freqs = np.arange(self.wnd)/self.wnd * self.fs
         if fmax is None: fmax = self.fs/2
         DEBUG(f"{sum(freqs<=fmax)=}.")
-        for iprb in range(n_probes):
-            for fi,f in enumerate(freqs[freqs<=fmax]):
-                pooled_data = self.pool_cs_data[iprb](fi)
-                for d in dists:
-                    data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
+        for d in dists:
+            pooled_data = self.pool_trig_coefs_for_distance(d)                    
+            for iprb in range(n_probes):
+                for fi,f in enumerate(freqs[freqs<=fmax]):
+                    #data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
+                    data = pooled_data[iprb][:,:,:,fi] # bs x (y0, y1) x data                    
                     vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
                     fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data.shape=}"),DEBUG(f"{vars.shape=}"))
                     # Append the data for this frequency
