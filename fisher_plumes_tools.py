@@ -1,6 +1,7 @@
 import os, sys
 import logging
 import numpy as np
+import pickle 
 from scipy.signal import stft, tukey
 from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize
@@ -125,11 +126,24 @@ compute_r2_value  = lambda la, mu, x: 1 - np.mean((cdfvals(x) -  alaplace_cdf(la
 gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
 fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
                                       p0=[np.max(la),1,1,0],
+                                      maxfev=5000,
                                       bounds=(0, np.inf))[0]
 fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
                                                 d, la,
                                                 p0=[1,1,0],
+                                                maxfev=5000,                                                
                                                 bounds=(0, np.inf))[0]
+def DUMP_IF_FAIL(f, *args, extra= {}, **kwargs):
+    try:
+        f(*args, **kwargs)
+    except Exception as e:
+        DEBUG(f"DUMP_IF_FAIL caught an exception.")
+        with open("dumpiffail.p","wb") as f:
+            pickle.dump({"args":args, "kwargs":kwargs, "extra":extra}, f)
+        DEBUG(f"Wrote args and kwargs to dumpiffail.p.")
+        raise e
+              
+    
 
 def compute_fisher_information_for_gen_exp_decay(s, γ, k, b, σ2):
     sn    = s/γ

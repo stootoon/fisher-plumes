@@ -117,7 +117,14 @@ class FisherPlumes:
         # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
         self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
                                                                       np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
-                        
+
+    def pool_trig_coefs_for_distance(self, d):
+        cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
+        cs_1 = [np.concatenate([coef_prb[y1] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
+        cs_pooled = [np.transpose(np.stack((cs0_prb, cs1_prb), 3), [0,3,1,2]) for (cs0_prb, cs1_prb) in zip(cs_0, cs_1)]
+        return cs_pooled
+        # cs_pooled[iprb][bs, 2, #windows, fi]
+        
     def compute_lambdas(self, fmax = None):
         """ 
         Computes bivariate normal fits to the pooled sine and cosine data.
@@ -194,9 +201,12 @@ class FisherPlumes:
         else:
             INFO(f"Not fitting amplitudes, instead using given values.")
 
-            self.fit_params = [np.array([[fpt.fit_gen_exp_no_amp(dd/np.std(dd),la_sub_bsi, ampi) for (la_sub_bsi, ampi) in zip(la_sub_bs, 2*vars_for_freqs_bs)]
-                                         for (la_sub_bs, vars_for_freqs_bs) in zip(la_subi, vars_for_freqsi)])
-                               for la_subi, vars_for_freqsi in zip(la_sub, self.vars_for_freqs)]
+            self.fit_params = [
+                np.array([[
+                fpt.DUMP_IF_FAIL(fpt.fit_gen_exp_no_amp, dd/np.std(dd),la_sub_bsi, ampi, extra={"ifreq":ifreq, "ibs":ibs, "iprobe":iprobe})
+                for ifreq,  (la_sub_bsi, ampi)             in enumerate(zip(la_sub_bs, 2*vars_for_freqs_bs))]
+                for ibs,    (la_sub_bs, vars_for_freqs_bs) in enumerate(zip(la_subi,     vars_for_freqsi))])
+                for iprobe, (la_subi, vars_for_freqsi)     in enumerate(zip(la_sub, self.vars_for_freqs))]
             DEBUG(f"{self.fit_params[0].shape=}.")
             DEBUG(f"{self.vars_for_freqs[0].shape=}.")
             # Stack the given amplitudes on top of the learned parameters so that the
