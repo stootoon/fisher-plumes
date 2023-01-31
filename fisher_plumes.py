@@ -110,15 +110,6 @@ class FisherPlumes:
         self.rho    = [{d:np.concatenate([(ss[d1]*ss[d2] + cc[d1]*cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
                        for d,pairsd in self.pairs.items()} for ss,cc in zip(self.ss, self.cc)]
 
-    # def create_pooling_functions(self):
-    #     INFO("Creating pooling functions.")
-    #     # Takes a window size and a frequency INDEX and pools the data for the sine and cosine coefficients from each source
-    #     #Create one function for each probe
-    #     self.pool_cs_data = [(lambda fi:{src:np.hstack([ss[src][:,:,fi], cc[src][:,:,fi]]) for src in ss}) for ss,cc in zip(self.ss, self.cc)]
-    #     # Given pooled cs data, combines the data across elements of all distance pairs for a given distance and returns the resultsing two vectors.
-    #     self.pool_cs_data_for_distance = lambda cs_data, d: np.stack([np.hstack([cs_data[y0] for y0,y1 in self.pairs[d]]),
-    #                                                                   np.hstack([cs_data[y1] for y0,y1 in self.pairs[d]])],axis=0).transpose([1,0,2]) # Bootstraps x (y0, y1) x windows
-
     def pool_trig_coefs_for_distance(self, d):
         cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
         cs_1 = [np.concatenate([coef_prb[y1] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
@@ -199,7 +190,6 @@ class FisherPlumes:
         for for the specified window, indexed frequency, and distance.
         """
         INFO("Computing lambdas.")
-        #self.create_pooling_functions()
 
         EE    = np.array([[1,-1],[1,1]])/np.sqrt(2)
         compute_variances = lambda X: np.var(np.dot(EE.T,X),axis=1)
@@ -214,7 +204,6 @@ class FisherPlumes:
             pooled_data = self.pool_trig_coefs_for_distance(d)                    
             for iprb in range(n_probes):
                 for fi,f in enumerate(freqs[freqs<=fmax]):
-                    #data = self.pool_cs_data_for_distance(pooled_data, d) # bs x (y0, y1) x data
                     data = pooled_data[iprb][:,:,:,fi] # bs x (y0, y1) x data                    
                     vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
                     fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data.shape=}"),DEBUG(f"{vars.shape=}"))
