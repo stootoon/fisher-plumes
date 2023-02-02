@@ -7,13 +7,15 @@ import pickle
 import re
 
 import pandas as pd
-from copy import deepcopy
-import numpy as np
+from   copy   import deepcopy
+import numpy  as np
 from matplotlib import pyplot as plt
 from matplotlib import cm
 
 import utils
 import fisher_plumes_tools as fpt
+
+from units import UNITS
 
 logging.basicConfig()
 logger = logging.getLogger("boulder")
@@ -126,23 +128,27 @@ def load(name):
     return BoulderSimulationData(name)
 
 class BoulderSimulationData:
-    def __init__(self, name, tol = 0):
+    def __init__(self, name, units = UNITS.m, tol = 0):
         self.tol = tol
         self.name = name
         self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
+        self.units = units
+        self.probe_t *= UNITS.s
         self.t  = self.probe_t
         self.nt = len(self.probe_t)
-        self.x  = self.probe_grid["x"][:,0]
+        self.probe_grid["x"]*=self.units
+        self.probe_grid["y"]*=self.units
+        self.x  = self.probe_grid["x"][:,0] 
         self.nx = len(self.x)
         self.y  = self.probe_grid["y"][0]
         self.ny = len(self.y)
         self.nz = 1
-        self.x_lim      = sorted([self.x[0], self.x[-1]])
-        self.y_lim      = sorted([self.y[0], self.y[-1]])
-        self.source     = simulations[simulations["name"] == name]["source"].values[0]
-        self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0]
+        self.x_lim      = sorted([self.x[0], self.x[-1]]) 
+        self.y_lim      = sorted([self.y[0], self.y[-1]]) 
+        self.source     = simulations[simulations["name"] == name]["source"].values[0] * self.units
+        self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0] * self.units
         self.fields     = simulations[simulations["name"] == name]["data_fields"].values[0]
-        self.fs         = simulations[simulations["name"] == name]["fs"].values[0]
+        self.fs         = simulations[simulations["name"] == name]["fs"].values[0] * UNITS.Hz
         INFO(self)
 
     def __str__(self):
@@ -150,13 +156,13 @@ class BoulderSimulationData:
         x = self.x
         y = self.y
         t = self.t
-        s.append(f"x_lim: {self.x_lim}")
-        s.append(f"y_lim: {self.y_lim}")                
+        s.append(f"x_lim: {self.x_lim[0]:1.6g} to {self.x_lim[1]:1.6g}")
+        s.append(f"y_lim: {self.y_lim[0]:1.6g} to {self.y_lim[1]:1.6g}")                
         s.append(f"x-y Dimensions: {self.dimensions}")
         s.append(f"x-range: {x[0]:.3f}, {x[1]:.3f} ... {x[-1]:.3f} ({self.nx} points)")
         s.append(f"y-range: {y[0]:.3f}, {y[1]:.3f} ... {y[-1]:.3f} ({self.ny} points)")
         s.append(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
-        s.append(f"fs: {self.fs:g} Hz")
+        s.append(f"fs: {self.fs:g}")
         s.append("Sources:")
         for i, (fld, src) in enumerate(zip(self.fields, self.source)):
             fld_name = fld.split("/")[-1]
@@ -178,21 +184,23 @@ class BoulderSimulationData:
         imin = np.where(dd == np.min(dd))
         ix, iy = imin[0][0], imin[1][0]
         return ix, iy
-        
-    def coord2str(self, x,y):
-        sx = "{:.1f}".format(x*100)
-        sy = "{:.1f}".format(y*100)
-        if sx != "0.0" and sy != "0.0":
-            s = f"x={sx} cm, y={sy} cm"
-        elif sx == "0.0" and sy != "0.0":
-            s = f"y={sy} cm"
-        elif sx != "0.0" and sy == "0.0":
-            s = f"x={sx} cm"
+
+    def coord2str(self, x, y, output_units = None):
+        if output_units is None:
+            output_units = self.units
+        sx = f"{x.to(output_units):.1f}"
+        sy = f"{y.to(output_units):.1f}"
+        if x != 0 and y != 0:
+            s = f"x={sx}, y={sy}"
+        elif sx == 0 and sy != 0:
+            s = f"y={sy}"
+        elif sx != 0 and sy == 0:
+            s = f"x={sx}"
         else:
             s = "@origin"
         s = s.replace(".0", "")
         return s
-
+            
     def load_h5(self):
         sim_dir  = simulations[simulations["name"] == self.name]["root"].values[0]
         probe_dir = op.join(data_root, sim_dir)
@@ -221,7 +229,7 @@ class BoulderSimulationData:
         raise ValueError(f"No field found matching '{which_field}'.")
 
     def get_key(self):
-        return int(self.source[1]*1000000)
+        return int(self.source[1].to("um").magnitude)
     
     def save_snapshot(self, t, data_dir = "."):
         fld = self.fields[0][-3:]
@@ -247,7 +255,7 @@ class BoulderSimulationData:
 
         if names is not None:
             if len(names) != len(coords):
-                raise ValueError("Number of names {} does not match number of coords {}.".format(len(names), len(coords)))
+                raise ValueError(f"Number of names {len(names)} does not match number of coords {len(coords)}.")
 
         indices = [self.nearest_probe(*xy) for xy in coords]
 
@@ -299,22 +307,24 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = '
     logger.info(f"Loading data from {file_name=}.")
     bb = load(file_name)
     fixed_sources = []
+
     for x,y in bb.source:
-        if np.abs(y)>0.3:
+        if np.abs(y.magnitude)>0.3:
             WARN(f"Found incorrect source {y=}.")
             y/=10
             WARN(f"Corrected to {y=}.")            
-        fixed_sources.append([x,y])
+        fixed_sources.append([x.magnitude,y.magnitude])
     if "old" in file_name:
         WARN("Doubling y coordinates because they were wrong in the original data.")
-        fixed_sources = [(x,2*y) for x,y in fixed_sources]
-        
-    bb.source = np.array(fixed_sources)
-    bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1] + bb.y_lim[0])) for (px, py) in which_coords])
+        fixed_sources = [(x.magnitude,2*y.magnitude) for x,y in fixed_sources]
+
+    bb.source = np.array(fixed_sources) * bb.units
+
+    bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1].magnitude + bb.y_lim[0])) for (px, py) in which_coords])
     sims = {}
     for i, (k, v) in enumerate(bb.data.items()):
         # k = int(("-" if k[-1] == "a" else "")+k[1]) # Names are c2a, c3b etc. so convert to yvals -8 to 8
-        k1 = int(bb.source[i][1] * 1000000) # Get the y-value of the source in um
+        k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um
         sims[k1] = deepcopy(bb)
         sims[k1].data = v.copy()
         sims[k1].fields = [bb.fields[i]]

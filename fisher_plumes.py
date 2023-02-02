@@ -8,6 +8,8 @@ from copy import deepcopy
 #sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
+import pint
+UNITS = pint.UnitRegistry()
 
 import boulder
 import crick
