@@ -31,7 +31,7 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
     to_sec  = lambda t: t.to(UNITS.sec).magnitude
     to_pitch= lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -220,7 +220,9 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
         plt.grid(True)
     return axes
 
-def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0, dt = 0.5, t_lim = [19,21], y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
+def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0,
+                                 dt = 0.5 * UNITS.sec, t_lim = [19,21]*UNITS.sec,
+                                 y_lim = None, n_per_row=1, rel_trace_width=2, **kwargs):
     n_dists = len(idists_to_plot)
     n_rows  = int(np.ceil(n_dists/n_per_row))
     gs      = GridSpec(n_rows, (1 + rel_trace_width)*n_per_row)
@@ -230,7 +232,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0, dt = 
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs, F.pitch_in_um, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_units, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
