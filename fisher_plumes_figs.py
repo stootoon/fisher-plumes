@@ -72,6 +72,7 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = N
 
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
+                     which_probe = 0,
                      data_dir = "./data",
                      which_idists = [0,1,2],
                      t_wnd = [-4,4],
@@ -90,7 +91,7 @@ def plot_plumes_demo(F, t_snapshot,
     ax_plume.matshow(pp, extent =
                      [meters_to_pitch(x) for x in F.sim0.x_lim] +
                      [meters_to_pitch(y - dy) for y in F.sim0.y_lim])
-    px, py = [meters_to_pitch(z) for z in F.sim0.get_used_probe_coords()[0]]
+    px, py = [meters_to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
     py -= meters_to_pitch(dy)
     ax_plume.plot(px, py, "kx", markersize=5)
     ax_plume.xaxis.set_ticks_position('bottom')
@@ -104,7 +105,7 @@ def plot_plumes_demo(F, t_snapshot,
                                axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)])
         
     ax_corr_dist = plt.subplot(gs[:,-1])
-    rho   = F.rho
+    rho   = F.rho[which_probe]
     dists = np.array(sorted(list(rho.keys()))) 
     rho   = {d:rho[d][0] for d in dists} # Take the raw data, not the bootstraps
     rhom  = np.array([np.mean(np.sum(rho[d],axis=0)) for d in dists])
