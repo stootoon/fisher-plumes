@@ -8,8 +8,8 @@ from copy import deepcopy
 #sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
-import pint
-UNITS = pint.UnitRegistry()
+
+from units import UNITS
 
 import boulder
 import crick
@@ -24,7 +24,7 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, pitch_in_um = 1, freq_max = np.inf, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if type(sim_name) is not str:
             INFO(f"{sim_name=} was not a string, assuming it's a FisherPlumes object.")
             other = sim_name
@@ -33,11 +33,12 @@ class FisherPlumes:
             self.n_bootstraps = other.n_bootstraps
             self.random_seed  = other.random_seed
             self.sims  = deepcopy(other.sims)
-            self.pairs = deepcopy(other.pairs)
-            self.yvals = deepcopy(other.yvals)
+            self.pairs_um = deepcopy(other.pairs_um)
+            self.yvals_um = deepcopy(other.yvals_um)
             self.pairs_mode = other.pairs_mode            
             self.sim0  = deepcopy(other.sim0)
-            self.pitch_in_um = other.pitch_in_um
+            self.pitch = other.pitch
+            self.pitch_units = other.pitch_units
             self.wnd   = other.wnd
             self.freq_max = other.freq_max
             for fld in ["fs", "dimensions"]:
@@ -47,20 +48,23 @@ class FisherPlumes:
             INFO(f"****** LOADING {sim_name=} ******")
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs = boulder.load_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
+                self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
             elif sim_name == "n12dishT": 
-                self.sims, self.pairs = crick.load_sims(sim_name, pairs_mode = pairs_mode,  **kwargs)               
+                self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode,  **kwargs)               
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.name         = sim_name
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
-            self.yvals = np.array(sorted(list(self.sims.keys())))
+            self.yvals_um = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
-            self.pitch_in_um = pitch_in_um            
-            self.sim0 = self.sims[self.yvals[0]]
+            self.pitch = pitch
+            self.pitch_units = f"{self.name}_pitch"
+            UNITS.define(f"{self.pitch_units} = {self.pitch}")
+            INFO(f"1 {self.pitch_units} = {(1 * UNITS(f'{self.pitch_units}')).to(UNITS.um)}")
+            self.sim0 = self.sims[self.yvals_um[0]]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
 
@@ -110,11 +114,11 @@ class FisherPlumes:
     def compute_correlations_from_trig_coefs(self):
         INFO("Computing correlations from trig coefficients.")
         self.rho    = [{d:np.concatenate([(ss[d1]*ss[d2] + cc[d1]*cc[d2])/2 for (d1,d2) in pairsd], axis=1).transpose([0,2,1]) # bs x freqs x windows. 
-                       for d,pairsd in self.pairs.items()} for ss,cc in zip(self.ss, self.cc)]
+                       for d,pairsd in self.pairs_um.items()} for ss,cc in zip(self.ss, self.cc)]
 
     def pool_trig_coefs_for_distance(self, d):
-        cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
-        cs_1 = [np.concatenate([coef_prb[y1] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
+        cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs_um[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
+        cs_1 = [np.concatenate([coef_prb[y1] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs_um[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
         cs_pooled = [np.transpose(np.stack((cs0_prb, cs1_prb), 3), [0,3,1,2]) for (cs0_prb, cs1_prb) in zip(cs_0, cs_1)]
         return cs_pooled
         # cs_pooled[iprb][bs, 2, #windows, fi]
@@ -137,7 +141,7 @@ class FisherPlumes:
                             cc[iprb][y][ibs,itime,ifreq] = (y*10000 + ibs*100+ifreq+itime/1000.) - 1j*(iprb+1)                    
 
         iprb  = min(len(self.ss)-1,1) 
-        dist  = list(self.pairs.keys())[1]
+        dist  = list(self.pairs_um.keys())[1]
         ifreq = 1
         ibs   = min(1,self.n_bootstraps)
         y01   = 1
@@ -147,8 +151,8 @@ class FisherPlumes:
         self.cc = cc
         pooled  = self.pool_trig_coefs_for_distance(dist)[iprb][:,:,:,ifreq] # bs, (y0,y1), time, freq
 
-        expected  = [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. + 1j*(iprb+1) for (y0,y1) in self.pairs[dist] for itime in range(self.ss[iprb][y0].shape[1])]
-        expected += [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. - 1j*(iprb+1) for (y0,y1) in self.pairs[dist] for itime in range(self.ss[iprb][y0].shape[1])]
+        expected  = [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. + 1j*(iprb+1) for (y0,y1) in self.pairs_um[dist] for itime in range(self.ss[iprb][y0].shape[1])]
+        expected += [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. - 1j*(iprb+1) for (y0,y1) in self.pairs_um[dist] for itime in range(self.ss[iprb][y0].shape[1])]
         expected  = np.array(expected)
 
         exp_vals = sorted(np.imag(expected))
@@ -196,7 +200,7 @@ class FisherPlumes:
         EE    = np.array([[1,-1],[1,1]])/np.sqrt(2)
         compute_variances = lambda X: np.var(np.dot(EE.T,X),axis=1)
 
-        dists = sorted(list(self.pairs.keys()))
+        dists = sorted(list(self.pairs_um.keys()))
         n_probes = len(self.ss)
         self.la, self.mu = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
         freqs = np.arange(self.wnd)/self.wnd * self.fs
@@ -238,13 +242,13 @@ class FisherPlumes:
             [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
-    def compute_la_gen_fit_to_distance(self, dmax=100000):
+    def compute_la_gen_fit_to_distance(self, dmax_um=100000):
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la[0].keys())))
-        dd    = dists[np.abs(dists)<=dmax]
+        dd    = dists[np.abs(dists)<=dmax_um]
     
-        INFO(f"Using {len(dd)} distances <= {dmax}")
-        la_sub = [np.stack([la[d] for d in dists if abs(d) <= dmax],axis=-1) for la in self.la]
+        INFO(f"Using {len(dd)} distances <= {dmax_um} um ")
+        la_sub = [np.stack([la[d] for d in dists if abs(d) <= dmax_um],axis=-1) for la in self.la]
         n_bs, n_freqs, n_dists = la_sub[0].shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
@@ -283,7 +287,7 @@ class FisherPlumes:
         ) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
                 for fit_params, vars_for_freqs in zip(self.fit_params, self.vars_for_freqs)]
 
-    def compute_fisher_information(self, d_min = 100, d_max = -1, d_add = [100,200,500,1000,2000,5000]):
+    def compute_fisher_information(self, d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information (v2).")
         d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
         if len(d_add): d_vals += d_add
@@ -319,7 +323,7 @@ class FisherPlumes:
         # Which is the Incomplete beta function below
         self.I_pvals = [np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in r.count]) for r in res]
         
-    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax=25000, fit_vars = True):
+    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax_um=25000, fit_vars = True):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
         not fit_vars and self.compute_vars_for_freqs() 
@@ -327,7 +331,7 @@ class FisherPlumes:
         self.compute_lambdas()
         self.compute_pvalues()
         self.compute_r2values()
-        self.compute_la_gen_fit_to_distance(dmax=dmax)
+        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
         self.compute_fisher_information()
         INFO(f"Done computing all for {wnd=}.")
 

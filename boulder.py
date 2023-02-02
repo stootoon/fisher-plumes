@@ -323,12 +323,13 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = '
     bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1].magnitude + bb.y_lim[0])) for (px, py) in which_coords])
     sims = {}
     for i, (k, v) in enumerate(bb.data.items()):
-        # k = int(("-" if k[-1] == "a" else "")+k[1]) # Names are c2a, c3b etc. so convert to yvals -8 to 8
+        # Have to strip the units because quantities with units don't work well as dictionary keys
         k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um
+        
         sims[k1] = deepcopy(bb)
         sims[k1].data = v.copy()
         sims[k1].fields = [bb.fields[i]]
         sims[k1].source = bb.source[i]
     yvals = list(sims.keys())
-    pairs = fpt.compute_pairs(yvals, pairs_mode)
-    return sims, pairs
+    pairs_um = fpt.compute_pairs(yvals, pairs_mode)
+    return sims, pairs_um

@@ -16,6 +16,8 @@ import pdb
 import utils
 import logging
 
+from units import UNITS
+
 logger = utils.create_logger("fisher_plumes_tools")
 logger.setLevel(logging.DEBUG)
 
@@ -29,13 +31,13 @@ dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
 def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
-    d_scale = F.pitch_in_um
+    d_scale = F.pitch.to(UNITS.um).magnitude
     dists  = np.array(sorted(F.rho[which_probe].keys()))       
     if pos_dists: dists  = dists[dists>0]
     ax_trace = []
     for i, di in enumerate(which_idists):
         ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
-        p = F.pairs[dists[di]]        
+        p = F.pairs_um[dists[di]]        
         if centered:
             balance = [np.exp(np.abs(np.log(np.abs(x/y)))) for (x,y) in p]
             ipair   = np.argmin(balance) # Find the pair where x~y
@@ -80,19 +82,19 @@ def plot_plumes_demo(F, t_snapshot,
                      mean_subtract_y_coords = True,
                      dt = 0.5
 ):
-    d_scale = F.pitch_in_um
+    to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
+    d_scale = F.pitch.to(UNITS.um).magnitude    
     fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
     plt.figure(figsize=(8,3))
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
     pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
-    meters_to_pitch = lambda x: x*1000000/F.pitch_in_um
     dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
     ax_plume.matshow(pp, extent =
-                     [meters_to_pitch(x) for x in F.sim0.x_lim] +
-                     [meters_to_pitch(y - dy) for y in F.sim0.y_lim])
-    px, py = [meters_to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-    py -= meters_to_pitch(dy)
+                     [to_pitch(x) for x in F.sim0.x_lim] +
+                     [to_pitch(y - dy) for y in F.sim0.y_lim])
+    px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
+    py -= to_pitch(dy)
     ax_plume.plot(px, py, "kx", markersize=5)
     ax_plume.xaxis.set_ticks_position('bottom')
     ax_plume.axis("auto")
