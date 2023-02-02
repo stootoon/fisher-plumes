@@ -25,6 +25,7 @@ INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
 
+pitch_sym = "ϕ"
 
 scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
@@ -172,7 +173,7 @@ def plot_correlations(rho,
     plt.tight_layout(w_pad=0)
     return ax
 
-def plot_coef1_vs_coef2(coefs, ifreq, pairs, d_scale,
+def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],
                         dist_col_scale = 120000, axes = None,
@@ -181,9 +182,9 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs, d_scale,
     if type(coefs) is not list: coefs = [coefs]
         
     pooled1 = {d:np.array([
-        np.concatenate([coef[y1][0][:, ifreq] for coef in coefs for (y1,y2) in pairs[d]], axis = 0),
-        np.concatenate([coef[y2][0][:, ifreq] for coef in coefs for (y1,y2) in pairs[d]], axis = 0)
-    ]) for d in pairs} # [0] takes the raw data, not the bootstraps
+        np.concatenate([coef[y1][0][:, ifreq] for coef in coefs for (y1,y2) in pairs_um[d]], axis = 0),
+        np.concatenate([coef[y2][0][:, ifreq] for coef in coefs for (y1,y2) in pairs_um[d]], axis = 0)
+    ]) for d in pairs_um} # [0] takes the raw data, not the bootstraps
 
     dists = np.array(sorted(pooled1.keys()))
     plt.figure(figsize=figsize)
@@ -214,7 +215,8 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs, d_scale,
         plt.axis("square")
         (i == 0) and plt.ylabel("Coefficient at source 2")
         plt.xlabel("Coefficient at source 1")
-        plt.title(f"{d/d_scale:.2g} p")
+        d *= UNITS.um
+        plt.title(f"{d.to(UNITS(pitch_units)).magnitude:.2g} {pitch_sym}")
         plt.grid(True)
     return axes
 
