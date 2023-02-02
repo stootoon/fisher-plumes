@@ -31,6 +31,8 @@ dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
 def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+    to_sec  = lambda t: t.to(UNITS.sec).magnitude
+    to_pitch= lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
     dists  = np.array(sorted(F.rho[which_probe].keys()))       
     if pos_dists: dists  = dists[dists>0]
@@ -55,8 +57,8 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5, y_lim = N
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])
-        ax_trace[-1].set_xlim(*t_lim)
-        ax_trace[-1].set_xticks(np.arange(t_lim[0],t_lim[-1]+0.01,dt))
+        ax_trace[-1].set_xlim([to_sec(t_lim[0]), to_sec(t_lim[1])])
+        ax_trace[-1].set_xticks(np.arange(to_sec(t_lim[0]), to_sec(t_lim[-1])+0.01,to_sec(dt)))
         y_lim is not None and ax_trace[-1].set_ylim(*y_lim)
         y_lim = ax_trace[-1].get_ylim()
         ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
@@ -84,7 +86,7 @@ def plot_plumes_demo(F, t_snapshot,
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude    
-    fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
+    fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
     plt.figure(figsize=(8,3))
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
@@ -101,8 +103,8 @@ def plot_plumes_demo(F, t_snapshot,
     plt.xlabel("x (p)", labelpad=-1)
     plt.ylabel("y (p)", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
-    
-    ax_trace = plot_two_plumes(F, which_idists, t_lim  = np.array(t_wnd) + t_snapshot,
+
+    ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
                                dt = dt, y_lim = y_lim,
                                axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)])
         
