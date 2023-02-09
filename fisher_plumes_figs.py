@@ -357,7 +357,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                       colfun = lambda f: freq2col(f, 10, cmap=cm.cool_r)
 ):
     INFO(f"plot_gen_exp_paramter_fits_panel with {which_fis=}, {log_scale=}.")
-    d_scale = F.pitch_in_um
+    d_scale = F.pitch.to(UNITS.um).magnitude
     fun = np.log10 if log_scale else (lambda X: X)
     γbs = fun(F.fit_params[which_probe][:, which_fis, 1]/d_scale)
     kbs = fun(F.fit_params[which_probe][:, which_fis, 2])
@@ -388,7 +388,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                                    sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])})
         hmus.append(hmui)
 
-        plot_legend and plt.legend(handles = hmus, labels=[f"{F.freqs[fi]:g} Hz" for fi in which_fis],
+        plot_legend and plt.legend(handles = hmus, labels=[f"{F.freqs[fi].magnitude:g} Hz" for fi in which_fis],
                                    labelcolor = label_color,
                                    labelspacing=0,
                                    frameon=False,
@@ -430,7 +430,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     fpft.spines_off(plt.gca())
 
     plt.ylabel("Exponent $k_n$")
-    plt.xlabel("Length Scale $\gamma_n$ (p)")
+    plt.xlabel("Length Scale $\gamma_n$ {pitch_sym}")
     plt.title("Fit Parameters")
 
         
@@ -445,33 +445,33 @@ def plot_la_gen_fits_vs_distance(F,
 
     (figsize is not None) and plt.figure(figsize=figsize)
 
-    d_scale = F.pitch_in_um
     gs     = GridSpec(2,3)
-    dd_all = np.array(sorted(list(F.la[which_probe].keys())))
+    dd_all_um = np.array(sorted(list(F.la[which_probe].keys())))
     la     = {d:F.la[which_probe][d][0] for d in F.la[which_probe]}
-    la_sub = np.array(la[d] for d in dd_all if d in F.dd_fit)
+    la_sub = np.array(la[d] for d in dd_all_um if d in F.dd_fit)
     freqs  = np.arange(F.wnd)/F.wnd*F.fs
-    ax     = []
+    ax       = []
     max_norm = lambda y: y/np.max(y)
     identity = lambda y: y
 
-    dx = dd_all/d_scale    
+    d_scale = F.pitch.to(UNITS.um).magnitude
+    dx = dd_all_um / d_scale
     for i, fi in enumerate(which_ifreqs):
         row   = i // 2
-        col   = i % 2
+        col   = i %  2
         ax.append(plt.subplot(gs[row, col]))
-        X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all],axis=1) # 1: is to take the bootstraps (0 is the raw data)
+        X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all_um],axis=1) # 1: is to take the bootstraps (0 is the raw data)
         la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
-        ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi]:g} Hz")
+        ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
         ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
         for j in range(min(5, F.n_bootstraps)):
             ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi])),
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
                         linewidth=1, zorder=-5)
-        (row == 1) and plt.xlabel("Distance $s$ (p)")
+        (row == 1) and plt.xlabel(f"Distance $s$ {pitch_sym}")
         (col == 0) and plt.ylabel("$\lambda_n(s)$")        
         (xl is not None) and plt.xlim(xl)
-        plt.title(f"{freqs[fi]:g} Hz", pad=-2)
+        plt.title(f"{freqs[fi].magnitude:g} Hz", pad=-2)
         fpft.spines_off(plt.gca())
 
     # PLOT THE PARAMETERS
@@ -480,7 +480,7 @@ def plot_la_gen_fits_vs_distance(F,
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
-    plt.xlabel("Length Scale $\gamma_n$ (p)")
+    plt.xlabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
     plt.title("Fit Parameters")
     return ax
     
