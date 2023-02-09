@@ -430,7 +430,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     fpft.spines_off(plt.gca())
 
     plt.ylabel("Exponent $k_n$")
-    plt.xlabel("Length Scale $\gamma_n$ {pitch_sym}")
+    plt.xlabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
     plt.title("Fit Parameters")
 
         
@@ -487,11 +487,11 @@ def plot_la_gen_fits_vs_distance(F,
 def plot_fisher_information(#amps, sds, slope, intercept,
         F,
         which_probe=0,
-        d_lim=[1e-3,100],
-        d_range = None,
-        d_vals = [0.1,1,10],
+        d_lim_um =[1e-3,100],
+        d_range_um = None,
+        d_vals_um = [0.1,1,10],
         d_space_fun = np.linspace,
-        which_ifreqs = [2,4,6,8,10],
+        which_ifreqs = [2,4,6,8,10] * UNITS.hertz,
         x_stagger = lambda x, i: x*(1.02**i),
         fi_scale = 1000,
         plot_fun = plt.plot,
@@ -500,8 +500,8 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         colfun = lambda f: cm.cool_r(f/10.),
         **kwargs
 ):
-    d_scale = F.pitch_in_um
-    d0,d1 = d_lim
+    d_scale = F.pitch.to(UNITS.um).magnitude
+    d0,d1 = d_lim_um
     d1 = max(d1, np.max(F.I_dists[which_probe])) # So that the line plot spans at least as far as the medians+/-whiskers
     dd = d_space_fun(d0, d1,101)
     INFO(f"{dd[0]=:g}, {dd[-1]=:g}")
@@ -513,7 +513,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
     
     INFO(f"Plotting {which_ifreqs=}.")
-    n_dvals = len(d_vals)
+    n_dvals = len(d_vals_um)
     gs      = GridSpec(6,n_dvals)
 
     ax_fisher = plt.subplot(gs[:3,:])
@@ -521,16 +521,16 @@ def plot_fisher_information(#amps, sds, slope, intercept,
 
     for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs[:4], Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
-        plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi]:g} Hz")
+        plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz")
         x = x_stagger(F.I_dists/d_scale, i)
         plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(fi))        
         plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
-    plt.ylabel("Fisher Information (p$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
+    plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.text(0.4,0.025,"Distance (p)", fontsize=11, transform=ax_fisher.transAxes)
+    ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
     fpft.spines_off(plt.gca())
 
     ax_best_freq = plt.subplot(gs[3,:])
@@ -549,7 +549,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     fpft.spines_off(plt.gca(), ["bottom", "right"])
 
     ax_d = []
-    for i, d in enumerate(d_vals):
+    for i, d in enumerate(d_vals_um):
         ax = plt.subplot(gs[4:,i])
         plot_gen_exp_parameter_fits_panel(F, sorted(which_ifreqs), contours_dist = d,
                                           n_contours = 12, contours_cmap=cm.gray,
@@ -558,7 +558,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
                                           plot_others = False,
                                           label_color = "white",
                                           colfun = lambda f: colfun(which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]), **kwargs)
-        ax.set_title(f"{d/d_scale:.2g} p")
+        ax.set_title(f"{d/d_scale:.2g} {pitch_sym}")
         (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
         ax_d.append(ax)
             
