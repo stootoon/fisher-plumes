@@ -236,7 +236,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0,
     plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
-def plot_alaplace_fits(F, which_dists,
+def plot_alaplace_fits(F, which_dists_um,
                        which_probe = 0,
                        ifreq_lim = [], which_ifreq = 1, 
                        figsize=None, vmin=None,vmax=None,
@@ -246,14 +246,14 @@ def plot_alaplace_fits(F, which_dists,
     if figsize is not None:
         plt.figure(figsize=figsize)
 
-    d_scale = F.pitch_in_um
+    d_scale = F.pitch
     
-    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists)+2)
+    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists_um)+2)
     dmax = -1
     yld  = []
     ax_dcdf= []    
     ax_cdf = []
-    for di, d in enumerate(which_dists):
+    for di, d in enumerate(which_dists_um):
         print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         rr    = F.rho[which_probe][d][0][which_ifreq]
@@ -278,7 +278,7 @@ def plot_alaplace_fits(F, which_dists,
         plt.xlim(xl)
 
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
-        plt.title(f"{d/d_scale:.2g} p")
+        plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g} {pitch_sym}")
 
         ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
         ax_cdf[-1].yaxis.set_major_formatter(lambda x, pos: f"{x:g}")        
@@ -312,25 +312,24 @@ def plot_alaplace_fits(F, which_dists,
     for i,vals in enumerate([F.pvals[which_probe], F.r2vals[which_probe]]):
         ax_hm.append(plt.subplot(gs[i,-2:]))
 
-        dists = np.array(sorted(vals))
-        n_dists = len(dists)
-        dd = np.mean(np.diff(dists))
+        dists_um = np.array(sorted(vals))
+        n_dists = len(dists_um)
+        dd = np.mean(np.diff(dists_um))
         v = np.array([vals[d][0] for d in sorted(vals)]).T
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
         
-
         # The distances are non-uniform, so just have one tick each and label them according to the actual distance
-        extent = [-0.5, n_dists-0.5, F.freqs[ifreq_lim[0]]-freq_res/2, F.freqs[ifreq_lim[1]]-freq_res/2]
+        extent = [-0.5, n_dists-0.5, (F.freqs[ifreq_lim[0]]-freq_res/2).magnitude, (F.freqs[ifreq_lim[1]]-freq_res/2).magnitude]
         print(f"Setting extent to {extent}.")
         plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
                 extent = extent,
                     vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
-        [plt.plot(list(dists).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists]
-        plt.xticks(np.arange(n_dists), labels=[f"{di/d_scale:.2g}" for di in dists],
+        [plt.plot(list(dists_um).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists_um]
+        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g} {pitch_sym}" for di in dists_um],
                    fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
         plt.xlabel("Distance (p)",labelpad=0)
@@ -339,8 +338,6 @@ def plot_alaplace_fits(F, which_dists,
         plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
         plt.axis("auto")
         plt.colorbar()
-        #dmax = dists[np.argmin(np.abs(dists - 100*d_scale))]
-        #plt.xlim((dists[0]-dd/2)/d_scale,min((dmax+dd/2)/d_scale, heatmap_xmax)) #pdists[-1]/d_scale-0.5)
     
     plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
 
