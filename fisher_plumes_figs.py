@@ -329,10 +329,10 @@ def plot_alaplace_fits(F, which_dists_um,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
         [plt.plot(list(dists_um).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists_um]
-        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g} {pitch_sym}" for di in dists_um],
+        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g}" for di in dists_um],
                    fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
-        plt.xlabel("Distance (p)",labelpad=0)
+        plt.xlabel(f"Distance ({pitch_sym})",labelpad=0)
         #(i == 0) and plt.gca().set_xticklabels([])
         plt.ylabel("Frequency (Hz)", labelpad=-1)
         plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
