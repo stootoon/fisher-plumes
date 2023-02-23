@@ -14,3 +14,13 @@ After downloading this repository, installation merely requires downloading the 
 - For the data in the Supplementary Material: Replace `CRICK_DATA_ROOT` in `crick.json` with the path to the unzipped folder that contains sub folders `ff_int_...`
 
 You should now be ready to create the figures for the paper by running  the `make_figs.ipynb` notebook.
+
+## Code Description
+The analysis in the paper is applied to data from two sets of simulations. 
+### Steps in computing Fisher information
+Fisher information is computed in the following steps. These are called in sequence by `compute_all_for_window`.
+1. The desired window size for the computation is set using `set_window`.
+2. The trigonometric coefficients are computed using `compute_trig_coefs`.
+   - The sine and cosine coefficients and the time window they were computed over, are stored in the `F.ss` ,`F.cc`, `F.tt` fields, respectively. 
+	 - These fields are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for whic
+   
