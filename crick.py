@@ -106,10 +106,11 @@ class CrickSimulationData:
         self.x_lim = [0 * self.units, self.dimensions[0]]
         self.y_lim = [0 * self.units, self.dimensions[1]]
         INFO(f"Loaded {name} with data at {len(self.probe_coords)} locations.")
+        INFO(f"1 {pitch_sym} = {(1 * pitch_units).to(units)}")
         DEBUG(f"(nx,ny,nz) = ({self.nx},{self.ny},{self.nz})")
         DEBUG(f"x-range: {min(self.x):8.3g} - {max(self.x):.3g}")
         DEBUG(f"y-range: {min(self.y):8.3g} - {max(self.y):.3g}")
-        DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")
+        DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")        
         self.used_probe_coords = [] # Locations of the used probes 
         
 
@@ -224,7 +225,7 @@ class CrickSimulationData:
         return np.array(img[:,:,0])/255.
 
     def get_key(self):
-        return int(self.source[1]*1000000)
+        return int(self.source[1].to("um").magnitude)
     
     def save_snapshot(self, t, data_dir = "."):
         fld = self.fields[0]
