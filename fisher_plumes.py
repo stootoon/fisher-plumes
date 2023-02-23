@@ -46,24 +46,25 @@ class FisherPlumes:
             INFO(f"Copied data fields from FisherPlumes object.")
         else:
             INFO(f"****** LOADING {sim_name=} ******")
+            self.name         = sim_name            
+            self.pitch = pitch
+            self.pitch_units = f"{self.name}_pitch"
+            UNITS.define(f"{self.pitch_units} = {self.pitch}")
+            INFO(f"1 {self.pitch_units} = {(1 * UNITS(f'{self.pitch_units}')).to(UNITS.um)}")
+            
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
                 self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
-            elif sim_name == "n12dishT": 
-                self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode,  **kwargs)               
+            elif sim_name == "n12dishT":
+                self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)               
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
-            self.name         = sim_name
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
             self.yvals_um = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
-            self.pitch = pitch
-            self.pitch_units = f"{self.name}_pitch"
-            UNITS.define(f"{self.pitch_units} = {self.pitch}")
-            INFO(f"1 {self.pitch_units} = {(1 * UNITS(f'{self.pitch_units}')).to(UNITS.um)}")
             self.sim0 = self.sims[self.yvals_um[0]]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
