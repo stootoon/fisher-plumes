@@ -124,15 +124,14 @@ def _load_single_simulation(name):
     #DEBUG("probe_data: {}".format(probe_data.shape))
     return {"probe_t":np.array(t), "probe_grid":probe_grid, "probe_data":probe_data}
         
-def load(name):
-    return BoulderSimulationData(name)
-
 class BoulderSimulationData:
-    def __init__(self, name, units = UNITS.m, tol = 0):
+    def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0):
         self.tol = tol
         self.name = name
         self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
         self.units = units
+        self.pitch_units = pitch_units
+        self.pitch_sym = pitch_sym
         self.probe_t *= UNITS.s
         self.t  = self.probe_t
         self.nt = len(self.probe_t)
@@ -186,8 +185,7 @@ class BoulderSimulationData:
         return ix, iy
 
     def coord2str(self, x, y, output_units = None):
-        if output_units is None:
-            output_units = self.units
+        if output_units is None: output_units = self.pitch_units
         sx = f"{x.to(output_units):.1f}"
         sy = f"{y.to(output_units):.1f}"
         if x != 0 and y != 0:
@@ -199,6 +197,13 @@ class BoulderSimulationData:
         else:
             s = "@origin"
         s = s.replace(".0", "")
+        if output_units == self.pitch_units:
+            pitch_string = self.pitch_units.__str__().split(" ")[1]
+            s = s.replace(pitch_string, self.pitch_sym)
+        s = s.replace(f"x=0 {self.pitch_sym}, ", "")
+        s = s.replace(f"x=-0 {self.pitch_sym}, ", "")        
+        s = s.replace(f", y=0 {self.pitch_sym}", "")
+        s = s.replace(f", y=-0 {self.pitch_sym}", "")                
         return s
             
     def load_h5(self):
@@ -299,13 +304,13 @@ class BoulderSimulationData:
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
 
-def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig'):
+def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", units = UNITS.m, pitch_units = UNITS.m, prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig'):
     py_mode = fpt.validate_py_mode(py_mode)
     file_name = prefix
     if suffix: file_name += "_"+suffix
     file_name += ".h5"
     logger.info(f"Loading data from {file_name=}.")
-    bb = load(file_name)
+    bb = BoulderSimulationData(file_name,units=units, pitch_units = pitch_units)
     fixed_sources = []
 
     for x,y in bb.source:
@@ -324,8 +329,7 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", prefix = '
     sims = {}
     for i, (k, v) in enumerate(bb.data.items()):
         # Have to strip the units because quantities with units don't work well as dictionary keys
-        k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um
-        
+        k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um        
         sims[k1] = deepcopy(bb)
         sims[k1].data = v.copy()
         sims[k1].fields = [bb.fields[i]]

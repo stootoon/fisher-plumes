@@ -25,8 +25,8 @@ DEBUG = logger.debug
 class FisherPlumes:
 
     def __init__(self, sim_name, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
-        if type(sim_name) is not str:
-            INFO(f"{sim_name=} was not a string, assuming it's a FisherPlumes object.")
+        if type(sim_name) is FisherPlumes:
+            INFO(f"{sim_name=} is a FisherPlumes object.")
             other = sim_name
             INFO(f"Attempting to copy data fields.")
             self.name         = other.name
@@ -44,7 +44,7 @@ class FisherPlumes:
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = other.sim0.__dict__[fld]
             INFO(f"Copied data fields from FisherPlumes object.")
-        else:
+        elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
             self.name         = sim_name            
             self.pitch = pitch
@@ -54,7 +54,7 @@ class FisherPlumes:
             
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, **kwargs)
+                self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)
             elif sim_name == "n12dishT":
                 self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)               
             else:
@@ -68,6 +68,9 @@ class FisherPlumes:
             self.sim0 = self.sims[self.yvals_um[0]]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
+        else:
+            raise ValueError(f"Don't know what to do for {sim_name=}.")
+                
 
     def bootstrap(self, X, dim, to_array = True):
         np.random.seed(self.random_seed)
