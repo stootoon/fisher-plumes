@@ -22,5 +22,8 @@ Fisher information is computed in the following steps. These are called in seque
 1. The desired window size for the computation is set using `set_window`.
 2. The trigonometric coefficients are computed using `compute_trig_coefs`.
    - The sine and cosine coefficients and the time window they were computed over, are stored in the `F.ss` ,`F.cc`, `F.tt` fields, respectively. 
-	 - These fields are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for whic
+     - Trigonometric coefficients are determined by computing a short-time Fourier Transform and converting the complex-valued result to the corresponding sine and cosine coefficients.
+	 - The detrender applied by the STFT to each window consists of Tukey windowing followed by z-scoring.
+     - Z-scoring normalizes the signal by its amplitude and ensures that the variability we measure in coefficients is not dominated by fluctuations in signal amplitude.
+	 - The results are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for whic
    
