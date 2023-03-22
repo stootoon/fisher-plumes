@@ -157,3 +157,15 @@ def compute_fisher_information_for_gen_exp_decay(s, γ, k, b, σ2):
     
     return coef * num1 / den1 / den2
 
+def compute_fisher_information_estimates_for_gen_exp_decay(s, γ, k, b, σ2):
+    coef = k**2 / γ ** k
+    coef *= (2 * σ2 - b)/σ2
+    logIlow = np.log(coef) + (k-2)*np.log(s)
+    Ilow    = np.exp(logIlow)
+
+    coef     = 2 * k**2 / γ ** (2*k) * (2*σ2 - b)/b
+    logIhigh = np.log(coef) + (2*k-2) * np.log(s) - 2/γ**k * np.exp(k * np.log(s))
+    Ihigh    = np.exp(logIhigh)
+    
+    return Ilow, Ihigh
+

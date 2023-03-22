@@ -5,6 +5,8 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
+import pdb
+
 #sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
@@ -25,7 +27,7 @@ DEBUG = logger.debug
 class FisherPlumes:
 
     def __init__(self, sim_name, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
-        if type(sim_name) is FisherPlumes:
+        if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
             INFO(f"{sim_name=} is a FisherPlumes object.")
             other = sim_name
             INFO(f"Attempting to copy data fields.")
@@ -291,6 +293,15 @@ class FisherPlumes:
         ) for d in which_ds]).transpose([1,2,0]) # bs * freq * dists
                 for fit_params, vars_for_freqs in zip(self.fit_params, self.vars_for_freqs)]
 
+    def compute_fisher_information_estimates_at_distances(self, which_ds):
+        return [np.array([fpt.compute_fisher_information_estimates_for_gen_exp_decay(d,
+                                                                          fit_params[:,:,1],
+                                                                          fit_params[:,:,2],
+                                                                          fit_params[:,:,3],
+                                                                          vars_for_freqs                                                                       
+        ) for d in which_ds]).transpose([1,2,3,0]) # ests * bs * freq * dists
+                for fit_params, vars_for_freqs in zip(self.fit_params, self.vars_for_freqs)]
+    
     def compute_fisher_information(self, d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000]):
         INFO(f"Computing Fisher information (v2).")
         d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
@@ -302,6 +313,7 @@ class FisherPlumes:
         
         self.I_dists = np.array(d_vals)
         self.I = self.compute_fisher_information_at_distances(d_vals)
+        self.Ilow, self.Ihigh = zip(*self.compute_fisher_information_estimates_at_distances(d_vals))
 
         n_freqs = utils.d1(self.la[0]).shape[1]
         expected_shape = (self.n_bootstraps+1, n_freqs, len(d_vals))
@@ -336,7 +348,7 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
-        self.compute_fisher_information()
+        #self.compute_fisher_information()
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
