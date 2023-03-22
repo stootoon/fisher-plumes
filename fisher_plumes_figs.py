@@ -498,6 +498,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         freq_max = np.inf,
         bf_ytick = None,
         colfun = lambda f: cm.cool_r(f/10.),
+        plot_ests = False,
         **kwargs
 ):
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -508,6 +509,10 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
     Idd_med = np.median(Idd[which_probe][1:],axis=0) * d_scale**2 # Median over bootsraps
 
+    Ilow_est_dd, Ihigh_est_dd = zip(*F.compute_fisher_information_estimates_at_distances(dd))
+    Ilow_est_dd_med  = np.median(Ilow_est_dd[which_probe][1:],axis=0) * d_scale**2
+    Ihigh_est_dd_med = np.median(Ihigh_est_dd[which_probe][1:],axis=0) * d_scale**2     
+    
     which_ifreqs = list(set(F.I_best_ifreqs[which_probe]))
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
@@ -522,6 +527,9 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs[:4], Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
         plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz")
+        if plot_ests:
+            plot_fun(x, Ilow_est_dd_med[fi],  ":", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz (low s)")
+            plot_fun(x, Ihigh_est_dd_med[fi], "--", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz (high s)")                
         x = x_stagger(F.I_dists/d_scale, i)
         plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(fi))        
         plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)

@@ -348,7 +348,7 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
-        #self.compute_fisher_information()
+        self.compute_fisher_information()
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
