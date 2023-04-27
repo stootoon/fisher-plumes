@@ -10,10 +10,10 @@ After downloading this repository, installation merely requires downloading the 
 - Data for the simulations in the Main Text (171 GB): [Re100_0_5mm_50Hz_16source_manuscript.h5](https://www.dropbox.com/s/p3bbuq4r84nrrr2/Re100_0_5mm_50Hz_16source_manuscript.h5?dl=0)
 - Data for the simulations in the Supplementary Material (19 G): [crick-data.tar.gz](https://www.dropbox.com/s/4t2h3dg11oq14vg/crick-data.tar.gz?dl=0)
 2. Updating paths to the data.
-- For the data in the Main Text: Update the `root` field in `boulder.json` with the path to the folder containing `Re100...orig.h5`.
-- For the data in the Supplementary Material: Updat the `root` field in `crick.json` with the path to the unzipped folder that contains sub folders `ff_int_...`
+- For the data in the Main Text: Update the `root` field in [boulder.json](boulder.json) with the path to the folder containing `Re100...orig.h5`.
+- For the data in the Supplementary Material: Updat the `root` field in [crick.json](crick.json) with the path to the unzipped folder that contains sub folders `ff_int_...`
 
-You should now be ready to create the figures for the paper by running  the `make_figs.ipynb` notebook.
+You should now be ready to create the figures for the paper by running  the [make_figs.ipynb](make_figs.ipynb) notebook.
 
 ## Code Description
 The analysis in the paper is applied to data from two sets of simulations. 
