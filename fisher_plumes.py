@@ -5,9 +5,6 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
-import pdb
-
-#sys.path.append(os.environ["CFDGITPY"])
 import fisher_plumes_tools as fpt
 import utils
 
