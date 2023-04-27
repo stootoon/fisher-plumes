@@ -23,15 +23,17 @@ These steps are carried out in [make_figs.ipynb](make_figs.ipynb) before the fig
 ### Loading the data
 - The data from a set of simulations are loaded by constructing an instance of the `FisherPlumes` class.
 - The desired simulation data is indicated by the name passed to the constructor, `boulder16` for the data in the main text and `n12dishT` for the data in the Supplementary Information.
-- Other important parameters passed to `FisherPlumes` are:
+- Other notable parameters passed to `FisherPlumes` are:
   - `pitch`: The pitch units of the dataset;
   - `freq_max`: The maximum frequency to compute metrics for;
+  - `which_coords`: A list of `(x,y)` tuples indicating probe locations;
+  - `py_mode`: Set to `relative` if the `y` coordinates of `which_coords` are expressed as fractions of the heights of the simulated wind tunnel.
   - `pairs_mode`: Odour sources are located at a fixed x-location but at different y-locations in each simulated wind tunnel. We will be computing metrics comparing for pairs of sources located at different locations and pooling the results for sources located at the same intersource separation. The `pairs_mode` parameter determines which sources will be paired and how they will be pooled.
 	- `all`: For a given pair located at `y1` and `y2`, add the data for `(y1, y2)` to the pool for separation of `y1 - y2`, and the data for `(y2, y1)` to the `y2-y1` pool.
 	- `unsigned`: Add the data for `(y2,y1)` and `(y1,y2)` to the `|y1 - y2|` pool.
 	- `sym`: As in `all` but only using `y1` and `y2` that are symmetric around the midline.
-	
-- 
+- Given these parameters, `FisherPlumes` will then all the `load_sims` method of the desired dataset to load the simulation results.
+
 ### Steps in computing Fisher information
 Fisher information is computed in the following steps. These are called in sequence by `compute_all_for_window`.
 1. The desired window size for the computation is set using `set_window`.
@@ -40,5 +42,5 @@ Fisher information is computed in the following steps. These are called in seque
      - Trigonometric coefficients are determined by computing a short-time Fourier Transform and converting the complex-valued result to the corresponding sine and cosine coefficients.
 	 - The detrender applied by the STFT to each window consists of Tukey windowing followed by z-scoring.
      - Z-scoring normalizes the signal by its amplitude and ensures that the variability we measure in coefficients is not dominated by fluctuations in signal amplitude.
-	 - The results are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for whic
+	 - The results are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for which...
    
