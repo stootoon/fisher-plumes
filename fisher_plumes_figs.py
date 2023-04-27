@@ -242,7 +242,8 @@ def plot_alaplace_fits(F, which_dists_um,
                        figsize=None, vmin=None,vmax=None,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
-                       plot_dvals = False):
+                       plot_dvals = False,
+                       plot_pvals = False):
     if figsize is not None:
         plt.figure(figsize=figsize)
 
@@ -310,7 +311,9 @@ def plot_alaplace_fits(F, which_dists_um,
     freq_res = F.fs/F.wnd
     ax_hm = []
     for i,vals in enumerate([F.pvals[which_probe], F.r2vals[which_probe]]):
-        ax_hm.append(plt.subplot(gs[i,-2:]))
+        if not plot_pvals and i == 0: continue
+
+        ax_hm.append(plt.subplot(gs[i,-2:] if plot_pvals else gs[:,-2:]))
 
         dists_um = np.array(sorted(vals))
         n_dists = len(dists_um)
