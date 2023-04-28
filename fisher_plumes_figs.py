@@ -487,7 +487,7 @@ def plot_la_gen_fits_vs_distance(F,
     plt.title("Fit Parameters")
     return ax
     
-def plot_fisher_information(#amps, sds, slope, intercept,
+def plot_fisher_information(
         F,
         which_probe=0,
         d_lim_um =[1e-3,100],
@@ -498,7 +498,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
         x_stagger = lambda x, i: x*(1.02**i),
         fi_scale = 1000,
         plot_fun = plt.plot,
-        freq_max = np.inf,
+        freq_max = None,
         bf_ytick = None,
         colfun = lambda f: cm.cool_r(f/10.),
         plot_ests = False,
@@ -544,8 +544,10 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
     fpft.spines_off(plt.gca())
 
+    # The best frequency plots
     ax_best_freq = plt.subplot(gs[3,:])
-    ax_best_freq.semilogx(F.I_dists/d_scale, F.freqs[F.I_best_ifreqs[which_probe]],
+    ax_best_freq.semilogx(F.I_dists/d_scale,
+                          F.freqs[F.I_best_ifreqs[which_probe]],
                           ":",color="lightgray",markersize=3, linewidth=1)
     ax_best_freq.scatter(F.I_dists/d_scale,
                          F.freqs[F.I_best_ifreqs[which_probe]],
@@ -559,6 +561,7 @@ def plot_fisher_information(#amps, sds, slope, intercept,
     if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)    
     fpft.spines_off(plt.gca(), ["bottom", "right"])
 
+    # The parameter fits plots
     ax_d = []
     for i, d in enumerate(d_vals_um):
         ax = plt.subplot(gs[4:,i])
