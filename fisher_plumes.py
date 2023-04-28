@@ -316,11 +316,14 @@ class FisherPlumes:
         
         ifreq_max = self.freqs2inds([self.freq_max])[0]
 
-        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I] # Sort frequencies by information
+        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I] # Sort frequencies by information, skip DC
         n_freqs    = Isort[0].shape[1]
-        best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort] # Find the most informative frequency for each bootstrap and distance
-        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in best_ifreqs] # Find the frequency that was most frequently most informative
-        self.I_best_ifreqs = [r.mode + 1 for r in res]
+        self.I_best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort] # Find the most informative frequency for each bootstrap and distance
+        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in self.I_best_ifreqs] # Find the frequency that was most frequently most informative
+        self.I_best_ifreqs_mode = [r.mode + 1 for r in res] # + 1 because we don't consider DC
+
+        self.I_best_freqs = [self.inds2freqs(Ibi+1) for Ibi in self.I_best_ifreqs]
+
         # The p-values are those of binomial random variable
         # Have a probability of 1/# frequencies
         # and N = #bootstraps trials.
@@ -328,6 +331,12 @@ class FisherPlumes:
         # if it was happening by chance, and that's determined by the Binomial cdf
         # Which is the Incomplete beta function below
         self.I_pvals = [np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in r.count]) for r in res]
+        # Note that this is NOT a p-value for the mode frequency being best.
+        # E.g. imagine a case where two frequencies were equally informative,
+        # and where one by chance came up slightly more times than the other in the bootstraps.
+        # In this situation the 'top' frequency shouldn't be declard most informative,
+        # despite the fact that it appeared as most informative way more than expected by chance,
+        # because this doesn't consider the runner-up.
 
         # Compute information weighting of frequencies
         self.I_weighting_freq_max = self.freq_max if weighting_freq_max is None else weighting_freq_max
