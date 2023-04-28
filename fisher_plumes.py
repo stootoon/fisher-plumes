@@ -23,26 +23,16 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, copy_stats = False, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
             INFO(f"{sim_name=} is a FisherPlumes object.")
             other = sim_name
             INFO(f"Attempting to copy data fields.")
-            self.name         = other.name
-            self.n_bootstraps = other.n_bootstraps
-            self.random_seed  = other.random_seed
-            self.sims  = deepcopy(other.sims)
-            self.pairs_um = deepcopy(other.pairs_um)
-            self.yvals_um = deepcopy(other.yvals_um)
-            self.pairs_mode = other.pairs_mode            
-            self.sim0  = deepcopy(other.sim0)
-            self.pitch = other.pitch
-            self.pitch_units = other.pitch_units
-            self.wnd   = other.wnd
-            self.freq_max = other.freq_max
-            for fld in ["fs", "dimensions"]:
-                self.__dict__[fld] = other.sim0.__dict__[fld]
-            INFO(f"Copied data fields from FisherPlumes object.")
+            for k,v in other.__dict__.items():
+                if not callable(v):
+                    self.__dict__[k] = deepcopy(v)
+                    DEBUG(f"Copied field {k}.")
+            INFO(f"Copied data fields from FisherPlumes object.")        
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
             self.name         = sim_name            
@@ -299,7 +289,10 @@ class FisherPlumes:
         ) for d in which_ds]).transpose([1,2,3,0]) # ests * bs * freq * dists
                 for fit_params, vars_for_freqs in zip(self.fit_params, self.vars_for_freqs)]
     
-    def compute_fisher_information(self, d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000]):
+    def compute_fisher_information(self,
+                                   d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000],
+                                   weighting_freq_max = None,
+                                   ):
         INFO(f"Computing Fisher information (v2).")
         d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
         if len(d_add): d_vals += d_add
@@ -335,8 +328,18 @@ class FisherPlumes:
         # if it was happening by chance, and that's determined by the Binomial cdf
         # Which is the Incomplete beta function below
         self.I_pvals = [np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in r.count]) for r in res]
+
+        # Compute information weighting of frequencies
+        self.I_weighting_freq_max = self.freq_max if weighting_freq_max is None else weighting_freq_max
+        freqs     = self.freqs.magnitude
+        ind_freqs = np.where((freqs > 0) & (freqs <= self.I_weighting_freq_max.magnitude))[0]
         
-    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax_um=25000, fit_vars = True):
+        Ifreqs    = [np.einsum('ijk,j',Ii[:,ind_freqs],freqs[ind_freqs]) for Ii in self.I]
+        Isum      = [np.sum(Ii[:, ind_freqs], axis=1) for Ii in self.I]
+        self.I_weighted_freqs = [Ifi/Isi for Ifi, Isi in zip(Ifreqs, Isum)]
+        
+        
+    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax_um=25000, fit_vars = True, weighting_freq_max = None):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
         not fit_vars and self.compute_vars_for_freqs() 
@@ -345,7 +348,7 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
-        self.compute_fisher_information()
+        self.compute_fisher_information(weighting_freq_max = weighting_freq_max)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
