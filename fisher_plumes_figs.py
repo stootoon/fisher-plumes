@@ -502,6 +502,7 @@ def plot_fisher_information(
         bf_ytick = None,
         colfun = lambda f: cm.cool_r(f/10.),
         plot_ests = False,
+        plot_param_fits = False,
         **kwargs
 ):
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -516,7 +517,7 @@ def plot_fisher_information(
     Ilow_est_dd_med  = np.median(Ilow_est_dd[which_probe][1:],axis=0) * d_scale**2
     Ihigh_est_dd_med = np.median(Ihigh_est_dd[which_probe][1:],axis=0) * d_scale**2     
     
-    which_ifreqs = list(set(F.I_best_ifreqs[which_probe]))
+    which_ifreqs = list(set(F.I_best_ifreqs_mode[which_probe]))
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
     
@@ -541,41 +542,47 @@ def plot_fisher_information(
     plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+    if plot_param_fits:
+        ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+    else:
+        ax_fisher.set_xlabel(f"Distance ({pitch_sym})")
     fpft.spines_off(plt.gca())
 
     # The best frequency plots
-    ax_best_freq = plt.subplot(gs[3,:])
+    ax_best_freq = plt.subplot(gs[3,:] if plot_param_fits else gs[3:,:])
+    pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
     ax_best_freq.semilogx(F.I_dists/d_scale,
-                          F.freqs[F.I_best_ifreqs[which_probe]],
+                          pc[1],
                           ":",color="lightgray",markersize=3, linewidth=1)
     ax_best_freq.scatter(F.I_dists/d_scale,
-                         F.freqs[F.I_best_ifreqs[which_probe]],
-                         c=[colfun(fi) for fi in F.I_best_ifreqs[which_probe]],
+                         pc[1],
+                         c=[colfun(fi) for fi in F.I_best_ifreqs_mode[which_probe]],
                          s=10)
     
-    ax_best_freq.xaxis.tick_top()    
-    plt.ylabel("Best freq.\n(Hz)", labelpad=-1)
-    ax_best_freq.set_xticklabels([])
+    plot_param_fits and ax_best_freq.xaxis.tick_top()
+    not plot_param_fits and ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")    
+    plt.ylabel("Frequency (Hz)", labelpad=-1)
+    plot_param_fits and ax_best_freq.set_xticklabels([])
     ax_best_freq.set_xlim(ax_fisher.get_xlim())
     if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)    
-    fpft.spines_off(plt.gca(), ["bottom", "right"])
+    fpft.spines_off(ax_best_freq, ["bottom" if plot_param_fits else "top", "right"])
 
     # The parameter fits plots
     ax_d = []
-    for i, d in enumerate(d_vals_um):
-        ax = plt.subplot(gs[4:,i])
-        plot_gen_exp_parameter_fits_panel(F, sorted(which_ifreqs), contours_dist = d,
-                                          n_contours = 12, contours_cmap=cm.gray,
-                                          plot_legend = (i==0),
-                                          plot_scatter = False,
-                                          plot_others = False,
-                                          label_color = "white",
-                                          colfun = lambda f: colfun(which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]), **kwargs)
-        ax.set_title(f"{d/d_scale:.2g} {pitch_sym}")
-        (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
-        ax_d.append(ax)
-            
+    if plot_param_fits:
+        for i, d in enumerate(d_vals_um):
+            ax = plt.subplot(gs[4:,i])
+            plot_gen_exp_parameter_fits_panel(F, sorted(which_ifreqs), contours_dist = d,
+                                              n_contours = 12, contours_cmap=cm.gray,
+                                              plot_legend = (i==0),
+                                              plot_scatter = False,
+                                              plot_others = False,
+                                              label_color = "white",
+                                              colfun = lambda f: colfun(which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]), **kwargs)
+            ax.set_title(f"{d/d_scale:.2g} {pitch_sym}")
+            (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
+            ax_d.append(ax)
+                
     return ax_fisher, ax_best_freq, ax_d
 
     
