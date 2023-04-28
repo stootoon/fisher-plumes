@@ -100,7 +100,7 @@ def plot_plumes_demo(F, t_snapshot,
     py -= to_pitch(dy)
     ax_plume.plot(px, py, "kx", markersize=5)
     ax_plume.xaxis.set_ticks_position('bottom')
-    ax_plume.axis("auto")
+    ax_plume.axis("equal")
     plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
     plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
