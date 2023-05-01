@@ -491,7 +491,6 @@ def plot_fisher_information(
         F,
         which_probe=0,
         d_lim_um =[1e-3,100],
-        d_range_um = None,
         d_vals_um = [0.1,1,10],
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
@@ -509,7 +508,7 @@ def plot_fisher_information(
     d0,d1 = d_lim_um
     d1 = max(d1, np.max(F.I_dists[which_probe])) # So that the line plot spans at least as far as the medians+/-whiskers
     dd = d_space_fun(d0, d1,101)
-    INFO(f"{dd[0]=:g}, {dd[-1]=:g}")
+    INFO(f"{dd[0]=:g}, {dd[-1]=:g} ({dd[0]/d_scale:g}, {dd[-1]/d_scale:g} ϕ)")
     Idd= F.compute_fisher_information_at_distances(dd)  # bs * freq * dists
     Idd_med = np.median(Idd[which_probe][1:],axis=0) * d_scale**2 # Median over bootsraps
 
@@ -517,9 +516,11 @@ def plot_fisher_information(
     Ilow_est_dd_med  = np.median(Ilow_est_dd[which_probe][1:],axis=0) * d_scale**2
     Ihigh_est_dd_med = np.median(Ihigh_est_dd[which_probe][1:],axis=0) * d_scale**2     
     
-    which_ifreqs = list(set(F.I_best_ifreqs_mode[which_probe]))
+    # which_ifreqs = list(set(F.I_best_ifreqs_mode[which_probe]))
     
-    colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))
+    colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))    
+    colfun = lambda f: cm.cool_r(f/(freq_max if freq_max is not None else F.freq_max))
+    freqs = F.freqs
     
     INFO(f"Plotting {which_ifreqs=}.")
     n_dvals = len(d_vals_um)
@@ -528,20 +529,25 @@ def plot_fisher_information(
     ax_fisher = plt.subplot(gs[:3,:])
     Ilow, Imed, Ihigh = np.array([F.I_pcs[which_probe][pc] for pc in sorted(F.I_pcs[which_probe])]) * d_scale**2
 
-    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs[:4], Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
+    colfuni = lambda i: cm.cool_r(i/4) #f"C{i}"
+    for i, (fi, Il, Im, Ih) in enumerate(zip(which_ifreqs, Ilow[which_ifreqs], Imed[which_ifreqs], Ihigh[which_ifreqs])):
         x = x_stagger(dd/d_scale, i)
-        plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz")
+        col = colfuni(i) # colfun(freqs[fi])
+        plot_fun(x, Idd_med[fi], "-", linewidth=1,markersize=2,
+                 color=col,
+                 label = f"{F.freqs[fi].magnitude:g} Hz")
         if plot_ests:
-            plot_fun(x, Ilow_est_dd_med[fi],  ":", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz (low s)")
-            plot_fun(x, Ihigh_est_dd_med[fi], "--", linewidth=1,markersize=2,color=colfun(fi), label = f"{F.freqs[fi].magnitude:g} Hz (high s)")                
+            plot_fun(x, Ilow_est_dd_med[fi],  ":", linewidth=1,markersize=2,color=col, label = f"{F.freqs[fi].magnitude:g} Hz (low s)")
+            plot_fun(x, Ihigh_est_dd_med[fi], "--", linewidth=1,markersize=2,color=col, label = f"{F.freqs[fi].magnitude:g} Hz (high s)")                
         x = x_stagger(F.I_dists/d_scale, i)
-        plot_fun(x, Im, "o", linewidth=1,markersize=2,color=colfun(fi))        
-        plot_fun([x, x], [Il, Ih], color = fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        plot_fun(x, Im, "o", linewidth=1,markersize=2,color=col)        
+        plot_fun([x, x], [Il, Ih], color = col, linewidth=0.5)
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
     ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
+    ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
     if plot_param_fits:
         ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
     else:
@@ -553,11 +559,16 @@ def plot_fisher_information(
     pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
     ax_best_freq.semilogx(F.I_dists/d_scale,
                           pc[1],
-                          ":",color="lightgray",markersize=3, linewidth=1)
+                          "-",color="lightgray",markersize=3, linewidth=1,zorder=-5)
+    cols = [colfun(freqs[fi]) for fi in F.I_best_ifreqs_mode[which_probe]]
+    cols = [cm.gray(0.4) for fi in F.I_best_ifreqs_mode[which_probe]]
+    m = np.mean(F.I_best_freqs[which_probe],axis=0)
     ax_best_freq.scatter(F.I_dists/d_scale,
                          pc[1],
-                         c=[colfun(fi) for fi in F.I_best_ifreqs_mode[which_probe]],
-                         s=10)
+                         c=cols,
+                         s=8)
+    ax_best_freq.set_prop_cycle('color', [fpft.set_alpha(c,0.5) for c in cols])
+    ax_best_freq.plot([F.I_dists/d_scale]*2, [pc[0],pc[-1]], linewidth=0.5)
     
     plot_param_fits and ax_best_freq.xaxis.tick_top()
     not plot_param_fits and ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")    
@@ -578,7 +589,7 @@ def plot_fisher_information(
                                               plot_scatter = False,
                                               plot_others = False,
                                               label_color = "white",
-                                              colfun = lambda f: colfun(which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]), **kwargs)
+                                              colfun = lambda f: colfun(freqs[which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]]), **kwargs)
             ax.set_title(f"{d/d_scale:.2g} {pitch_sym}")
             (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
             ax_d.append(ax)
