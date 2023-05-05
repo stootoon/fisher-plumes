@@ -31,7 +31,7 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, y_ticks = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
     to_sec  = lambda t: t.to(UNITS.sec).magnitude
     to_pitch= lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -42,8 +42,8 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
         p = F.pairs_um[dists[di]]        
         if centered:
-            balance = [np.exp(np.abs(np.log(np.abs(x/y)))) for (x,y) in p]
-            ipair   = np.argmin(balance) # Find the pair where x~y
+            balance = [np.exp(np.abs(np.log(np.abs(y1/y2)))) for (y1,y2) in p]
+            ipair   = np.argmin(balance) # Find the pair where y1~y2
         else:
             ipair = 0
         ia, ib = p[ipair]
@@ -62,7 +62,7 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         ax_trace[-1].set_xticks(np.arange(to_sec(t_lim[0]), to_sec(t_lim[-1])+0.01,to_sec(dt)))
         y_lim is not None and ax_trace[-1].set_ylim(*y_lim)
         y_lim = ax_trace[-1].get_ylim()
-        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
+        ax_trace[-1].set_yticks((np.arange(min(y_lim),max(y_lim)+1,5)) if y_ticks is None else y_ticks)
         ax_trace[-1].tick_params(axis='both', labelsize=8)
         ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
         wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
@@ -83,7 +83,8 @@ def plot_plumes_demo(F, t_snapshot,
                      t_wnd = [-4,4],
                      y_lim = (0,3),
                      mean_subtract_y_coords = True,
-                     dt = 0.5
+                     dt = 0.5,
+                     **kwargs
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -108,7 +109,7 @@ def plot_plumes_demo(F, t_snapshot,
 
     ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
                                dt = dt, y_lim = y_lim,
-                               axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)])
+                               axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)], **kwargs)
         
     ax_corr_dist = plt.subplot(gs[:,-1])
     rho   = F.rho[which_probe]

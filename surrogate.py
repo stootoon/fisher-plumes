@@ -66,7 +66,8 @@ class SurrogateSimulationData:
         self.nz = 1
         self.x_lim      = sorted([self.x[0], self.x[-1]]) 
         self.y_lim      = sorted([self.y[0], self.y[-1]])
-        self.source     = np.array([(0, i) for i in range(n_sources)])* self.pitch
+        yvals = np.arange(n_sources) - (n_sources-1)/2
+        self.source     = np.array([(0, yi) for yi in yvals])* self.pitch
         self.dimensions = [self.x[-1] - self.x[0], self.y[-1] - self.y[0]]# * self.units
         self.fields     = [f"S{i}" for i in range(n_sources)]
         self.fs         = fs
