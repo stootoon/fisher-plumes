@@ -51,15 +51,19 @@ class SurrogateSimulationData:
     def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, n_sources = 8, n_samples = 3001, fs = 50 * UNITS.Hz, **kwargs):
         self.tol = tol
         self.name = name
-        self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
+#        self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
         self.units = units
         self.pitch_units = pitch_units
         self.pitch_sym = pitch_sym
-        self.probe_t *= UNITS.s
-        self.t  = self.probe_t
-        self.nt = len(self.probe_t)
-        self.probe_grid["x"]*=self.units
-        self.probe_grid["y"]*=self.units
+        self.pitch = 1 * self.pitch_units
+        # probe_t is not used, the rest will be set when the surrogate data is generated.
+#        self.probe_t *= UNITS.s
+#        self.t  = self.probe_t
+
+
+        self.probe_grid = {"x":np.array([10]).reshape(1,1), "y":np.array([0]).reshape(1,1)}
+        self.probe_grid["x"]*=self.pitch
+        self.probe_grid["y"]*=self.pitch
         self.x  = self.probe_grid["x"][:,0] 
         self.nx = len(self.x)
         self.y  = self.probe_grid["y"][0]
@@ -67,11 +71,11 @@ class SurrogateSimulationData:
         self.nz = 1
         self.x_lim      = sorted([self.x[0], self.x[-1]]) 
         self.y_lim      = sorted([self.y[0], self.y[-1]])
-        self.source     = np.array([(0, i) for i in range(n_sources)])* self.units
-        self.dimensions = [1,1] * self.units
+        self.source     = np.array([(0, i) for i in range(n_sources)])* self.pitch
+        self.dimensions = [self.x[-1] - self.x[0], self.y[-1] - self.y[0]]# * self.units
         self.fields     = [f"S{i}" for i in range(n_sources)]
         self.fs         = fs
-        self.surr_data_args = {"type":name, "t":self.t, "n_sources":n_sources, "fs":fs}
+        self.surr_data_args = {"type":name, "n_samples":n_samples, "n_sources":n_sources, "fs":fs}
         self.surr_data_args.update(kwargs)
         
         INFO(self)
@@ -82,7 +86,7 @@ class SurrogateSimulationData:
         fs = self.fs.to(UNITS.Hz).magnitude
 
         one_over_f = lambda f,k,fc: 1/(max(f/fc,1)**k)
-        n_freq = self.nt//2
+        n_freq = self.surr_data_args["n_samples"]//2
         self.nt = 2 * n_freq + 1
         
         if self.name == "no_info":
@@ -126,18 +130,23 @@ class SurrogateSimulationData:
 
         self.t = (t / fs) * UNITS.sec
         self.nt= len(self.t)
+        t = self.t
+        INFO(f"Generated surrogated data for {n_src} sources.")
+        INFO(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
+        
         
     def __str__(self):
         s = [f"\n{self.name} {self.__class__}"]
         x = self.x
         y = self.y
-        t = self.t
+        # t = self.t
         s.append(f"x_lim: {self.x_lim[0]:1.6g} to {self.x_lim[1]:1.6g}")
         s.append(f"y_lim: {self.y_lim[0]:1.6g} to {self.y_lim[1]:1.6g}")                
         s.append(f"x-y Dimensions: {self.dimensions}")
         s.append(f"x-range: {x[0]:.3f}, ... {x[-1]:.3f} ({self.nx} points)")
         s.append(f"y-range: {y[0]:.3f}, ... {y[-1]:.3f} ({self.ny} points)")
-        s.append(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
+        # Time data won't be created until surrogate data is actually generated
+        # s.append(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
         s.append(f"fs: {self.fs:g}")
         s.append("Sources:")
         for i, (fld, src) in enumerate(zip(self.fields, self.source)):
@@ -210,7 +219,8 @@ class SurrogateSimulationData:
             INFO(f"Mapped coordinate ({coords[i][0]:6.3f}, {coords[i][1]:6.3f}) to ({cx:6.3f}, {cy:6.3f}), index {(ix,iy)}, name '{self.coord_strs[-1]}'.")
 
         # Now actually load the data
-        self.generate_surrogate_data()            
+        self.generate_surrogate_data()
+
         self.colors = {c:cm.winter(np.random.rand()) for c in self.coord_strs}
         return self
 

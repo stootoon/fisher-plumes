@@ -70,7 +70,7 @@ class FisherPlumes:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
-            self.yvals_um = np.array(sorted(list(self.sims.keys())))
+            self.yvals_um     = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
