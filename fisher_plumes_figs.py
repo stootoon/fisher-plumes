@@ -86,7 +86,7 @@ def plot_plumes_demo(F, t_snapshot,
                      dt = 0.5,
                      **kwargs
 ):
-    to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
+    to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
     fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
     plt.figure(figsize=(8,3))
@@ -94,7 +94,7 @@ def plot_plumes_demo(F, t_snapshot,
     ax_plume = plt.subplot(gs[:,0])
     pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
     dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
-    if pp:
+    if pp is not None:
         ax_plume.matshow(pp, extent =
                          [to_pitch(x) for x in F.sim0.x_lim] +
                          [to_pitch(y - dy) for y in F.sim0.y_lim])
@@ -234,7 +234,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0,
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_units, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_string, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
@@ -281,7 +281,7 @@ def plot_alaplace_fits(F, which_dists_um,
         plt.xlim(xl)
 
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
-        plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g} {pitch_sym}")
+        plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
 
         ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
         ax_cdf[-1].yaxis.set_major_formatter(lambda x, pos: f"{x:g}")        
@@ -334,7 +334,7 @@ def plot_alaplace_fits(F, which_dists_um,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
         [plt.plot(list(dists_um).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists_um]
-        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g}" for di in dists_um],
+        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dists_um],
                    fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
         plt.xlabel(f"Distance ({pitch_sym})",labelpad=0)

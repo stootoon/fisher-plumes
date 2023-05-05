@@ -28,7 +28,7 @@ class FisherPlumes:
 
     def __init__(self, sim_name, copy_stats = False, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
-            INFO(f"{sim_name=} is a FisherPlumes object.")
+            INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
             INFO(f"Attempting to copy data fields.")
             for k,v in other.__dict__.items():
@@ -41,8 +41,6 @@ class FisherPlumes:
             self.name         = sim_name            
             self.pitch = pitch
             self.pitch_string = f"{self.name}_pitch"
-            print(f"{pitch=}")
-            print(f"{self.pitch_string} = {self.pitch}")
             UNITS.define(f"{self.pitch_string} = {self.pitch}")
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.m)}")
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.cm)}")                                    

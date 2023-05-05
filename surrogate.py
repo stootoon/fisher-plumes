@@ -86,7 +86,7 @@ class SurrogateSimulationData:
         self.nt = 2 * n_freq + 1
         
         if self.name == "no_info":
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=3, fc = 1)
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
             kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n) 
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
