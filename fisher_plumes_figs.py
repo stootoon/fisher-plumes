@@ -86,24 +86,25 @@ def plot_plumes_demo(F, t_snapshot,
                      dt = 0.5
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
-    d_scale = F.pitch.to(UNITS.um).magnitude    
+    d_scale = F.pitch.to(UNITS.um).magnitude
     fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
     plt.figure(figsize=(8,3))
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
-    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
+    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
     dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
-    ax_plume.matshow(pp, extent =
-                     [to_pitch(x) for x in F.sim0.x_lim] +
-                     [to_pitch(y - dy) for y in F.sim0.y_lim])
-    px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-    py -= to_pitch(dy)
-    ax_plume.plot(px, py, "kx", markersize=5)
-    ax_plume.xaxis.set_ticks_position('bottom')
-    ax_plume.axis("equal")
-    plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
-    plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
-    #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
+    if pp:
+        ax_plume.matshow(pp, extent =
+                         [to_pitch(x) for x in F.sim0.x_lim] +
+                         [to_pitch(y - dy) for y in F.sim0.y_lim])
+        px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
+        py -= to_pitch(dy)
+        ax_plume.plot(px, py, "kx", markersize=5)
+        ax_plume.xaxis.set_ticks_position('bottom')
+        ax_plume.axis("equal")
+        plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
+        plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
+        #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
 
     ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
                                dt = dt, y_lim = y_lim,

@@ -51,15 +51,10 @@ class SurrogateSimulationData:
     def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, n_sources = 8, n_samples = 3001, fs = 50 * UNITS.Hz, **kwargs):
         self.tol = tol
         self.name = name
-#        self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
         self.units = units
         self.pitch_units = pitch_units
         self.pitch_sym = pitch_sym
         self.pitch = 1 * self.pitch_units
-        # probe_t is not used, the rest will be set when the surrogate data is generated.
-#        self.probe_t *= UNITS.s
-#        self.t  = self.probe_t
-
 
         self.probe_grid = {"x":np.array([10]).reshape(1,1), "y":np.array([0]).reshape(1,1)}
         self.probe_grid["x"]*=self.pitch
@@ -140,6 +135,7 @@ class SurrogateSimulationData:
         x = self.x
         y = self.y
         # t = self.t
+        s.append(f"{1 * self.pitch_units} = {(1 * self.pitch_units).to(UNITS.m)}")
         s.append(f"x_lim: {self.x_lim[0]:1.6g} to {self.x_lim[1]:1.6g}")
         s.append(f"y_lim: {self.y_lim[0]:1.6g} to {self.y_lim[1]:1.6g}")                
         s.append(f"x-y Dimensions: {self.dimensions}")
@@ -234,15 +230,9 @@ class SurrogateSimulationData:
 def load_sims(name, which_coords, py_mode = "absolute", pairs_mode = "all", units = UNITS.m, pitch_units = UNITS.m,
               n_sources = 8, n_samples = 3001, fs = 50 * UNITS.Hz, **kwargs):
 
+    INFO(f"load_sims called for {name=} with {pitch_units=}")
     py_mode = fpt.validate_py_mode(py_mode)
     ssd     = SurrogateSimulationData(name, units = units, pitch_units = pitch_units, n_sources = n_sources, n_samples = n_samples, fs = fs, **kwargs)
-    fixed_sources = []
-
-    for x,y in ssd.source:
-        fixed_sources.append([x.magnitude,y.magnitude])
-
-    ssd.source = np.array(fixed_sources) * ssd.units
-
     ssd.use_coords([(px, py if py_mode == "absolute" else (py * ssd.dimensions[1].magnitude + ssd.y_lim[0])) for (px, py) in which_coords])
     sims = {}
     for i, (k, v) in enumerate(ssd.data.items()):
