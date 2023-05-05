@@ -66,8 +66,8 @@ class SurrogateSimulationData:
         self.nz = 1
         self.x_lim      = sorted([self.x[0], self.x[-1]]) 
         self.y_lim      = sorted([self.y[0], self.y[-1]])
-        yvals = np.arange(n_sources) - (n_sources-1)/2
-        self.source     = np.array([(0, yi) for yi in yvals])* self.pitch
+        yvals_um = (np.arange(n_sources)  - (n_sources-1)/2) * 7500 # 7500 is the source spacing of the boulder data
+        self.source     = np.array([(0,yi) for yi in yvals_um]) * UNITS.um
         self.dimensions = [self.x[-1] - self.x[0], self.y[-1] - self.y[0]]# * self.units
         self.fields     = [f"S{i}" for i in range(n_sources)]
         self.fs         = fs
@@ -87,7 +87,13 @@ class SurrogateSimulationData:
         
         if self.name == "no_info":
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
-            kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n) 
+            kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n)
+        elif self.name == "all_equal":
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
+            ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
+            #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n) 
+            
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
@@ -99,8 +105,6 @@ class SurrogateSimulationData:
                 for j in range(n_src):
                     K[n_src * n + i, n_src * n + j] = kernel(i,j,n)
 
-        self.K = K
-        
         L = np.linalg.cholesky(K)
 
         np.random.seed(seed)
