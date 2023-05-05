@@ -1,3 +1,5 @@
+import pdb
+
 import os, sys
 import numpy as np
 from scipy.stats import mannwhitneyu, mode
@@ -12,6 +14,7 @@ from units import UNITS
 
 import boulder
 import crick
+import surrogate
 
 from matplotlib import pyplot as plt
 
@@ -43,9 +46,26 @@ class FisherPlumes:
             
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)
+                self.sims, self.pairs_um = boulder.load_sims(which_coords,
+                                                             pairs_mode = pairs_mode,
+                                                             units = UNITS.m,
+                                                             pitch_units = UNITS(self.pitch_units),
+                                                             **kwargs)
             elif sim_name == "n12dishT":
-                self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)               
+                self.sims, self.pairs_um = crick.load_sims(sim_name,
+                                                           pairs_mode = pairs_mode,
+                                                           units = UNITS.m,
+                                                           pitch_units = UNITS(self.pitch_units),
+                                                           **kwargs)
+            elif sim_name.startswith("surr_"):
+                which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
+                surr_type = sim_name[5:]
+                self.sims, self.pairs_um = surrogate.load_sims(surr_type,
+                                                               which_coords,
+                                                               pairs_mode = pairs_mode,
+                                                               units = UNITS.m,
+                                                               pitch_units = UNITS(self.pitch_units),
+                                                               **kwargs)
             else:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.n_bootstraps = n_bootstraps
@@ -342,7 +362,6 @@ class FisherPlumes:
         self.I_weighting_freq_max = self.freq_max if weighting_freq_max is None else weighting_freq_max
         freqs     = self.freqs.magnitude
         ind_freqs = np.where((freqs > 0) & (freqs <= self.I_weighting_freq_max.magnitude))[0]
-        
         Ifreqs    = [np.einsum('ijk,j',Ii[:,ind_freqs],freqs[ind_freqs]) for Ii in self.I]
         Isum      = [np.sum(Ii[:, ind_freqs], axis=1) for Ii in self.I]
         self.I_weighted_freqs = [Ifi/Isi for Ifi, Isi in zip(Ifreqs, Isum)]

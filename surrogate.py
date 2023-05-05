@@ -1,5 +1,3 @@
-import pdb
-
 import os, sys, logging
 import numpy  as np
 from   copy   import deepcopy
@@ -19,7 +17,6 @@ WARN  = logger.warning
 DEBUG = logger.debug
 
 
-data_root   = utils.expand_environment_variables(config["root"])
 simulations = ["no_info",
                "one_info",
                "two_info",
@@ -36,7 +33,7 @@ print_datasets()
         
 def _load_single_simulation(name, n_samples = 3001, fs = 50 * UNITS.Hz):
     if name not in simulations:
-        raise ValueError("Don't know how to create surrogate data {name=}.")
+        raise ValueError(f"Don't know how to create surrogate data {name=}.")
 
     probe_grid = {"x":np.array([1]).reshape(1,1), "y":np.array([0]).reshape(1,1)}
     DEBUG("x: {} - {}".format(*utils.fapply([np.min, np.max], [probe_grid["x"]])))
@@ -213,17 +210,7 @@ class SurrogateSimulationData:
             INFO(f"Mapped coordinate ({coords[i][0]:6.3f}, {coords[i][1]:6.3f}) to ({cx:6.3f}, {cy:6.3f}), index {(ix,iy)}, name '{self.coord_strs[-1]}'.")
 
         # Now actually load the data
-        self.generate_surrogate_data()
-        
-        # self.data = {}
-        # for fld, f in data.items():
-        #     self.data[fld] = [np.array(f[:, ix, iy]) for (ix, iy) in [self.coord_inds[s] for s in self.coord_strs]]
-        #     DEBUG(f"data[{fld}] has shape {f.shape}")
-
-        # for p in self.data:
-        #     self.data[p] = np.array(self.data[p]).T
-        #     INFO(f"Field {p} has shape {self.data[p].shape}.")
-            
+        self.generate_surrogate_data()            
         self.colors = {c:cm.winter(np.random.rand()) for c in self.coord_strs}
         return self
 
@@ -234,36 +221,27 @@ class SurrogateSimulationData:
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
 
-def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", units = UNITS.m, pitch_units = UNITS.m, prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig'):
+def load_sims(name, which_coords, py_mode = "absolute", pairs_mode = "all", units = UNITS.m, pitch_units = UNITS.m,
+              n_sources = 8, n_samples = 3001, fs = 50 * UNITS.Hz, **kwargs):
+
     py_mode = fpt.validate_py_mode(py_mode)
-    file_name = prefix
-    if suffix: file_name += "_"+suffix
-    file_name += ".h5"
-    logger.info(f"Loading data from {file_name=}.")
-    bb = BoulderSimulationData(file_name,units=units, pitch_units = pitch_units)
+    ssd     = SurrogateSimulationData(name, units = units, pitch_units = pitch_units, n_sources = n_sources, n_samples = n_samples, fs = fs, **kwargs)
     fixed_sources = []
 
-    for x,y in bb.source:
-        if np.abs(y.magnitude)>0.3:
-            WARN(f"Found incorrect source {y=}.")
-            y/=10
-            WARN(f"Corrected to {y=}.")            
+    for x,y in ssd.source:
         fixed_sources.append([x.magnitude,y.magnitude])
-    if "old" in file_name:
-        WARN("Doubling y coordinates because they were wrong in the original data.")
-        fixed_sources = [(x.magnitude,2*y.magnitude) for x,y in fixed_sources]
 
-    bb.source = np.array(fixed_sources) * bb.units
+    ssd.source = np.array(fixed_sources) * ssd.units
 
-    bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1].magnitude + bb.y_lim[0])) for (px, py) in which_coords])
+    ssd.use_coords([(px, py if py_mode == "absolute" else (py * ssd.dimensions[1].magnitude + ssd.y_lim[0])) for (px, py) in which_coords])
     sims = {}
-    for i, (k, v) in enumerate(bb.data.items()):
+    for i, (k, v) in enumerate(ssd.data.items()):
         # Have to strip the units because quantities with units don't work well as dictionary keys
-        k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um        
-        sims[k1] = deepcopy(bb)
-        sims[k1].data = v.copy()
-        sims[k1].fields = [bb.fields[i]]
-        sims[k1].source = bb.source[i]
+        k1 = int(ssd.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um        
+        sims[k1]        = deepcopy(ssd)
+        sims[k1].data   = v.copy()
+        sims[k1].fields = [ssd.fields[i]]
+        sims[k1].source = ssd.source[i]
     yvals = list(sims.keys())
     pairs_um = fpt.compute_pairs(yvals, pairs_mode)
     return sims, pairs_um
