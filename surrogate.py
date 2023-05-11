@@ -21,6 +21,8 @@ simulations = ["no_info",
                "one_info",
                "two_info",
                "spike_and_slab",
+               "blue",
+               "red",
                "all_equal"]
 def list_datasets():
     return simulations
@@ -91,9 +93,13 @@ class SurrogateSimulationData:
         elif self.name == "all_equal":
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
             ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
+            ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/12) - 1
             #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
-            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n) 
-            
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
+        elif self.name == "one_info":
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
+            ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==1))) - 1
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)            
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
