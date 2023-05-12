@@ -5,6 +5,7 @@ plt.style.use("default")
 from matplotlib import colors as mcolors
 from matplotlib.gridspec   import GridSpec
 from matplotlib import cm
+import matplotlib.transforms as mtrans
 from scipy.stats import mannwhitneyu,ttest_1samp
 
 import fisher_plumes_fig_tools as fpft
@@ -554,7 +555,8 @@ def plot_fisher_information(
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
     #ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
     if plot_param_fits:
-        ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+        #ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+        ax_fisher.set_xlabel(f"Distance ({pitch_sym})", fontsize=11, labelpad=-30)
     else:
         ax_fisher.set_xlabel(f"Distance ({pitch_sym})")
     fpft.spines_off(plt.gca())
@@ -564,10 +566,29 @@ def plot_fisher_information(
     if info_heatmap:
         I = F.I[which_probe][0]
         n_freqs, n_d = I.shape
-        ax_best_freq.imshow(np.log10(I[1:]),
-                             aspect="auto",
+        ax_best_freq.matshow(np.log10(I[1:]),
+                             origin='upper',
                              cmap=cm.plasma,
-                             extent = [0, n_d, 1,F.freqs.to(UNITS.Hz).magnitude[n_freqs-1]])
+                             aspect="auto",
+                             extent = [0, n_d, F.freqs.to(UNITS.Hz).magnitude[n_freqs-1],1]
+        )
+        dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
+        ax_best_freq.tick_params(axis='y', labelsize=8)
+        ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5)
+        ax_best_freq.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:g}" for z in dp],
+                                fontsize=8,
+                                rotation=90,
+                                color="black",
+        )
+        ax_best_freq.tick_params(top=False, labeltop=False)
+        # Label the bottom xticks
+        ax_best_freq.tick_params(bottom=False, labelbottom=True)
+        for i, (di, label) in enumerate(zip(dp, ax_best_freq.get_xticklabels())):
+            label.set_color("k" if di<0.6 else "w")
+            label.set_transform(label.get_transform() + mtrans.Affine2D().translate(0, 70))
+        ax_best_freq.xaxis.set_label_position('top')            
+        ax_best_freq.set_xlabel(f"Distance ({pitch_sym})", fontsize=11,labelpad=-12, color="w")
+    
     else:
         pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
         ax_best_freq.semilogx(F.I_dists/d_scale,
