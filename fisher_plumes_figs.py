@@ -367,7 +367,6 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     fun = np.log10 if log_scale else (lambda X: X)
     γbs = fun(F.fit_params[which_probe][:, which_fis, 1]/d_scale)
     kbs = fun(F.fit_params[which_probe][:, which_fis, 2])
-
     if plot_scatter:
         for γ, k in zip(γbs, kbs):
             plt.scatter(γ, k,
@@ -382,7 +381,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         κm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 2]),axis=0)
         plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
         
-    
+
     hmus = []
     for ifreq, fi in enumerate(which_fis):
         γk = np.array([np.array(γbs[:,ifreq]), np.array(kbs[:,ifreq])])
@@ -391,7 +390,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         hmui, hsdsi = fpft.plot_bivariate_gaussian(mu, C,
                                                    n_sds = 1, n_points = 1000,
                                                    mean_style = {"marker":"o", "markersize":3, "color":colfun(F.freqs[fi])},
-                                                   sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])})
+                                                   sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])},
+        )
         hmus.append(hmui)
 
         plot_legend and plt.legend(handles = hmus, labels=[f"{F.freqs[fi].magnitude:g} Hz" for fi in which_fis],
@@ -400,7 +400,6 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                    frameon=False,
                                    fontsize=6,
     )
-    
     xl = list(plt.xlim())
     if xt is not None:
         xl[0] = min(xl[0], np.min(xt))
@@ -421,14 +420,16 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         plt.contourf(γγ, kk, I, n_contours, cmap=contours_cmap)  
 
     if xt is None:
+        xl = plt.xlim()
         xt = plt.xticks()[0];
-        log_scale and plt.gca().set_xticklabels(f"{10**xti:.2g}" for xti in xt)        
+        log_scale and plt.xticks(xt, labels=[f"{10**xti:.2g}" for xti in xt]) and plt.xlim(xl)
     else:
         plt.xticks(xt, labels=[f"{(10**xti) if log_scale else xti:g}" for xti in xt])
     
     if yt is None:
+        yl = plt.ylim()
         yt = plt.yticks()[0];
-        log_scale and plt.gca().set_yticklabels(f"{10**yti:.2g}" for yti in yt)
+        log_scale and plt.yticks(yt, labels=[f"{10**yti:.2g}" for yti in yt]) and plt.ylim(yl)
     else:
         plt.yticks(yt, labels=[f"{(10**yti) if log_scale else yti:g}" for yti in yt])
 
@@ -523,7 +524,7 @@ def plot_fisher_information(
     # which_ifreqs = list(set(F.I_best_ifreqs_mode[which_probe]))
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))    
-    colfun = lambda f: cm.cool_r(f/(freq_max if freq_max is not None else F.freq_max))
+    colfun = lambda f: cm.cool_r(f.to(UNITS.Hz).magnitude/(freq_max if freq_max is not None else F.freq_max).to(UNITS.Hz).magnitude)
     freqs = F.freqs
     
     INFO(f"Plotting {which_ifreqs=}.")
@@ -549,9 +550,9 @@ def plot_fisher_information(
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
     plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
-    ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
+    ax_fisher.tick_params(axis='x', labelsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
+    #ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
     if plot_param_fits:
         ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
     else:
@@ -563,8 +564,10 @@ def plot_fisher_information(
     if info_heatmap:
         I = F.I[which_probe][0]
         n_freqs, n_d = I.shape
-        print(I.shape)
-        ax_best_freq.matshow(np.log10(I[1:]), aspect="auto", cmap=cm.plasma, extent = [0, n_d, 1,F.freqs.to(UNITS.Hz).magnitude[n_freqs-1]])
+        ax_best_freq.imshow(np.log10(I[1:]),
+                             aspect="auto",
+                             cmap=cm.plasma,
+                             extent = [0, n_d, 1,F.freqs.to(UNITS.Hz).magnitude[n_freqs-1]])
     else:
         pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
         ax_best_freq.semilogx(F.I_dists/d_scale,
