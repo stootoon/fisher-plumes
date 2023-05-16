@@ -20,6 +20,7 @@ DEBUG = logger.debug
 simulations = ["no_info",
                "one_info",
                "two_info",
+               "high",
                "spike_and_slab",
                "blue",
                "red",
@@ -88,18 +89,26 @@ class SurrogateSimulationData:
         self.nt = 2 * n_freq + 1
         
         if self.name == "no_info":
+            INFO("Genearting surogate data where all frequencies are uninformative.")                                    
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
             kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n)
         elif self.name == "all_equal":
+            INFO("Generating surogate data where all frequencies are equally informative.")                        
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
             ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/12) - 1
             #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
         elif self.name == "one_info":
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
-            ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==1))) - 1
-            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)            
+            INFO("Generating surogate data where one frequency is more informative than the others.")            
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 100)
+            ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==4))) - 1
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
+        elif self.name == "high":
+            INFO("Generating surogate data where high frequencies are more informative.")
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 100)            
+            ker_spat = lambda i,j,n: 1 if (i==j) else np.exp(-abs(i-j)/(12. if n< n_freq//2 else 2.))
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 

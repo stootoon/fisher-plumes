@@ -510,6 +510,8 @@ def plot_fisher_information(
         plot_ests = False,
         plot_param_fits = False,
         info_heatmap = True,
+        heatmap_range = [None,None],
+        heatmap_cm    = cm.plasma,
         **kwargs
 ):
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -574,8 +576,10 @@ def plot_fisher_information(
         used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
         im = ax_best_freq.matshow(np.log10(I[ind_use]),
                              origin='upper',
-                             cmap=cm.plasma,
+                             cmap=heatmap_cm,
                              aspect="auto",
+                                  vmin = heatmap_range[0],
+                                  vmax = heatmap_range[1],
                              extent = [0, n_d, used_freqs_hz[-1], used_freqs_hz[0]]
         )
 
