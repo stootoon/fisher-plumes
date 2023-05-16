@@ -54,8 +54,8 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
-        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/d_scale:.2g} p", linewidth=1)
-        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/d_scale:.2g} p", linewidth=1)
+        ax_trace[-1].plot(to_sec(t),a,color=cols[0], label=f"y={ia/d_scale:.2g} p", linewidth=1)
+        ax_trace[-1].plot(to_sec(t),b,color=cols[1], label=f"y={ib/d_scale:.2g} p", linewidth=1)
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])
@@ -107,7 +107,7 @@ def plot_plumes_demo(F, t_snapshot,
         ax_plume.axis("equal")
     plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
     plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
-        #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
+    #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
 
     ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
                                dt = dt, y_lim = y_lim,
@@ -269,6 +269,7 @@ def plot_alaplace_fits(F, which_dists_um,
         mu_   = F.mu[which_probe][d][0][which_ifreq]
         ypred = fpt.alaplace_cdf(la_, mu_, xvals)
 
+        print(rr)
         hdata = fpft.cdfplot(rr,color=dist2col(d), linewidth=1, label='F$_{data}$($x$)')
         hfit  = plt.plot(xvals, ypred,
                 color=fpft.set_alpha(dist2col(d),0.4),
@@ -566,11 +567,15 @@ def plot_fisher_information(
     if info_heatmap:
         I = F.I[which_probe][0]
         n_freqs, n_d = I.shape
-        ax_best_freq.matshow(np.log10(I[1:]),
+        fI = F.freqs[:n_freqs]
+        ind_use = fI > 0 * UNITS.Hz
+        if freq_max is not None: ind_use &= fI <= freq_max
+        used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
+        ax_best_freq.matshow(np.log10(I[ind_use]),
                              origin='upper',
                              cmap=cm.plasma,
                              aspect="auto",
-                             extent = [0, n_d, F.freqs.to(UNITS.Hz).magnitude[n_freqs-1],1]
+                             extent = [0, n_d, used_freqs_hz[-1], used_freqs_hz[0]]
         )
         dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
         ax_best_freq.tick_params(axis='y', labelsize=8)
@@ -580,15 +585,23 @@ def plot_fisher_information(
                                 rotation=90,
                                 color="black",
         )
-        ax_best_freq.tick_params(top=False, labeltop=False)
-        # Label the bottom xticks
-        ax_best_freq.tick_params(bottom=False, labelbottom=True)
-        for i, (di, label) in enumerate(zip(dp, ax_best_freq.get_xticklabels())):
-            label.set_color("k" if di<0.6 else "w")
-            label.set_transform(label.get_transform() + mtrans.Affine2D().translate(0, 70))
-        ax_best_freq.xaxis.set_label_position('top')            
-        ax_best_freq.set_xlabel(f"Distance ({pitch_sym})", fontsize=11,labelpad=-12, color="w")
-    
+        if plot_param_fits:
+            ax_best_freq.tick_params(top=False, labeltop=False)
+            # Label the bottom xticks
+            ax_best_freq.tick_params(bottom=False, labelbottom=True)
+            for i, (di, label) in enumerate(zip(dp, ax_best_freq.get_xticklabels())):
+                label.set_color("k" if di<0.6 else "w")
+                label.set_transform(label.get_transform() + mtrans.Affine2D().translate(0, 70))
+            ax_best_freq.xaxis.set_label_position('top')            
+            ax_best_freq.set_xlabel(f"Distance ({pitch_sym})", fontsize=11,labelpad=-12, color="w")
+        else:
+            ax_best_freq.tick_params(top=False, labeltop=False)
+            # Label the bottom xticks
+            ax_best_freq.tick_params(bottom=True, labelbottom=True)
+            ax_best_freq.xaxis.set_label_position('bottom')            
+            ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")
+            
+        
     else:
         pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
         ax_best_freq.semilogx(F.I_dists/d_scale,
