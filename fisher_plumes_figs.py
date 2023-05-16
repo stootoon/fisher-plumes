@@ -580,8 +580,8 @@ def plot_fisher_information(
         )
 
         dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
-        ax_best_freq.tick_params(axis='y', labelsize=8)
-        ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5)
+        ax_best_freq.tick_params(axis='y', labelsize=8 if plot_param_fits else 10)
+        ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5 if plot_param_fits else 5)
         ax_best_freq.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
                                 fontsize=8,
                                 rotation=90,
