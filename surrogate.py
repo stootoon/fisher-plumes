@@ -85,28 +85,30 @@ class SurrogateSimulationData:
         fs = self.fs.to(UNITS.Hz).magnitude
 
         one_over_f = lambda f,k,fc: 1/(max(f/fc,1)**k)
-        n_freq = self.surr_data_args["n_samples"]//2
-        self.nt = 2 * n_freq + 1
-        
+
+        n_freq      = self.surr_data_args["n_samples"]//2
+        surrogate_k = self.surr_data_args["surrogate_k"] if "surrogate_k" in self.surr_data_args else 4.
+
+        self.nt = 2 * n_freq + 1        
         if self.name == "no_info":
-            INFO("Genearting surogate data where all frequencies are uninformative.")                                    
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
+            INFO(f"Generating surogate data where all frequencies are uninformative. {surrogate_k=:.1f}")                                    
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n)
         elif self.name == "all_equal":
-            INFO("Generating surogate data where all frequencies are equally informative.")                        
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 1)
+            INFO(f"Generating surogate data where all frequencies are equally informative.")                        
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/12) - 1
             #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
         elif self.name == "one_info":
-            INFO("Generating surogate data where one frequency is more informative than the others.")            
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 100)
+            INFO(f"Generating surogate data where one frequency is more informative than the others.")            
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==4))) - 1
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
         elif self.name == "high":
-            INFO("Generating surogate data where high frequencies are more informative.")
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=4., fc = 100)            
+            INFO(f"Generating surogate data where high frequencies are more informative.")
+            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)            
             ker_spat = lambda i,j,n: 1 if (i==j) else np.exp(-abs(i-j)/(12. if n< n_freq//2 else 2.))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
         else:
