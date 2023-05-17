@@ -502,7 +502,6 @@ def plot_fisher_information(
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
         x_stagger = lambda x, i: x*(1.02**i),
-        fi_scale = 1000,
         plot_fun = plt.plot,
         freq_max = None,
         bf_ytick = None,
@@ -554,7 +553,7 @@ def plot_fisher_information(
         plot_fun([x, x], [Il, Ih], color = col, linewidth=0.5)
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
-    plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
+    plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
     ax_fisher.tick_params(axis='x', labelsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
     #ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
@@ -568,30 +567,20 @@ def plot_fisher_information(
     # The best frequency plots
     ax_best_freq = plt.subplot(gs[3,:] if plot_param_fits else gs[3:,:])
     if info_heatmap:
-        I = F.I[which_probe][0] * d_scale**2
-        n_freqs, n_d = I.shape
-        fI = F.freqs[:n_freqs]
-        ind_use = fI > 0 * UNITS.Hz
-        if freq_max is not None: ind_use &= fI <= freq_max
-        used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
-        im = ax_best_freq.matshow(np.log10(I[ind_use]),
-                             origin='upper',
-                             cmap=heatmap_cm,
-                             aspect="auto",
-                                  vmin = heatmap_range[0],
-                                  vmax = heatmap_range[1],
-                             extent = [0, n_d, used_freqs_hz[-1], used_freqs_hz[0]]
-        )
+        plot_fisher_information_heatmap(F, which_probe,
+                                        ax = ax_best_freq,
+                                        freq_max = freq_max,
+                                        heatmap_range = heatmap_range,
+                                        heatmap_cm    = heatmap_cm,
+                                        do_colorbar = True)
 
-        dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
-        ax_best_freq.tick_params(axis='y', labelsize=8 if plot_param_fits else 10)
-        ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5 if plot_param_fits else 5)
-        ax_best_freq.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
-                                fontsize=8,
-                                rotation=90,
-                                color="black",
-        )
         if plot_param_fits:
+            ax_best_freq.tick_params(axis='y', labelsize=8)
+            ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5)
+            ax_best_freq.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
+                                    fontsize=8,
+                                    rotation=90,
+                                    color="black")                
             ax_best_freq.tick_params(top=False, labeltop=False)
             # Label the bottom xticks
             ax_best_freq.tick_params(bottom=False, labelbottom=True)
@@ -600,29 +589,6 @@ def plot_fisher_information(
                 label.set_transform(label.get_transform() + mtrans.Affine2D().translate(0, 70))
             ax_best_freq.xaxis.set_label_position('top')            
             ax_best_freq.set_xlabel(f"Distance ({pitch_sym})", fontsize=11,labelpad=-12, color="w")
-        else:
-            ax_best_freq.tick_params(top=False, labeltop=False)
-            # Label the bottom xticks
-            ax_best_freq.tick_params(bottom=True, labelbottom=True)
-            ax_best_freq.xaxis.set_label_position('bottom')            
-            ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")
-
-        divider = make_axes_locatable(ax_best_freq)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-
-        cb = plt.colorbar(im, cax=cax)
-        yt = cb.ax.get_yticks()
-        yl = cb.ax.get_ylim()
-        labels = []
-        for lab in [f"{10**yti:.1g}" for yti in yt]:
-            if "e+" in lab:
-                head, tail = lab.split("e+")
-                labels.append(f"{int(head) * 10**int(tail)}")
-            else:
-                labels.append(lab)
-        cb.ax.set_yticks(yt, labels)
-        cb.ax.set_ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
-        cb.ax.set_ylim(yl)
         
     else:
         pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
@@ -668,4 +634,65 @@ def plot_fisher_information(
                 
     return ax_fisher, ax_best_freq, ax_d
 
-    
+
+def plot_fisher_information_heatmap(F, which_probe,
+                                    ax = None,
+                                    freq_max = None,
+                                    heatmap_range = [None, None],
+                                    heatmap_cm    = cm.Spectral_r,
+                                    do_colorbar = True,
+                                    
+):
+    d_scale = F.pitch.to(UNITS.um).magnitude    
+    I = F.I[which_probe][0] * d_scale**2
+    n_freqs, n_d = I.shape
+    fI = F.freqs[:n_freqs]
+    ind_use = fI > 0 * UNITS.Hz
+    if freq_max is not None: ind_use &= fI <= freq_max
+    used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
+    if ax is None: ax = plt.gca()
+    im = ax.matshow(np.log10(I[ind_use]),
+                    origin='upper',
+                    cmap=heatmap_cm,
+                    aspect="auto",
+                    vmin = heatmap_range[0],
+                    vmax = heatmap_range[1],
+                    extent = [0, n_d, used_freqs_hz[-1], used_freqs_hz[0]]
+    )
+
+    dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
+    ax.tick_params(axis='y', labelsize=10)
+    ax.set_ylabel("Freq. (Hz)", labelpad=5)
+    ax.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
+                            fontsize=8,
+                            rotation=90,
+                            color="black",
+    )
+
+    ax.tick_params(top=False, labeltop=False)
+    ax.tick_params(bottom=True, labelbottom=True)
+    ax.xaxis.set_label_position('bottom')            
+    ax.set_xlabel(f"Distance ({pitch_sym})")
+
+    if do_colorbar:
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        cb = plt.colorbar(im, cax=cax)
+        yt = cb.ax.get_yticks()
+        yl = cb.ax.get_ylim()
+        labels = []
+        for lab in [f"{10**yti:.1g}" for yti in yt]:
+            if "e+" in lab:
+                head, tail = lab.split("e+")
+                labels.append(f"{int(head) * 10**int(tail)}")
+            else:
+                labels.append(lab)
+
+        cb.ax.set_yticks(yt, labels)
+        cb.ax.set_ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
+        cb.ax.set_ylim(yl)
+    else:
+        cb = None
+
+    return ax, cb
