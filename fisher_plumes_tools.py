@@ -1,11 +1,12 @@
 import os, sys
 import logging
 import numpy as np
-import pickle 
-from scipy.signal import stft, tukey
+import pickle
+from scipy.signal import stft, tukey, get_window
 from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize
 from matplotlib import pylab as plt
+
 
 import utils
 
@@ -81,6 +82,11 @@ class Detrenders:
         return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
 
     @staticmethod
+    def window_normalizer(x, w):
+        y = x*w[np.newaxis,:]
+        return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
+    
+    @staticmethod
     def windowed(x):
         wnd = x.shape[1]
         y = x*tukey(wnd,0.1)[np.newaxis,:]
@@ -95,16 +101,16 @@ class Detrenders:
     def identity(x):
         return x
 
-def compute_sin_cos_stft(data, istart, wnd, ov, detrender=Detrenders.tukey_normalizer, x_only = False, force_nonnegative=False, window = 'boxcar'):
+def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegative=False, window = ('boxcar')):
     block_starts = list(range(istart, len(data)-wnd, wnd-ov))
-    x = np.copy(data[block_starts[0]:block_starts[-1]+wnd])
-    if force_nonnegative:
-        x[x<0] = 0
-        
-    if x_only:
-        return x
 
-    freqs,times, S = stft(x, fs = 1, window=window,
+    x = np.copy(data[block_starts[0]:block_starts[-1]+wnd])
+    if force_nonnegative: x[x<0] = 0        
+    if x_only: return x
+
+    w = get_window(window, wnd)
+    detrender = lambda x: Detrenders.window_normalizer(x, w)    
+    freqs,times, S = stft(x, fs = 1, window=w,
                           nperseg=wnd, noverlap=ov, detrend= detrender,
                           boundary=None, padded=False)
     n =  np.arange(wnd//2+1)

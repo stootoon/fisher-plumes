@@ -104,8 +104,8 @@ class FisherPlumes:
         self.freqs = np.arange(wnd)/wnd*self.fs
         INFO(f"Window set to {self.wnd=}.")
 
-    def compute_trig_coefs(self, istart = 0, tukey_param = 0.1, **kwargs):
-        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {tukey_param=} and {kwargs=}")
+    def compute_trig_coefs(self, istart = 0, window = ('boxcar'), **kwargs):
+        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {kwargs=}")
         if self.wnd is None:
             raise ValueError("Window size is unset. Use set_window to set it.")
 
@@ -114,10 +114,9 @@ class FisherPlumes:
         INFO(f"Computing coefficients for {n_probes} probes.")        
         self.ss, self.cc, self.tt = [{} for _ in range(n_probes)],[{} for _ in range(n_probes)],[{} for _ in range(n_probes)]
         
-        detrender = lambda x: fpt.Detrenders.tukey_normalizer(x, tukey_param)
         for src in self.sims:
             for i in range(n_probes):
-                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, detrender=detrender, **kwargs);
+                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, window=window, **kwargs);
                 self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
@@ -370,9 +369,9 @@ class FisherPlumes:
         self.I_weighted_freqs = [Ifi/Isi for Ifi, Isi in zip(Ifreqs, Isum)]
         
         
-    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax_um=25000, fit_vars = True, weighting_freq_max = None):
+    def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True, weighting_freq_max = None):
         self.set_window(wnd)
-        self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
+        self.compute_trig_coefs(istart=istart, window=window)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
