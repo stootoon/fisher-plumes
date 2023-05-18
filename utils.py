@@ -16,7 +16,9 @@ d1 = lambda d: d[list(d.keys())[0]] # Return the first element of a dictionary
 def dd(*args): 
     return lambda d: [d[a] for a in args]
 
-        
+dict_update = lambda d, flds, vals: [d.update({fld:val for fld,val in zip(flds, vals)}),d][1]
+dict_update_from_field = lambda d, flds, src: [d.update({fld:d[src] for fld in flds}),d][1]
+
 def expand_environment_variables(s, cleanup_multiple_slashes = True):
     for v in re.findall("(\$[A-Za-z_]+)", s):
         s = s.replace(v, os.environ[v[1:]]) # v[1:] to skip the $ at the beginning, so $HOME -> HOME

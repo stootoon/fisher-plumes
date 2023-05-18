@@ -13,8 +13,6 @@ import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
 
-import pdb
-
 import utils
 import logging
 
@@ -696,3 +694,21 @@ def plot_fisher_information_heatmap(F, which_probe,
         cb = None
 
     return ax, cb
+
+def plot_window_series(proc_data, figsize=(8,5), n_rows = 2, freq_max = None, heatmap_range = [-2, np.log10(500)], **kwargs):
+    plt.figure(figsize=figsize)
+    n_data = len(proc_data)
+    gs = GridSpec(n_rows, int(np.ceil(n_data/n_rows)))
+    order = sorted(proc_data.keys())
+    axes, cbs = [], []
+    for k, gsi in zip(order, gs):
+        if freq_max is None: freq_max = proc_data[k].freq_max        
+        axes.append(plt.subplot(gsi))
+        axes[-1], cbi = fpf.plot_fisher_information_heatmap(proc_data[k], 0, ax = axes[-1], freq_max = freq_max,
+                                                            heatmap_range =heatmap_range,
+                                                            heatmap_cm    =cm.Spectral_r,
+                                                            do_colorbar   = gsi.is_last_col(),
+        )
+        axes[-1].set_title(f"{k}")
+        if not gsi.is_first_col(): axes[-1].set_ylabel("")
+    plt.tight_layout()
