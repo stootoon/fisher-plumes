@@ -177,3 +177,6 @@ def compute_fisher_information_estimates_for_gen_exp_decay(s, γ, k, b, σ2):
     
     return Ilow, Ihigh
 
+
+def get_window_name(wnd_sh): return wnd_sh[0] if type(wnd_sh) is tuple else wnd_sh
+    
