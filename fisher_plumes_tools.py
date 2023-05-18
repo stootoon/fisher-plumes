@@ -103,14 +103,14 @@ class Detrenders:
 
 def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegative=False, window = ('boxcar')):
     block_starts = list(range(istart, len(data)-wnd, wnd-ov))
-
+    
     x = np.copy(data[block_starts[0]:block_starts[-1]+wnd])
     if force_nonnegative: x[x<0] = 0        
     if x_only: return x
 
     w = get_window(window, wnd)
     detrender = lambda x: Detrenders.window_normalizer(x, w)    
-    freqs,times, S = stft(x, fs = 1, window=w,
+    freqs,times, S = stft(x, fs = 1, window='boxcar', # This has to be boxcar, the windowing happens in the detrender
                           nperseg=wnd, noverlap=ov, detrend= detrender,
                           boundary=None, padded=False)
     n =  np.arange(wnd//2+1)
