@@ -7,6 +7,8 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
+from sklearn.linear_model import LinearRegression
+
 import fisher_plumes_tools as fpt
 import utils
 
@@ -313,8 +315,9 @@ class FisherPlumes:
     
     def compute_fisher_information(self,
                                    d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000],
+                                   pcs = [5, 50, 95]
                                    ):
-        INFO(f"Computing Fisher information (v2).")
+        INFO(f"Computing Fisher information.")
         d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
         if len(d_add): d_vals += d_add
         d_vals = sorted(list(set(d_vals)))
@@ -330,12 +333,33 @@ class FisherPlumes:
         expected_shape = (self.n_bootstraps+1, n_freqs, len(d_vals))
         assert self.I[0].shape == expected_shape, f"{self.I[0].shape=} <> {expected_shape=}."
         DEBUG(f"{self.I[0].shape=} has the expected value.")
-
-        pcs = [5, 50, 95]
         # Compute the percentiles over bootstraps ([1:] in the first dimension)
         self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
-        
-        
+
+    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None):
+        if freq_max is None: freq_max = self.freq_max
+        INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")                
+        n_bs, n_I_freq, n_d = self.I[0].shape    
+        ind   = (self.freqs >= freq_min) & (self.freqs <= freq_max)
+        freqs = self.freqs.to(UNITS.Hz).magnitude
+        lr  = LinearRegression()
+        self.reg_coefs = []    
+        for I in self.I:
+            reg_coefs = []
+            for Ibs in I:
+                for i in range(n_d):
+                    yy = Ibs[ind[:n_I_freq],i]
+                    xx = freqs[ind][:len(yy)]
+                    ivld = ~np.isnan(yy) & (yy>0) & ~np.isinf(yy)
+                    if len(ivld)>=2:
+                        lr.fit(xx[ivld].reshape(-1,1), np.log10(yy[ivld]))
+                        reg_coefs.append([lr.intercept_] + list(lr.coef_))
+                    else:
+                        reg_coefs.append([np.nan]*2)
+    
+            reg_coefs = np.array(reg_coefs).reshape(n_bs, n_d, 2)
+            self.reg_coefs.append(reg_coefs)        
+
     def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True):
         self.set_window(wnd)
         self.compute_trig_coefs(istart=istart, window=window)
@@ -346,6 +370,7 @@ class FisherPlumes:
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
         self.compute_fisher_information()
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
