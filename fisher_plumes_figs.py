@@ -695,7 +695,7 @@ def plot_fisher_information_heatmap(F, which_probe,
 
     return ax, cb
 
-def plot_window_series(proc_data, window_name, figsize=(8,5), n_rows = 2, freq_max = None, heatmap_range = [-2, np.log10(500)], **kwargs):
+def plot_window_series(proc_data, window_name, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spectral_r, freq_max = None, heatmap_range = [-2, np.log10(500)], **kwargs):
     plt.figure(figsize=figsize)
     n_data = len(proc_data)
     order = sorted([(wnd_t, wnd_sh) for (wnd_t, wnd_sh) in proc_data.keys() if window_name == fpt.get_window_name(wnd_sh)])
@@ -706,7 +706,7 @@ def plot_window_series(proc_data, window_name, figsize=(8,5), n_rows = 2, freq_m
         axes.append(plt.subplot(gsi))
         axes[-1], cbi = plot_fisher_information_heatmap(proc_data[k], 0, ax = axes[-1], freq_max = freq_max,
                                                             heatmap_range =heatmap_range,
-                                                            heatmap_cm    =cm.Spectral_r,
+                                                            heatmap_cm    =heatmap_cm,
                                                             do_colorbar   = gsi.is_last_col(),
         )
         axes[-1].set_title(f"{k[0]}")
