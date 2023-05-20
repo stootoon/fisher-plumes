@@ -33,11 +33,13 @@ class FisherPlumes:
             INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
             INFO(f"Attempting to copy data fields.")
+            n_copied = 0
             for k,v in other.__dict__.items():
                 if not callable(v):
                     self.__dict__[k] = deepcopy(v)
+                    n_copied += 1
                     DEBUG(f"Copied field {k}.")
-            INFO(f"Copied data fields from FisherPlumes object.")        
+            INFO(f"Copied {n_copied} data fields from FisherPlumes object.")        
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
             self.name         = sim_name            
@@ -106,10 +108,9 @@ class FisherPlumes:
         self.freqs = np.arange(wnd)/wnd*self.fs
         INFO(f"Window set to {self.wnd=}.")
 
-    def compute_trig_coefs(self, istart = 0, window = ('boxcar'), **kwargs):
-        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {kwargs=}")
-        if self.wnd is None:
-            raise ValueError("Window size is unset. Use set_window to set it.")
+    def compute_trig_coefs(self, istart = 0, window = ('boxcar'), z_score = True, **kwargs):
+        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {z_score=} and {kwargs=} ")
+        if self.wnd is None: raise ValueError("Window size is unset. Use set_window to set it.")
 
         wnd    = self.wnd
         n_probes = utils.d1(self.sims).data.shape[1]
@@ -118,7 +119,7 @@ class FisherPlumes:
         
         for src in self.sims:
             for i in range(n_probes):
-                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, window=window, **kwargs);
+                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, window=window, z_score = z_score, **kwargs);
                 self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
@@ -259,7 +260,7 @@ class FisherPlumes:
             [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
-    def compute_la_gen_fit_to_distance(self, dmax_um=100000):
+    def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True):
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la[0].keys())))
         dd    = dists[np.abs(dists)<=dmax_um]
@@ -269,17 +270,23 @@ class FisherPlumes:
         n_bs, n_freqs, n_dists = la_sub[0].shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
+        
+        bounds_dict = {k:(0, np.inf) for k in "askb"}
+        if not fit_k:
+            bounds_dict["k"] = (1,1+1e-6)
+            INFO(f"Not fitting k by using {bounds_dict['k']=:}")
+        
         if ('vars_for_freqs' not in self.__dict__) or self.vars_for_freqs is None:
             # Loop over the rows of la_sub
             # Each row (la_subi) has the data for one frequency
-            self.fit_params = [np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_subi])
+            self.fit_params = [np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi, bounds_dict = bounds_dict) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_subi])
                                for la_subi in la_sub]
         else:
             INFO(f"Not fitting amplitudes, instead using given values.")
 
             self.fit_params = [
                 np.array([[
-                fpt.DUMP_IF_FAIL(fpt.fit_gen_exp_no_amp, dd/np.std(dd),la_sub_bsi, ampi, extra={"ifreq":ifreq, "ibs":ibs, "iprobe":iprobe})
+                fpt.DUMP_IF_FAIL(fpt.fit_gen_exp_no_amp, dd/np.std(dd),la_sub_bsi, ampi, bounds_dict = bounds_dict, extra={"ifreq":ifreq, "ibs":ibs, "iprobe":iprobe})
                 for ifreq,  (la_sub_bsi, ampi)             in enumerate(zip(la_sub_bs, 2*vars_for_freqs_bs))]
                 for ibs,    (la_sub_bs, vars_for_freqs_bs) in enumerate(zip(la_subi,     vars_for_freqsi))])
                 for iprobe, (la_subi, vars_for_freqsi)     in enumerate(zip(la_sub, self.vars_for_freqs))]
@@ -361,15 +368,16 @@ class FisherPlumes:
             reg_coefs = np.array(reg_coefs).reshape(n_bs, n_d, 2)
             self.reg_coefs.append(reg_coefs)        
 
-    def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True):
+    def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True, fit_k = True, z_score = True):
+        INFO(f"STARTING COMPUTATION.")
         self.set_window(wnd)
-        self.compute_trig_coefs(istart=istart, window=window)
+        self.compute_trig_coefs(istart=istart, window=window, z_score = z_score)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_pvalues()
         self.compute_r2values()
-        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
+        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.compute_fisher_information()
         self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
         INFO(f"Done computing all for {wnd=}.")
