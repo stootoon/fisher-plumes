@@ -368,6 +368,15 @@ class FisherPlumes:
             reg_coefs = np.array(reg_coefs).reshape(n_bs, n_d, 2)
             self.reg_coefs.append(reg_coefs)        
 
+    def regress_length_constants_on_frequency(self, freq_min):
+        ind_use = (self.freqs >= freq_min)  & (self.freqs <= self.freq_max)
+        INFO(f"Regressing length constants on frequency, using {freq_min=:g}: {self.freqs[ind_use][0]:g} - {self.freqs[ind_use][-1]:g}")        
+        ff = self.freqs[ind_use].to(UNITS.Hz).magnitude.reshape(-1,1)
+        d_scale = self.pitch.to(UNITS.um).magnitude
+        lr = LinearRegression()
+        pack_coefs = lambda lr: [lr.intercept_, lr.coef_[0]]
+        self.coef_γ_vs_freq = [np.array([pack_coefs(lr.fit(ff,γbs[ind_use[:len(γbs)]])) for γbs in fp[:, :, 1]/d_scale]) for fp in self.fit_params]            
+    
     def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True, fit_k = True, z_score = True):
         INFO(f"STARTING COMPUTATION.")
         self.set_window(wnd)
@@ -378,6 +387,7 @@ class FisherPlumes:
         self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
+        self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
         self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
         INFO(f"Done computing all for {wnd=}.")
