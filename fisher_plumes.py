@@ -338,7 +338,8 @@ class FisherPlumes:
 
     def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None):
         if freq_max is None: freq_max = self.freq_max
-        INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")                
+        INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")
+        self.reg_freq_range = (freq_min, freq_max)
         n_bs, n_I_freq, n_d = self.I[0].shape    
         ind   = (self.freqs >= freq_min) & (self.freqs <= freq_max)
         freqs = self.freqs.to(UNITS.Hz).magnitude

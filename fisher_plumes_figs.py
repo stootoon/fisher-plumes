@@ -258,7 +258,7 @@ def plot_alaplace_fits(F, which_dists_um,
     ax_dcdf= []    
     ax_cdf = []
     for di, d in enumerate(which_dists_um):
-        print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
+        INFO(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         rr    = F.rho[which_probe][d][0][which_ifreq]
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],1.2)        
@@ -268,7 +268,6 @@ def plot_alaplace_fits(F, which_dists_um,
         mu_   = F.mu[which_probe][d][0][which_ifreq]
         ypred = fpt.alaplace_cdf(la_, mu_, xvals)
 
-        print(rr)
         hdata = fpft.cdfplot(rr,color=dist2col(d), linewidth=1, label='F$_{data}$($x$)')
         hfit  = plt.plot(xvals, ypred,
                 color=fpft.set_alpha(dist2col(d),0.4),
@@ -470,8 +469,8 @@ def plot_la_gen_fits_vs_distance(F,
         ax.append(plt.subplot(gs[row, col]))
         X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all_um],axis=1) # 1: is to take the bootstraps (0 is the raw data)
         la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
-        ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
-        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        ax[-1].plot(dx, la_med, "o-", color=colfun(F.freqs[fi]), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
+        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
         for j in range(min(5, F.n_bootstraps)):
             ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi])),
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
@@ -484,7 +483,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, n_contours = 0, **kwargs)
+    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, colfun = colfun, n_contours = 0, **kwargs)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
