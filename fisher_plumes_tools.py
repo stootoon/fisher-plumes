@@ -82,14 +82,13 @@ class Detrenders:
         return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
 
     @staticmethod
-    def window_normalizer(x, w):
-        y = x*w[np.newaxis,:]
+    def windowed_then_zscored(x, w):
+        y = Detrenders.windowed(x,w)
         return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
     
     @staticmethod
-    def windowed(x):
-        wnd = x.shape[1]
-        y = x*tukey(wnd,0.1)[np.newaxis,:]
+    def windowed(x, w):
+        y = x*w[np.newaxis,:]        
         return y
 
     @staticmethod
@@ -101,7 +100,7 @@ class Detrenders:
     def identity(x):
         return x
 
-def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegative=False, window = ('boxcar')):
+def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegative=False, window = ('boxcar'), z_score = True):
     block_starts = list(range(istart, len(data)-wnd, wnd-ov))
     
     x = np.copy(data[block_starts[0]:block_starts[-1]+wnd])
@@ -109,7 +108,7 @@ def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegativ
     if x_only: return x
 
     w = get_window(window, wnd)
-    detrender = lambda x: Detrenders.window_normalizer(x, w)    
+    detrender = lambda x: (Detrenders.windowed_then_zscored if z_score else Detrenders.windowed)(x, w)    
     freqs,times, S = stft(x, fs = 1, window='boxcar', # This has to be boxcar, the windowing happens in the detrender
                           nperseg=wnd, noverlap=ov, detrend= detrender,
                           boundary=None, padded=False)
@@ -130,15 +129,15 @@ cdfvals = lambda x: np.arange(1,len(x)+1)/len(x)
 compute_r2_value  = lambda la, mu, x: 1 - np.mean((cdfvals(x) -  alaplace_cdf(la, mu, np.sort(x)))**2)/np.var(cdfvals(x))
 
 gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
-fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
+fit_gen_exp = lambda d, la, bounds_dict = None: curve_fit(gen_exp, d, la,
                                       p0=[np.max(la),1,1,0],
                                       maxfev=5000,
-                                      bounds=(0, np.inf))[0]
-fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
-                                                d, la,
-                                                p0=[1,1,0],
-                                                maxfev=5000,                                                
-                                                bounds=(0, np.inf))[0]
+                                                          bounds=(0, np.inf) if bounds_dict is None else list(zip(*[bounds_dict[k] for k in "askb"])))[0]
+fit_gen_exp_no_amp = lambda d, la, a, bounds_dict = None: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
+                                                                    d, la,
+                                                                    p0=[1,1,0],
+                                                                    maxfev=5000,                                                
+                                                                    bounds=(0, np.inf) if bounds_dict is None else list(zip(*[bounds_dict[k] for k in "skb"])))[0]
 def DUMP_IF_FAIL(f, *args, extra= {}, **kwargs):
     try:
         return f(*args, **kwargs)
