@@ -144,7 +144,8 @@ def plot_correlations(rho,
 ):
 
     
-    dists    = np.array(sorted(list(rho.keys()))) 
+    dists    = np.array(sorted(list(rho.keys())))
+    dists_p  = dists/d_scale    
     rho      = {d:rho[d][0] for d in dists} # [0] to take the raw data
     rho_mean = {k:np.array([np.mean(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
     rho_std  = {k:np.array([ np.std(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
@@ -170,7 +171,6 @@ def plot_correlations(rho,
             sc= 1
             y = rho_mean[k]/sc
             ee= rho_std[k]/sc
-            dists_p = dists/d_scale
             plt.fill_between(dists_p, y-ee, y+ee, color=fpft.set_alpha(mpl.colors.to_rgba(cols[k]),0.2));
             fpft.pplot(dists_p, y , "o-", markersize=4,color=cols[k]);
             plt.xlabel("Distance (p)")
