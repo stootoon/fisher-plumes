@@ -365,8 +365,9 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     INFO(f"plot_gen_exp_paramter_fits_panel with {which_fis=}, {log_scale=}.")
     d_scale = F.pitch.to(UNITS.um).magnitude
     fun = np.log10 if log_scale else (lambda X: X)
-    γbs = fun(F.fit_params[which_probe][:, which_fis, 1]/d_scale)
-    kbs = fun(F.fit_params[which_probe][:, which_fis, 2])
+    γbs = fun(F.fit_params[which_probe][1:][:, which_fis, 1]/d_scale) # 1: is to take the bs runs.
+    kbs = fun(F.fit_params[which_probe][1:][:, which_fis, 2])
+
     if plot_scatter:
         for γ, k in zip(γbs, kbs):
             plt.scatter(γ, k,
@@ -377,8 +378,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         ind_max = F.freqs2inds([F.freq_max])[0]
         other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
         cols = [fpft.set_alpha(cm.Oranges((fi/F.wnd)*F.fs/F.freq_max),0.5) for fi in other_inds]
-        γm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 1]/d_scale),axis=0)
-        κm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 2]),axis=0)
+        γm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 1]/d_scale),axis=0)
+        κm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 2]),axis=0)
         plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
         
 
