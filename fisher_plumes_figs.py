@@ -141,7 +141,7 @@ def plot_correlations(rho,
                       plot_slices = True,
                       plot_overlay = True,
                       ax = [],
-                      legend_args = None,
+                      legend_args = {},
 ):
 
     
