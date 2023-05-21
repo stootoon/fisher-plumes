@@ -141,6 +141,7 @@ def plot_correlations(rho,
                       plot_slices = True,
                       plot_overlay = True,
                       ax = [],
+                      legend_args = None,
 ):
 
     
@@ -183,7 +184,7 @@ def plot_correlations(rho,
         
         for i, k in enumerate(slices):
             fpft.pplot(dists_p, rho_mean[k]/max(rho_mean[k]), "-", markersize=4, color=cols[k], label=k);
-        plt.legend(frameon=False, fontsize=8)
+        plt.legend(frameon=False, fontsize=8, **legend_args)
         plt.xlabel("Distance (p)")        
         plt.title("Overlayed and Scaled")
 
