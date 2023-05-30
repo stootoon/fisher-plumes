@@ -187,7 +187,194 @@
                 0.4,
                 0.55
             ]
-        }
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.450",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.450",
+            "source": [
+                0.4,
+                0.45
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.480",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.480",
+            "source": [
+                0.4,
+                0.48
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.490",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.490",
+            "source": [
+                0.4,
+                0.49
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.495",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.495",
+            "source": [
+                0.4,
+                0.495
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.498",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.498",
+            "source": [
+                0.4,
+                0.498
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.500",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.500",
+            "source": [
+                0.4,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.502",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.502",
+            "source": [
+                0.4,
+                0.502
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.505",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.505",
+            "source": [
+                0.4,
+                0.505
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.510",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.510",
+            "source": [
+                0.4,
+                0.51
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.520",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.520",
+            "source": [
+                0.4,
+                0.52
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1.0
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 1000.0,
+            "name": "ff_int_sym_slow_high_tres_wide_n12T_Y0.550",
+            "root": "ff_int_sym_slow_high_tres_wide_n12T_Y0.550",
+            "source": [
+                0.4,
+                0.55
+            ]
+        }	
     ],
     "root": "/camp/home/tootoos/working/tootoos/data/fisher-plumes/crick"
 }

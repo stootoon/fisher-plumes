@@ -32,14 +32,12 @@ class FisherPlumes:
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
             INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
-            INFO(f"Attempting to copy data fields.")
-            n_copied = 0
-            for k,v in other.__dict__.items():
-                if not callable(v):
-                    self.__dict__[k] = deepcopy(v)
-                    n_copied += 1
-                    DEBUG(f"Copied field {k}.")
-            INFO(f"Copied {n_copied} data fields from FisherPlumes object.")        
+            copied = self.init_from_dict(other.__dict__)
+            INFO(f"Copied {len(copied)} data fields from FisherPlumes object.")
+        elif type(sim_name) is dict:
+            INFO(f"Initializing from dictionary.")
+            copied = self.init_from_dict(sim_name)
+            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")            
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
             self.name         = sim_name            
@@ -57,11 +55,12 @@ class FisherPlumes:
                                                              units = UNITS.m,
                                                              pitch_units = UNITS(self.pitch_string),
                                                              **kwargs)
-            elif sim_name == "n12dishT":
+            elif sim_name in ["n12dishT", "n12T"]:
                 self.sims, self.pairs_um = crick.load_sims(sim_name,
                                                            pairs_mode = pairs_mode,
                                                            units = UNITS.m,
                                                            pitch_units = UNITS(self.pitch_string),
+                                                           max_time = 16.5 * UNITS.s,
                                                            **kwargs)
             elif sim_name.startswith("surr_"):
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
@@ -87,7 +86,23 @@ class FisherPlumes:
         else:
             raise ValueError(f"Don't know what to do for {sim_name=}.")
                 
-
+    def init_from_dict(self, d):
+        INFO(f"Attempting to copy data fields.")
+        copied = []
+        for k,v in d.items():
+            if not callable(v):
+                self.__dict__[k] = deepcopy(v)
+                copied.append(k)
+                DEBUG(f"Copied field {k}.")
+        return copied
+                
+    def copy_data_fields(self):
+        data = {}
+        for fld,val in self.__dict__.keys():
+            if not callable(val):
+                data[fld] = deepcopy(val)
+        return data
+    
     def bootstrap(self, X, dim, to_array = True):
         np.random.seed(self.random_seed)
 

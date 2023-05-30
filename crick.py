@@ -64,7 +64,7 @@ def print_datasets():
     
 print_datasets()
     
-def _load_single_simulation(name):
+def _load_single_simulation(name, max_time = np.inf * UNITS.sec):
     if name not in simulations["name"].values:
         raise ValueError("Could not find simulation {} in config file.".format(name))
                          
@@ -77,20 +77,25 @@ def _load_single_simulation(name):
     DEBUG("y: {} - {}".format(*utils.fapply([min, max], [p[1] for p in probe_coords])))    
         
     with open(op.join(probe_dir, "probe.t.p"), "rb") as in_file:
-        t = pickle.load(in_file, encoding = "bytes")
+        t = np.array(pickle.load(in_file, encoding = "bytes"))
     DEBUG("t: {} - {}".format(t[0], t[-1]))
-    probe_data = np.squeeze(np.load(op.join(probe_dir, "probe.data.npy")))
+    max_time_sec = max_time.to(UNITS.s).magnitude
+    if t[-1] > max_time_sec:
+        ind_keep = t <= max_time_sec
+    DEBUG(f"Keeping first {sum(ind_keep)} of {len(ind_keep)} time points.")
+    t = t[ind_keep]
+    probe_data = np.squeeze(np.load(op.join(probe_dir, "probe.data.npy")))[ind_keep]
     DEBUG("probe_data: {}".format(probe_data.shape))
     return {"probe_t":np.array(t), "probe_coords":probe_coords, "probe_data":probe_data}
     
 class CrickSimulationData:
-    def load_probe_data_(self):
-        self.probe_coords, self.probe_t, self.data = utils.dd("probe_coords", "probe_t", "probe_data")(_load_single_simulation(self.name))
+    def load_probe_data_(self, max_time = np.inf * UNITS.s):
+        self.probe_coords, self.probe_t, self.data = utils.dd("probe_coords", "probe_t", "probe_data")(_load_single_simulation(self.name, max_time = max_time))
         
-    def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0):
+    def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, max_time = np.inf * UNITS.s):
         self.tol  = tol
         self.name = name
-        self.load_probe_data_()
+        self.load_probe_data_(max_time = max_time)
         self.units = units
         self.pitch_units = pitch_units
         self.pitch_sym = pitch_sym
@@ -245,7 +250,7 @@ class CrickSimulationData:
         return np.load(os.path.join(data_dir, file_name), allow_pickle=True)[32:406][:,41:489]
 
 
-def load_sims(sim_name = "n12dishT", which_coords=[(1,  0.5)], units = UNITS.m, pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
+def load_sims(sim_name = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf * UNITS.s, units = UNITS.m, pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
     INFO(f"load_sims for {sim_name=} with {which_coords=} ({py_mode=}).")
 
     py_mode      = fpt.validate_py_mode(py_mode)
@@ -261,7 +266,7 @@ def load_sims(sim_name = "n12dishT", which_coords=[(1,  0.5)], units = UNITS.m, 
     sims = {}
     for y in yvals:
         k = int(y*1000) # y location in microns
-        sims[k] = CrickSimulationData(f"ff_int_sym_slow_high_tres_wide_{sim_name}_Y0.{y:03d}", units=units, pitch_units = pitch_units)
+        sims[k] = CrickSimulationData(f"ff_int_sym_slow_high_tres_wide_{sim_name}_Y0.{y:03d}", units=units, pitch_units = pitch_units, max_time = max_time)
         sims[k].use_coords([(px, py * (sims[k].dimensions[1].magnitude ** (py_mode == "rel"))) for (px,py) in which_coords])
 
     yvals = sorted(sims)
