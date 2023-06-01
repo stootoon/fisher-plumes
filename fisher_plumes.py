@@ -43,7 +43,9 @@ class FisherPlumes:
             self.name         = sim_name            
             self.pitch = pitch
             self.pitch_string = f"{self.name}_pitch"
-            UNITS.define(f"{self.pitch_string} = {self.pitch}")
+            if self.pitch_string not in UNITS:
+                raise KeyError("{self.pitch_string} was not found in the units registry. Please define it in 'units.txt'.")                
+            #UNITS.define(f"{self.pitch_string} = {self.pitch}") # For serializations purposes, we're putting definitions in units.txt
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.m)}")
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.cm)}")                                    
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.mm)}")
@@ -96,10 +98,11 @@ class FisherPlumes:
                 DEBUG(f"Copied field {k}.")
         return copied
                 
-    def copy_data_fields(self):
+    def copy_data_fields(self, copy_sims = False):
         data = {}
-        for fld,val in self.__dict__.keys():
+        for fld,val in self.__dict__.items():
             if not callable(val):
+                if not copy_sims and fld in ["sim0", "sims"]: continue
                 data[fld] = deepcopy(val)
         return data
     
