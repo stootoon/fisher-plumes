@@ -3,3 +3,7 @@ n12dishT_pitch       = 76000 * um
 boulder16_pitch      = 25000 * um
 surr_all_equal_pitch = 0.025 * m
 surr_high_pitch      = 0.025 * m
+crimgrid_first_slow_w1_pitch = 25 * mm
+crimgrid_first_slow_w2_pitch = 25 * mm
+crimgrid_first_slow_w3_pitch = 25 * mm
+crimgrid_first_slow_w4_pitch = 25 * mm
