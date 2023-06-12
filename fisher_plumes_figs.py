@@ -75,10 +75,21 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
     return ax_trace
 
 
+def clip_snapshots(fields, lev=0.8):
+    limsx, limsy = [], []
+    for k, X in fields.items():
+        my    = np.array([np.median(Xi) for Xi in X])
+        limsy.append([np.where(my<lev)[0][0], np.where(my<lev)[0][-1]])
+        mx    = np.array([np.median(Xi) for Xi in X.T])
+        limsx.append([np.where(mx<lev)[0][0], np.where(mx<lev)[0][-1]])
+    limsy = np.array(limsy).mean(axis=0).astype(int)
+    limsx = np.array(limsx).mean(axis=0).astype(int)
+    fclip = {k:X[limsy[0]:limsy[-1]][:, limsx[0]:limsx[-1]] for k, X in fields.items()}
+    return fclip, limsx, limsy
+    
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
                      which_probe = 0,
-                     data_dir = "./data",
                      which_idists = [0,1,2],
                      t_wnd = [-4,4],
                      y_lim = (0,3),
@@ -89,7 +100,10 @@ def plot_plumes_demo(F, t_snapshot,
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
-    fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
+    fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+    print(list(fields_orig.keys()))
+    fields, limsx, limsy = clip_snapshots(fields_orig)
+    INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
     plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
