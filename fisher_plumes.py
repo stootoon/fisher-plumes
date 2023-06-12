@@ -28,7 +28,7 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, copy_stats = False, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, copy_stats = False, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, max_time = np.inf * UNITS.s, **kwargs):
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
             INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
@@ -40,12 +40,11 @@ class FisherPlumes:
             INFO(f"Copied {len(copied)} data fields from supplied dictionary.")            
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
-            self.name         = sim_name            
-            self.pitch = pitch
+            self.name         = sim_name
             self.pitch_string = f"{self.name}_pitch"
             if self.pitch_string not in UNITS:
-                raise KeyError("{self.pitch_string} was not found in the units registry. Please define it in 'units.txt'.")                
-            #UNITS.define(f"{self.pitch_string} = {self.pitch}") # For serializations purposes, we're putting definitions in units.txt
+                raise KeyError(f"{self.pitch_string} was not found in the units registry. Please define it in 'units.txt'.")                            
+            self.pitch = UNITS[self.pitch_string]            
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.m)}")
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.cm)}")                                    
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.mm)}")
@@ -57,12 +56,12 @@ class FisherPlumes:
                                                              units = UNITS.m,
                                                              pitch_units = UNITS(self.pitch_string),
                                                              **kwargs)
-            elif sim_name in ["n12dishT", "n12T"]:
+            elif sim_name in ["n12dishT", "n12T"]+ [f"crimgrid_first_slow_w{i}" for i in range(1,5)]:
                 self.sims, self.pairs_um = crick.load_sims(sim_name,
                                                            pairs_mode = pairs_mode,
                                                            units = UNITS.m,
                                                            pitch_units = UNITS(self.pitch_string),
-                                                           max_time = 16.5 * UNITS.s,
+                                                           max_time = max_time,
                                                            **kwargs)
             elif sim_name.startswith("surr_"):
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
@@ -75,6 +74,7 @@ class FisherPlumes:
                                                                **kwargs)
                 INFO(f"{list(self.sims.keys())=}")
             else:
+                print(crick.list_datasets())
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
