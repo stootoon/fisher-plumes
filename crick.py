@@ -35,23 +35,18 @@ data_root   = utils.expand_environment_variables(config["root"])
 simulations = pd.DataFrame(config["registry"])
 
 def list_datasets(as_series = False):
-    datasets = list(set(simulations["name"].values))
+    names = simulations["name"].tolist()
+    roots = simulations["root"].tolist()
     if as_series:
         series = {}
-        for ds in datasets:
-            if "_" in ds:
-                dss = ds.split("_")
-                series_name = "_".join(dss[:-1])
-                suffix      = dss[-1]
+        for name,root in zip(names,roots):
+            if root not in series:
+                series[root] = [name]
             else:
-                series_name = ds
-                suffix = ""
-            if series_name in series:
-                series[series_name].append(suffix)
-            else:
-                series[series_name] = [suffix]
+                series[root].append(name)
         return series
     else:
+        datasets = [f"{root}/{name}" for name,root in zip(names,roots)]
         return datasets
         
 
@@ -69,13 +64,8 @@ def print_datasets():
     
 print_datasets()
     
-def _load_single_simulation(name, max_time = np.inf * UNITS.sec):
-    if name not in simulations["name"].values:
-        raise ValueError("Could not find simulation {} in config file.".format(name))
-                         
-    sim_dir  = simulations[simulations["name"] == name]["root"].values[0]
-    probe_dir = op.join(data_root, sim_dir)
-
+def _load_single_simulation(root, name, max_time = np.inf * UNITS.sec):
+    probe_dir = op.join(data_root, root, name)
     file_name = op.join(probe_dir, "probe.coords.p")
     INFO(f"Reading probe COORDINATES from {file_name=}.")
     with open(file_name, "rb") as in_file:
@@ -108,14 +98,23 @@ def _load_single_simulation(name, max_time = np.inf * UNITS.sec):
     
 class CrickSimulationData:
     def load_probe_data_(self, max_time = np.inf * UNITS.s):
-        self.probe_coords, self.probe_t, self.data = utils.dd("probe_coords", "probe_t", "probe_data")(_load_single_simulation(self.name, max_time = max_time))
+        self.probe_coords, self.probe_t, self.data = utils.dd("probe_coords", "probe_t", "probe_data")(_load_single_simulation(self.root, self.name, max_time = max_time))
         INFO(f"Loaded probe data. {len(self.probe_coords)=} {len(self.probe_t)=} {self.data.shape=}.")
         assert len(self.probe_t)      == self.data.shape[0], f"{len(self.t)=} <> {self.data.shape[0]=}"                
         assert len(self.probe_coords) == self.data.shape[1], f"{len(self.probe_coords)=} <> {self.data.shape[1]=}"
 
         
-    def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, max_time = np.inf * UNITS.s, snapshots_folder = None):
+    def __init__(self, full_name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, max_time = np.inf * UNITS.s, snapshots_folder = None):
+        INFO(f"Attemting to load {full_name=}.")
+        root = os.path.dirname(full_name)
+        name = os.path.basename(full_name)
+        self.path = os.path.join(data_root, root, name)
+        if not os.path.exists(self.path): raise FileExistsError(f"Could not find folder {self.path=}.")
+        sim_record = simulations[(simulations.name==name) & (simulations.root==root)]
+        if len(sim_record) != 1: raise ValueError(f"Expected exactly one record matching {name=} and {root=} but found {len(sim_record)=}.")
         self.tol  = tol
+        self.full_name = full_name
+        self.root = root
         self.name = name
         self.load_probe_data_(max_time = max_time)
         self.units = units
@@ -126,20 +125,20 @@ class CrickSimulationData:
         self.x, self.y, self.z = [np.array(u) * self.units for u in zip(*self.probe_coords)]
         self.probe_coords *= self.units        
         self.nx, self.ny, self.nz = [len(set(u)) for u in [self.x, self.y, self.z]]
-        self.source     = simulations[simulations["name"] == name]["source"].values[0] * self.units
-        self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0] * self.units
-        self.fields     = simulations[simulations["name"] == name]["fields"].values[0] 
-        self.fs         = simulations[simulations["name"] == name]["fs"].values[0] * UNITS.Hz
+        self.source     = sim_record["source"].values[0] * self.units
+        self.dimensions = sim_record["dimensions"].values[0] * self.units
+        self.fields     = sim_record["fields"].values[0] 
+        self.fs         = sim_record["fs"].values[0] * UNITS.Hz
         self.x_lim = [0 * self.units, self.dimensions[0]]
         self.y_lim = [0 * self.units, self.dimensions[1]]
-        INFO(f"Loaded {name} with data at {len(self.probe_coords)} locations.")
+        INFO(f"Loaded {full_name} with data at {len(self.probe_coords)} locations.")
         INFO(f"1 {pitch_sym} = {(1 * pitch_units).to(units)}")
         DEBUG(f"(nx,ny,nz) = ({self.nx},{self.ny},{self.nz})")
         DEBUG(f"x-range: {min(self.x):8.3g} - {max(self.x):.3g}")
         DEBUG(f"y-range: {min(self.y):8.3g} - {max(self.y):.3g}")
         DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")        
         self.used_probe_coords = [] # Locations of the used probes
-        if snapshots_folder is not None: self.init_snapshots(snapshots_folder)
+        self.init_snapshots(snapshots_folder if snapshots_folder is not None else os.path.join(self.path, "png"))
 
     def init_snapshots(self, root_folder, snapshot_finder_fun = None):
         INFO(f"Initializing snapshots folder to {root_folder}.")
@@ -258,19 +257,18 @@ class CrickSimulationData:
         return int(self.source[1].to("um").magnitude)
 
 
-def load_sims(sim_name = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf * UNITS.s, units = UNITS.m, pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
-    INFO(f"load_sims for {sim_name=} with {which_coords=} ({py_mode=}).")
+def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf * UNITS.s, units = UNITS.m, pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
+    INFO(f"load_sims for {sim_root=} with {which_coords=} ({py_mode=}).")
 
     py_mode      = fpt.validate_py_mode(py_mode)
 
-    datasets = [s for s in list_datasets() if f"{sim_name}_" in s]
+    datasets = list_datasets(as_series=True)
+    if sim_root not in datasets: raise KeyError(f"Did not find {sim_root=} in list of datasets.")
     sims = {}
-    for ds in datasets:
+    for name in datasets[sim_root]:
         INFO("*"*100)
-        INFO(f"Loading dataset {ds}.")
-        snapshots_folder = None
-        if sim_name.startswith("crimgrid"): snapshots_folder = os.path.join(os.getenv("FISHER_PLUMES_DATA"), "crick", ds, "png")
-        new_sim = CrickSimulationData(ds, units=units, pitch_units = pitch_units, max_time = max_time, snapshots_folder = snapshots_folder)
+        INFO(f"Loading dataset {sim_root}/{name}.")
+        new_sim = CrickSimulationData(f"{sim_root}/{name}", units=units, pitch_units = pitch_units, max_time = max_time)
         new_yval_mm = new_sim.source[1].to(UNITS.mm).magnitude
         k = int(new_yval_mm*1000) # y location in microns
         sims[k] = new_sim
