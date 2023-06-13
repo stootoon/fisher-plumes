@@ -56,7 +56,7 @@ class FisherPlumes:
                                                              units = UNITS.m,
                                                              pitch_units = UNITS(self.pitch_string),
                                                              **kwargs)
-            elif sim_name in ["n12dishT", "n12T"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
+            elif sim_name in ["n12dishT", "n12T", "n12Tslow", "n16T", "n16Tslow"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
                 self.sims, self.pairs_um = crick.load_sims(sim_name,
                                                            pairs_mode = pairs_mode,
                                                            units = UNITS.m,

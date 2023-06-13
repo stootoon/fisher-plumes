@@ -1,5 +1,8 @@
 n12T_pitch           = 76000 * um
+n12Tslow_pitch       = 76000 * um
 n12dishT_pitch       = 76000 * um
+n16T_pitch           = 76000 * um
+n16Tslow_pitch       = 76000 * um
 boulder16_pitch      = 25000 * um
 surr_all_equal_pitch = 0.025 * m
 surr_high_pitch      = 0.025 * m
