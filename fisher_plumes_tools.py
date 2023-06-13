@@ -2,6 +2,7 @@ import os, sys
 import logging
 import numpy as np
 import pickle
+from builtins import sum as bsum
 from scipy.signal import stft, tukey, get_window
 from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize
@@ -17,7 +18,14 @@ INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
 
-def compute_pairs(yvals, pairs_mode="all"):
+def pool_sorted_keys(d, res=0):
+    dd = [[d[0]]]
+    for i in range(1, len(d)):
+        if d[i] - dd[-1][-1] <= res: dd[-1].append(d[i])
+        else: dd.append([d[i]])
+    return dd
+    
+def compute_pairs(yvals, pairs_mode="all", pair_resolution = 0):
     INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
@@ -50,6 +58,17 @@ def compute_pairs(yvals, pairs_mode="all"):
         pairs[0] = [(y,y) for y in yvals]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
+    INFO(f"Pooling data across pair distances that are < {pair_resolution} apart.")
+    d = sorted(list(pairs.keys()))
+    dd = pool_sorted_keys(d, pair_resolution) # Returns grouped distances
+    kd = [int(np.round(np.mean(ddi)/pair_resolution)*pair_resolution) for ddi in dd]
+    pairs1 = {}
+    for grp,kdi in zip(dd,kd):
+        DEBUG(f"key={kdi}: grouped distances = {grp}")
+        pairs1[kdi] = bsum([pairs[grpj] for grpj in grp], [])
+
+    INFO(f"{len(pairs)} pair distances before pool, {len(pairs1)} pair distances after pooling.")
+    pairs = pairs1
     INFO("Removing duplicates in pairs dictionary.")
     pairs = {d:list(set(p)) for d,p in pairs.items()} # Remove any duplicates
     return pairs

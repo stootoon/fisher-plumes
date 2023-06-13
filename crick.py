@@ -257,7 +257,11 @@ class CrickSimulationData:
         return int(self.source[1].to("um").magnitude)
 
 
-def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf * UNITS.s, units = UNITS.m, pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all", extract_plumes = False):
+def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf * UNITS.s, units = UNITS.m,
+              pitch_units = UNITS.m, py_mode = "absolute", pairs_mode = "all",
+              key_resolution_um = 100,
+              pair_resolution_um = 100,
+              extract_plumes = False):
     INFO(f"load_sims for {sim_root=} with {which_coords=} ({py_mode=}).")
 
     py_mode      = fpt.validate_py_mode(py_mode)
@@ -269,8 +273,8 @@ def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf
         INFO("*"*100)
         INFO(f"Loading dataset {sim_root}/{name}.")
         new_sim = CrickSimulationData(f"{sim_root}/{name}", units=units, pitch_units = pitch_units, max_time = max_time)
-        new_yval_mm = new_sim.source[1].to(UNITS.mm).magnitude
-        k = int(new_yval_mm*1000) # y location in microns
+        new_yval_um = new_sim.source[1].to(UNITS.um).magnitude
+        k = int(np.round(new_yval_um/key_resolution_um)*key_resolution_um)
         sims[k] = new_sim
         sims[k].use_coords([(px, py * (sims[k].dimensions[1].magnitude ** (py_mode == "rel"))) for (px,py) in which_coords])
         ind_nan = np.isnan(sims[k].data)
@@ -283,7 +287,7 @@ def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf
 
     INFO(f"Yvals: {yvals}")
     INFO(f"Computing distance pairings.")
-    pairs = fpt.compute_pairs(yvals, pairs_mode)
+    pairs = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
     pair_vals = sorted(pairs)
     INFO(f"{len(pair_vals)} distance pairings found, from {min(pair_vals)} to {max(pair_vals)}")
     return sims, pairs
