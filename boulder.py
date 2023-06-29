@@ -304,7 +304,11 @@ class BoulderSimulationData:
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
 
-def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", units = UNITS.m, pitch_units = UNITS.m, prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig'):
+def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
+              units = UNITS.m, pitch_units = UNITS.m,
+              prefix = 'Re100_0_5mm_50Hz_16source', suffix = 'wideDomain.orig',
+              pair_resolution_um = 100,
+):
     py_mode = fpt.validate_py_mode(py_mode)
     file_name = prefix
     if suffix: file_name += "_"+suffix
@@ -335,5 +339,5 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all", units = UN
         sims[k1].fields = [bb.fields[i]]
         sims[k1].source = bb.source[i]
     yvals = list(sims.keys())
-    pairs_um = fpt.compute_pairs(yvals, pairs_mode)
+    pairs_um = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
     return sims, pairs_um
