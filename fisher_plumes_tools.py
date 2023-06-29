@@ -19,10 +19,21 @@ WARN  = logger.warning
 DEBUG = logger.debug
 
 def pool_sorted_keys(d, res=0):
-    dd = [[d[0]]]
-    for i in range(1, len(d)):
-        if d[i] - dd[-1][-1] <= res: dd[-1].append(d[i])
-        else: dd.append([d[i]])
+    """
+    Given a sorted list of keys, group them into lists of keys that are <= res apart.
+    Inputs: 
+    d = sorted list of keys
+    res = resolution, i.e. the maximum distance between keys in a group.
+    Output:
+    dd = list of lists of keys, where the keys in each list are <= res apart.S
+    """
+    if res==0:
+        dd = [[di] for di in d]
+    else:
+        dd = [[d[0]]]
+        for i in range(1, len(d)):
+            if d[i] - dd[-1][-1] <= res: dd[-1].append(d[i])
+            else: dd.append([d[i]])
     return dd
     
 def compute_pairs(yvals, pairs_mode="all", pair_resolution = 0):
@@ -58,10 +69,12 @@ def compute_pairs(yvals, pairs_mode="all", pair_resolution = 0):
         pairs[0] = [(y,y) for y in yvals]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
-    INFO(f"Pooling data across pair distances that are < {pair_resolution} apart.")
+    INFO(f"Pooling data across pair distances that are <= {pair_resolution} apart.")
     d = sorted(list(pairs.keys()))
     dd = pool_sorted_keys(d, pair_resolution) # Returns grouped distances
-    kd = [int(np.round(np.mean(ddi)/pair_resolution)*pair_resolution) for ddi in dd]
+    DEBUG(f"{dd=}")
+    pr = pair_resolution if pair_resolution > 0 else 1
+    kd = [int(np.round(np.mean(ddi)/pr)*pr) for ddi in dd]
     pairs1 = {}
     for grp,kdi in zip(dd,kd):
         DEBUG(f"key={kdi}: grouped distances = {grp}")
