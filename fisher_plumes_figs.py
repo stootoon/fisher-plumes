@@ -96,14 +96,19 @@ def plot_plumes_demo(F, t_snapshot,
                      mean_subtract_y_coords = True,
                      dt = 0.5,
                      figsize=(8,3),
+                     t_center = None,
+                     data_dir = None,
                      **kwargs
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
-    fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
-    print(list(fields_orig.keys()))
-    fields, limsx, limsy = clip_snapshots(fields_orig)
-    INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
+    if "boulder" in F.pitch_string:
+        fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
+    else:
+        fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+        print(list(fields_orig.keys()))
+        fields, limsx, limsy = clip_snapshots(fields_orig)
+        INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
     plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
@@ -122,7 +127,8 @@ def plot_plumes_demo(F, t_snapshot,
     plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
 
-    ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
+    if t_center is None: t_center = t_snapshot
+    ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_center,
                                dt = dt, y_lim = y_lim,
                                axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)], **kwargs)
         
