@@ -88,17 +88,28 @@ class FisherPlumes:
         else:
             raise ValueError(f"Don't know what to do for {sim_name=}.")
                 
-    def init_from_dict(self, d):
+    def init_from_dict(self, d, overwrite = False):
+        """
+        Initialize this object from a dictionary.
+        Only copy data fields, not methods.
+        """
         INFO(f"Attempting to copy data fields.")
         copied = []
         for k,v in d.items():
             if not callable(v):
-                self.__dict__[k] = deepcopy(v)
-                copied.append(k)
-                DEBUG(f"Copied field {k}.")
+                if k in self.__dict__ and not overwrite:
+                    DEBUG(f"Skipping field {k} because it already exists.")
+                else:
+                    self.__dict__[k] = deepcopy(v)
+                    copied.append(k)
+                    DEBUG(f"Copied field {k}.")
         return copied
                 
     def copy_data_fields(self, copy_sims = False):
+        """
+        Return a dictionary of all the data fields in this object.
+        A field is considered a data field if it is not callable.
+        """
         data = {}
         for fld,val in self.__dict__.items():
             if not callable(val):
@@ -141,6 +152,9 @@ class FisherPlumes:
                 self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
+        """
+        Compute the variances of the pooled sine and cosine coefficients for each frequency.
+        """
         INFO("Computing variances for harmonics.")
         sc_all = [np.concatenate([xkk for Fld in [ss, cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.
                   for ss,cc in zip(self.ss, self.cc)] # Loop over probes
@@ -279,6 +293,9 @@ class FisherPlumes:
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
     def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True):
+        """
+        Computes a generalized exponential fit to the decay of correlations with distance.
+        """
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la[0].keys())))
         dd    = dists[np.abs(dists)<=dmax_um]
@@ -395,19 +412,21 @@ class FisherPlumes:
         pack_coefs = lambda lr: [lr.intercept_, lr.coef_[0]]
         self.coef_γ_vs_freq = [np.array([pack_coefs(lr.fit(ff,γbs[ind_use[:len(γbs)]])) for γbs in fp[:, :, 1]/d_scale]) for fp in self.fit_params]            
     
-    def compute_all_for_window(self, wnd, window=('boxcar'), istart=0, dmax_um=25000, fit_vars = True, fit_k = True, z_score = True):
+    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, z_score = True):
         INFO(f"STARTING COMPUTATION.")
+        wnd = int(window_length.to(UNITS.s).magnitude * self.fs.to(UNITS.Hz).magnitude)
+        INFO(f"Setting window to {wnd} samples.")
         self.set_window(wnd)
-        self.compute_trig_coefs(istart=istart, window=window, z_score = z_score)
+        self.compute_trig_coefs(istart=istart, window=window_shape, z_score = z_score)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
-        #self.compute_lambdas()
-        #self.compute_pvalues()
-        #self.compute_r2values()
-        #self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
-        #self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
-        #self.compute_fisher_information()
-        #self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
+        self.compute_lambdas()
+        self.compute_pvalues()
+        self.compute_r2values()
+        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
+        self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
+        self.compute_fisher_information()
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
