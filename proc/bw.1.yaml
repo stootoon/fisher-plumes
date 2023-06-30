@@ -1,0 +1,14 @@
+init:
+  sim_name: "boulder16"
+  freq_max: '20 * HZ'
+  which_coords: '[(0.45,0.5) * M]'
+  pairs_mode: "unsigned"
+  py_mode: "relative"
+  suffix: "manuscript"
+  n_bootstraps: 50
+  random_seed: 0
+compute:
+  window_shape: "['boxcar', 'hann', ('kaiser',9), ('kaiser',16)]"
+  window_length: "[1*SEC, 2*SEC, 4*SEC, 5*SEC, 10*SEC]"
+  istart: 0
+  fit_k: "[True, False]"
