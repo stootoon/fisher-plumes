@@ -44,3 +44,22 @@ Fisher information is computed in the following steps. These are called in seque
      - Z-scoring normalizes the signal by its amplitude and ensures that the variability we measure in coefficients is not dominated by fluctuations in signal amplitude.
 	 - The results are indexed as e.g. `F.ss[PROBE][SRC]`, where the integer `PROBE` indexes the probe for which...
    
+## Processing multiple datasets with `proc.py`
+When making the figures for the paper one possibility is to process the datasets afresh each time. This can become very time-consuming when we want to process 
+multiple datasets and using a variety of windows and other processing parameters.
+To avoid having to reprocess the data each time, we precompute the results of the processing and store them to file. 
+
+To do so, we use `proc.py`. This script requires a run specification provided
+in a YAML file. The YAML file contains both initialization and computation parameters.
+The `proc.py` script uses the initialization parameters to create a FisherPlumes object, and then uses the computation parameters to compute Fisher information.
+An example YAML file for processing the dataset in the Main Text is [bw.1.yaml](./proc/bw.1.yaml). 
+
+To `init` field of the YAML file specifies key-value pairs that are passed directly to the FisherPlumes object constructor. The only restriction is that while the FisherPlumes object allows multiple probe coordinates to be specified, the initialization parameters in a YAML file must only use a single probe location.
+
+The `compute` field of the YAML file can specify multiple computation parameters to run. This is mainly to allow windows of different shape and length to be used. The different parameters are provided as python strings that are then evaluated to determine the required values for each key. 
+
+Fisher information is computed for each combination of values for each key. The results are stored, along with the initialization parameters of the FisherPlumes object and the computation parameters, in a pickle file in a directory with the same name as the YAML file but without the extension (e.g. `bw.1` for the example above).
+
+Before the computation starts, a registry containing the list of all existing data is consulted to see whether data already exists for the specified initialization and computation parameters. If so, the computation is either skipped, or optionally overwritten by using the `--overwrite` flag.
+
+The registry can be rebuilt from scratch by calling `proc.py` with the `--rebuild` flag. The registry can then be consulted by the plotting scripts to extract the data that they need.
