@@ -2,6 +2,7 @@ import pdb
 
 import os, sys
 import numpy as np
+from scipy.signal import stft
 from scipy.stats import mannwhitneyu, mode
 from scipy.special import betainc
 import logging
@@ -136,6 +137,13 @@ class FisherPlumes:
         self.wnd = wnd
         self.freqs = np.arange(wnd)/wnd*self.fs
         INFO(f"Window set to {self.wnd=}.")
+
+    def compute_stft(self):
+        INFO("Computing spectrum.")
+        self.stft = {}
+        fs = self.fs.to(UNITS.hertz).magnitude        
+        for k, s in self.sims.items():
+            self.stft[k] = [stft(s.data[:,iprb], fs = fs, window='boxcar', nperseg=int(fs), noverlap=fs//2, boundary=None, padded=False) for iprb in range(s.data.shape[1])]
 
     def compute_trig_coefs(self, istart = 0, window = ('boxcar'), z_score = True, **kwargs):
         INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {z_score=} and {kwargs=} ")
@@ -417,6 +425,7 @@ class FisherPlumes:
         wnd = int(window_length.to(UNITS.s).magnitude * self.fs.to(UNITS.Hz).magnitude)
         INFO(f"Setting window to {wnd} samples.")
         self.set_window(wnd)
+        self.compute_stft()
         self.compute_trig_coefs(istart=istart, window=window_shape, z_score = z_score)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()

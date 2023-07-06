@@ -7,14 +7,15 @@ determined which runs have already been performed, and which have not.
 """
 
 import os,sys,pickle
+import yaml
 from importlib import reload
 from builtins import sum as bsum
-import yaml
 from argparse import ArgumentParser
 from utils import eval_fields
 import itertools
 import hashlib
 
+import units
 # This function will read all the subdirectories of the given directory.
 # For each subdirectory, it will read all the pickle files in that directory.
 # It will then add the init and compute fields from each pickle file to a list,
@@ -46,7 +47,11 @@ def get_registry(registry_loc, build=False, write=False):
 
 # This function will take a registry and key-value pairs to look for in the init and compute fields.
 # It will return a list of all the registry items that match the given key-value pairs.
-def find_registry_matches(registry, init_filter = {}, compute_filter = {}):
+def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}):
+    if registry is None:
+        print("No registry given. Loading registry from proc/registry.p.")
+        registry = pickle.load(open("proc/registry.p", "rb"))
+        
     matches = []
     for item in registry:
         init_match = True
