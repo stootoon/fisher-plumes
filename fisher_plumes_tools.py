@@ -1,11 +1,13 @@
 import os, sys
 import logging
 import numpy as np
-import pickle 
-from scipy.signal import stft, tukey
+import pickle
+from builtins import sum as bsum
+from scipy.signal import stft, tukey, get_window
 from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize
 from matplotlib import pylab as plt
+
 
 import utils
 
@@ -16,7 +18,25 @@ INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
 
-def compute_pairs(yvals, pairs_mode="all"):
+def pool_sorted_keys(d, res=0):
+    """
+    Given a sorted list of keys, group them into lists of keys that are <= res apart.
+    Inputs: 
+    d = sorted list of keys
+    res = resolution, i.e. the maximum distance between keys in a group.
+    Output:
+    dd = list of lists of keys, where the keys in each list are <= res apart.S
+    """
+    if res==0:
+        dd = [[di] for di in d]
+    else:
+        dd = [[d[0]]]
+        for i in range(1, len(d)):
+            if d[i] - dd[-1][-1] <= res: dd[-1].append(d[i])
+            else: dd.append([d[i]])
+    return dd
+    
+def compute_pairs(yvals, pairs_mode="all", pair_resolution = 0):
     INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
@@ -49,6 +69,19 @@ def compute_pairs(yvals, pairs_mode="all"):
         pairs[0] = [(y,y) for y in yvals]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
+    INFO(f"Pooling data across pair distances that are <= {pair_resolution} apart.")
+    d = sorted(list(pairs.keys()))
+    dd = pool_sorted_keys(d, pair_resolution) # Returns grouped distances
+    DEBUG(f"{dd=}")
+    pr = pair_resolution if pair_resolution > 0 else 1
+    kd = [int(np.round(np.mean(ddi)/pr)*pr) for ddi in dd]
+    pairs1 = {}
+    for grp,kdi in zip(dd,kd):
+        DEBUG(f"key={kdi}: grouped distances = {grp}")
+        pairs1[kdi] = bsum([pairs[grpj] for grpj in grp], [])
+
+    INFO(f"{len(pairs)} pair distances before pool, {len(pairs1)} pair distances after pooling.")
+    pairs = pairs1
     INFO("Removing duplicates in pairs dictionary.")
     pairs = {d:list(set(p)) for d,p in pairs.items()} # Remove any duplicates
     return pairs
@@ -81,9 +114,13 @@ class Detrenders:
         return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
 
     @staticmethod
-    def windowed(x):
-        wnd = x.shape[1]
-        y = x*tukey(wnd,0.1)[np.newaxis,:]
+    def windowed_then_zscored(x, w):
+        y = Detrenders.windowed(x,w)
+        return (y - np.mean(y,axis=-1)[:,np.newaxis])/(np.std(y,axis=-1)[:,np.newaxis]+1e-12)
+    
+    @staticmethod
+    def windowed(x, w):
+        y = x*w[np.newaxis,:]        
         return y
 
     @staticmethod
@@ -95,16 +132,16 @@ class Detrenders:
     def identity(x):
         return x
 
-def compute_sin_cos_stft(data, istart, wnd, ov, detrender=Detrenders.tukey_normalizer, x_only = False, force_nonnegative=False, window = 'boxcar'):
+def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegative=False, window = ('boxcar'), z_score = True):
     block_starts = list(range(istart, len(data)-wnd, wnd-ov))
+    
     x = np.copy(data[block_starts[0]:block_starts[-1]+wnd])
-    if force_nonnegative:
-        x[x<0] = 0
-        
-    if x_only:
-        return x
+    if force_nonnegative: x[x<0] = 0        
+    if x_only: return x
 
-    freqs,times, S = stft(x, fs = 1, window=window,
+    w = get_window(window, wnd)
+    detrender = lambda x: (Detrenders.windowed_then_zscored if z_score else Detrenders.windowed)(x, w)    
+    freqs,times, S = stft(x, fs = 1, window='boxcar', # This has to be boxcar, the windowing happens in the detrender
                           nperseg=wnd, noverlap=ov, detrend= detrender,
                           boundary=None, padded=False)
     n =  np.arange(wnd//2+1)
@@ -124,15 +161,15 @@ cdfvals = lambda x: np.arange(1,len(x)+1)/len(x)
 compute_r2_value  = lambda la, mu, x: 1 - np.mean((cdfvals(x) -  alaplace_cdf(la, mu, np.sort(x)))**2)/np.var(cdfvals(x))
 
 gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
-fit_gen_exp = lambda d, la: curve_fit(gen_exp, d, la,
+fit_gen_exp = lambda d, la, bounds_dict = None: curve_fit(gen_exp, d, la,
                                       p0=[np.max(la),1,1,0],
                                       maxfev=5000,
-                                      bounds=(0, np.inf))[0]
-fit_gen_exp_no_amp = lambda d, la, a: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
-                                                d, la,
-                                                p0=[1,1,0],
-                                                maxfev=5000,                                                
-                                                bounds=(0, np.inf))[0]
+                                                          bounds=(0, np.inf) if bounds_dict is None else list(zip(*[bounds_dict[k] for k in "askb"])))[0]
+fit_gen_exp_no_amp = lambda d, la, a, bounds_dict = None: curve_fit(lambda d, s, k, b: gen_exp(d, a, s, k, b),
+                                                                    d, la,
+                                                                    p0=[1,1,0],
+                                                                    maxfev=5000,                                                
+                                                                    bounds=(0, np.inf) if bounds_dict is None else list(zip(*[bounds_dict[k] for k in "skb"])))[0]
 def DUMP_IF_FAIL(f, *args, extra= {}, **kwargs):
     try:
         return f(*args, **kwargs)
@@ -171,3 +208,6 @@ def compute_fisher_information_estimates_for_gen_exp_decay(s, γ, k, b, σ2):
     
     return Ilow, Ihigh
 
+
+def get_window_name(wnd_sh): return wnd_sh[0] if type(wnd_sh) is tuple else wnd_sh
+    

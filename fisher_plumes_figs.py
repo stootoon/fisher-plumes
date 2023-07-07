@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib as mpl
 from matplotlib import pylab as plt
@@ -5,13 +6,14 @@ plt.style.use("default")
 from matplotlib import colors as mcolors
 from matplotlib.gridspec   import GridSpec
 from matplotlib import cm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.transforms as mtrans
 from scipy.stats import mannwhitneyu,ttest_1samp
+import imageio as iio # For importing field snapshot PNGs
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
-
-import pdb
 
 import utils
 import logging
@@ -31,7 +33,7 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, y_ticks = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
     to_sec  = lambda t: t.to(UNITS.sec).magnitude
     to_pitch= lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -42,8 +44,8 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
         p = F.pairs_um[dists[di]]        
         if centered:
-            balance = [np.exp(np.abs(np.log(np.abs(x/y)))) for (x,y) in p]
-            ipair   = np.argmin(balance) # Find the pair where x~y
+            balance = [np.exp(np.abs(np.log(np.abs(y1/y2)))) for (y1,y2) in p]
+            ipair   = np.argmin(balance) # Find the pair where y1~y2
         else:
             ipair = 0
         ia, ib = p[ipair]
@@ -53,8 +55,8 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
-        ax_trace[-1].plot(t,a,color=cols[0], label=f"y={ia/d_scale:.2g} p", linewidth=1)
-        ax_trace[-1].plot(t,b,color=cols[1], label=f"y={ib/d_scale:.2g} p", linewidth=1)
+        ax_trace[-1].plot(to_sec(t),a,color=cols[0], label=f"y={ia/d_scale:.2g} p", linewidth=1)
+        ax_trace[-1].plot(to_sec(t),b,color=cols[1], label=f"y={ib/d_scale:.2g} p", linewidth=1)
         (i < 2) and ax_trace[-1].set_xticklabels([])
         (i ==2) and ax_trace[-1].set_xlabel("Time (sec.)", labelpad=-1)
         fpft.spines_off(ax_trace[-1])
@@ -62,7 +64,7 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         ax_trace[-1].set_xticks(np.arange(to_sec(t_lim[0]), to_sec(t_lim[-1])+0.01,to_sec(dt)))
         y_lim is not None and ax_trace[-1].set_ylim(*y_lim)
         y_lim = ax_trace[-1].get_ylim()
-        ax_trace[-1].set_yticks(np.arange(min(y_lim),max(y_lim)+1,5))
+        ax_trace[-1].set_yticks((np.arange(min(y_lim),max(y_lim)+1,5)) if y_ticks is None else y_ticks)
         ax_trace[-1].tick_params(axis='both', labelsize=8)
         ax_trace[-1].set_ylabel("Conc.", labelpad=-1)
         wndf = lambda x: x[(t>=t_lim[0])*(t<t_lim[-1])]
@@ -75,39 +77,76 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
     return ax_trace
 
 
+def clip_snapshots(fields, lev=0.8):
+    limsx, limsy = [], []
+    for k, X in fields.items():
+        my    = np.array([np.median(Xi) for Xi in X])
+        limsy.append([np.where(my<lev)[0][0], np.where(my<lev)[0][-1]])
+        mx    = np.array([np.median(Xi) for Xi in X.T])
+        limsx.append([np.where(mx<lev)[0][0], np.where(mx<lev)[0][-1]])
+    limsy = np.array(limsy).mean(axis=0).astype(int)
+    limsx = np.array(limsx).mean(axis=0).astype(int)
+    fclip = {k:X[limsy[0]:limsy[-1]][:, limsx[0]:limsx[-1]] for k, X in fields.items()}
+    return fclip, limsx, limsy
+
+
+def get_snapshot(fld, time, which_dim = 0, which_channel = 0, normalizer = 255., snapshots_dir = "."):
+    file_name = os.path.join(snapshots_dir, f"{fld}_d{which_dim}_{int(time.to(UNITS.ms).magnitude):06}.png") 
+    if not os.path.exists(file_name): raise FileExistsError(f"Could not find {file_name=}.")
+    img = iio.imread(file_name)
+    return np.array(img[:,:,which_channel])/normalizer    
+
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
                      which_probe = 0,
-                     data_dir = "./data",
                      which_idists = [0,1,2],
                      t_wnd = [-4,4],
                      y_lim = (0,3),
                      mean_subtract_y_coords = True,
-                     dt = 0.5
+                     dt = 0.5,
+                     figsize=(8,3),
+                     t_center = None,
+                     data_dir = None,
+                     **kwargs
 ):
-    to_pitch = lambda x: x.to(UNITS(F.pitch_units)).magnitude
-    d_scale = F.pitch.to(UNITS.um).magnitude    
-    fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
-    plt.figure(figsize=(8,3))
+    to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
+    d_scale = F.pitch.to(UNITS.um).magnitude
+    if "boulder" in F.pitch_string:
+        fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
+    else:
+        if hasattr(F, "sims"):
+            fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+        else:
+            print("No 'sims' attribute found. Trying to load snapshots from disk.")
+            data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
+            snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
+            fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
+            
+        print(list(fields_orig.keys()))
+        fields, limsx, limsy = clip_snapshots(fields_orig)
+        INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
+    plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
-    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]])
+    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
     dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
-    ax_plume.matshow(pp, extent =
-                     [to_pitch(x) for x in F.sim0.x_lim] +
-                     [to_pitch(y - dy) for y in F.sim0.y_lim])
-    px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-    py -= to_pitch(dy)
-    ax_plume.plot(px, py, "kx", markersize=5)
-    ax_plume.xaxis.set_ticks_position('bottom')
-    ax_plume.axis("equal")
+    if pp is not None:
+        ax_plume.matshow(pp, extent =
+                         [to_pitch(x) for x in F.sim0.x_lim] +
+                         [to_pitch(y - dy) for y in F.sim0.y_lim])
+        px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
+        py -= to_pitch(dy)
+        ax_plume.plot(px, py, "kx", markersize=5)
+        ax_plume.xaxis.set_ticks_position('bottom')
+#        ax_plume.axis("equal")
     plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
     plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
     #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
 
-    ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_snapshot,
+    if t_center is None: t_center = t_snapshot
+    ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_center,
                                dt = dt, y_lim = y_lim,
-                               axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)])
+                               axes = [plt.subplot(gs[i,1]) for i,_ in enumerate(which_idists)], **kwargs)
         
     ax_corr_dist = plt.subplot(gs[:,-1])
     rho   = F.rho[which_probe]
@@ -130,14 +169,20 @@ def plot_plumes_demo(F, t_snapshot,
 
 def plot_correlations(rho,
                       d_scale,
-                      slices = {"all":slice(1,10000), "first":slice(1,2),   "second":slice(10,11)}, # Which frequency slices to use
+                      slices = {"all":slice(1,10000), "first":slice(1,2),   "second":slice(10,11)}, # Which frequency slices to plot
                       cols   = {"all":cm.gray(0.4),   "first":cm.cool(1.0), "second":cm.cool(0.2)},
                       n_rows = 1,
                       plot_order = None, 
                       figsize=None,
+                      plot_slices = True,
+                      plot_overlay = True,
+                      ax = [],
+                      legend_args = {},
 ):
+
     
-    dists    = np.array(sorted(list(rho.keys()))) 
+    dists    = np.array(sorted(list(rho.keys())))
+    dists_p  = dists/d_scale    
     rho      = {d:rho[d][0] for d in dists} # [0] to take the raw data
     rho_mean = {k:np.array([np.mean(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
     rho_std  = {k:np.array([ np.std(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
@@ -146,31 +191,42 @@ def plot_correlations(rho,
     n_slices = len(slices)
     n_panels = n_slices + 1
     n_cols   = int(np.ceil(n_panels/n_rows))
-    plt.figure(figsize=figsize if figsize else (3*n_cols, 3 * n_rows))
-    ax = []
-    gs = GridSpec(n_rows, n_cols)
-    if plot_order is None: plot_order = list(slices.keys())
-    for i, k  in enumerate(plot_order):
-        irow = int(i // n_cols)
-        icol = int(i %  n_cols)
-        ax.append(plt.subplot(gs[irow, icol]))
-        sc= 1
-        y = rho_mean[k]/sc
-        ee= rho_std[k]/sc
-        dists_p = dists/d_scale
-        plt.fill_between(dists_p, y-ee, y+ee, color=fpft.set_alpha(mpl.colors.to_rgba(cols[k]),0.2));
-        fpft.pplot(dists_p, y , "o-", markersize=4,color=cols[k]);
-        plt.xlabel("Distance (p)")
-        (icol == 0) and plt.ylabel("Correlation")
-        plt.title(k)
+
+    gave_axes = len(ax) > 0
     
-    ax.append(plt.subplot(gs[int(n_slices//n_cols), int(n_slices % n_cols)]))
-    for i, k in enumerate(slices):
-        fpft.pplot(dists_p, rho_mean[k]/max(rho_mean[k]), "-", markersize=4, color=cols[k], label=k);
-    plt.legend(frameon=False, fontsize=8)
-    plt.xlabel("Distance (p)")        
-    plt.title("Overlayed and Scaled")
-    plt.tight_layout(w_pad=0)
+    not gave_axes and plt.figure(figsize=figsize if figsize else (3*n_cols, 3 * n_rows))
+    if not gave_axes: ax = []
+
+    if plot_slices:
+        gs = GridSpec(n_rows, n_cols)
+        if plot_order is None: plot_order = list(slices.keys())
+        for i, k  in enumerate(plot_order):
+            irow = int(i // n_cols)
+            icol = int(i %  n_cols)
+            if not gave_axes: ax.append(plt.subplot(gs[irow, icol]))
+            else: plt.sca(ax[i])
+            sc= 1
+            y = rho_mean[k]/sc
+            ee= rho_std[k]/sc
+            plt.fill_between(dists_p, y-ee, y+ee, color=fpft.set_alpha(mpl.colors.to_rgba(cols[k]),0.2));
+            fpft.pplot(dists_p, y , "o-", markersize=4,color=cols[k]);
+            plt.xlabel("Distance (p)")
+            (icol == 0) and plt.ylabel("Correlation")
+            plt.title(k)
+
+    if plot_overlay:
+        if not gave_axes: ax.append(plt.subplot(gs[int(n_slices//n_cols), int(n_slices % n_cols)]))
+        else: plt.sca(ax[-1])
+        
+        for i, k in enumerate(slices):
+            fpft.pplot(dists_p, rho_mean[k]/max(rho_mean[k]), "-", markersize=4, color=cols[k], label=k);
+        plt.legend(frameon=False, fontsize=8, **legend_args)
+        plt.xlabel("Distance (p)")        
+        plt.title("Overlayed and Scaled")
+
+    if plot_slices or plot_overlay:
+        plt.tight_layout(w_pad=0)
+
     return ax
 
 def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
@@ -232,7 +288,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0,
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_units, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_string, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     
@@ -255,7 +311,7 @@ def plot_alaplace_fits(F, which_dists_um,
     ax_dcdf= []    
     ax_cdf = []
     for di, d in enumerate(which_dists_um):
-        print(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
+        INFO(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         rr    = F.rho[which_probe][d][0][which_ifreq]
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],1.2)        
@@ -279,7 +335,7 @@ def plot_alaplace_fits(F, which_dists_um,
         plt.xlim(xl)
 
         plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
-        plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g} {pitch_sym}")
+        plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
 
         ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
         ax_cdf[-1].yaxis.set_major_formatter(lambda x, pos: f"{x:g}")        
@@ -332,7 +388,7 @@ def plot_alaplace_fits(F, which_dists_um,
                     cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
         
         [plt.plot(list(dists_um).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists_um]
-        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_units)).magnitude:.2g}" for di in dists_um],
+        plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dists_um],
                    fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
         plt.xlabel(f"Distance ({pitch_sym})",labelpad=0)
@@ -362,8 +418,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     INFO(f"plot_gen_exp_paramter_fits_panel with {which_fis=}, {log_scale=}.")
     d_scale = F.pitch.to(UNITS.um).magnitude
     fun = np.log10 if log_scale else (lambda X: X)
-    γbs = fun(F.fit_params[which_probe][:, which_fis, 1]/d_scale)
-    kbs = fun(F.fit_params[which_probe][:, which_fis, 2])
+    γbs = fun(F.fit_params[which_probe][1:][:, which_fis, 1]/d_scale) # 1: is to take the bs runs.
+    kbs = fun(F.fit_params[which_probe][1:][:, which_fis, 2])
 
     if plot_scatter:
         for γ, k in zip(γbs, kbs):
@@ -375,11 +431,11 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         ind_max = F.freqs2inds([F.freq_max])[0]
         other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
         cols = [fpft.set_alpha(cm.Oranges((fi/F.wnd)*F.fs/F.freq_max),0.5) for fi in other_inds]
-        γm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 1]/d_scale),axis=0)
-        κm = np.mean(fun(F.fit_params[which_probe][:, other_inds, 2]),axis=0)
+        γm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 1]/d_scale),axis=0)
+        κm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 2]),axis=0)
         plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
         
-    
+
     hmus = []
     for ifreq, fi in enumerate(which_fis):
         γk = np.array([np.array(γbs[:,ifreq]), np.array(kbs[:,ifreq])])
@@ -388,7 +444,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         hmui, hsdsi = fpft.plot_bivariate_gaussian(mu, C,
                                                    n_sds = 1, n_points = 1000,
                                                    mean_style = {"marker":"o", "markersize":3, "color":colfun(F.freqs[fi])},
-                                                   sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])})
+                                                   sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])},
+        )
         hmus.append(hmui)
 
         plot_legend and plt.legend(handles = hmus, labels=[f"{F.freqs[fi].magnitude:g} Hz" for fi in which_fis],
@@ -397,7 +454,6 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                    frameon=False,
                                    fontsize=6,
     )
-    
     xl = list(plt.xlim())
     if xt is not None:
         xl[0] = min(xl[0], np.min(xt))
@@ -418,14 +474,16 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         plt.contourf(γγ, kk, I, n_contours, cmap=contours_cmap)  
 
     if xt is None:
+        xl = plt.xlim()
         xt = plt.xticks()[0];
-        log_scale and plt.gca().set_xticklabels(f"{10**xti:.2g}" for xti in xt)        
+        log_scale and plt.xticks(xt, labels=[f"{10**xti:.2g}" for xti in xt]) and plt.xlim(xl)
     else:
         plt.xticks(xt, labels=[f"{(10**xti) if log_scale else xti:g}" for xti in xt])
     
     if yt is None:
+        yl = plt.ylim()
         yt = plt.yticks()[0];
-        log_scale and plt.gca().set_yticklabels(f"{10**yti:.2g}" for yti in yt)
+        log_scale and plt.yticks(yt, labels=[f"{10**yti:.2g}" for yti in yt]) and plt.ylim(yl)
     else:
         plt.yticks(yt, labels=[f"{(10**yti) if log_scale else yti:g}" for yti in yt])
 
@@ -465,8 +523,8 @@ def plot_la_gen_fits_vs_distance(F,
         ax.append(plt.subplot(gs[row, col]))
         X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all_um],axis=1) # 1: is to take the bootstraps (0 is the raw data)
         la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
-        ax[-1].plot(dx, la_med, "o-", color=colfun(fi), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
-        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(fi),0.5), linewidth=1)
+        ax[-1].plot(dx, la_med, "o-", color=colfun(F.freqs[fi]), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
+        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
         for j in range(min(5, F.n_bootstraps)):
             ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi])),
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
@@ -479,7 +537,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, n_contours = 0, **kwargs)
+    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, colfun = colfun, n_contours = 0, **kwargs)
     
     fpft.spines_off(plt.gca())
     plt.ylabel("Exponent $k_n$")
@@ -495,13 +553,15 @@ def plot_fisher_information(
         d_space_fun = np.linspace,
         which_ifreqs = [2,4,6,8,10],
         x_stagger = lambda x, i: x*(1.02**i),
-        fi_scale = 1000,
         plot_fun = plt.plot,
         freq_max = None,
         bf_ytick = None,
         colfun = lambda f: cm.cool_r(f/10.),
         plot_ests = False,
         plot_param_fits = False,
+        info_heatmap = True,
+        heatmap_range = [None,None],
+        heatmap_cm    = cm.plasma,
         **kwargs
 ):
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -519,7 +579,7 @@ def plot_fisher_information(
     # which_ifreqs = list(set(F.I_best_ifreqs_mode[which_probe]))
     
     colfun = lambda fi: cm.cool_r(list(sorted(which_ifreqs)).index(int(fi))/len(which_ifreqs))    
-    colfun = lambda f: cm.cool_r(f/(freq_max if freq_max is not None else F.freq_max))
+    colfun = lambda f: cm.cool_r(f.to(UNITS.Hz).magnitude/(freq_max if freq_max is not None else F.freq_max).to(UNITS.Hz).magnitude)
     freqs = F.freqs
     
     INFO(f"Plotting {which_ifreqs=}.")
@@ -544,40 +604,66 @@ def plot_fisher_information(
         plot_fun([x, x], [Il, Ih], color = col, linewidth=0.5)
 
     plt.legend(frameon=False, labelspacing=0.25,fontsize=8)
-    plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)" + (f"x {fi_scale}" if fi_scale != 1 else ""))
-    ax_fisher.set_xticklabels(ax_fisher.get_xticklabels(), fontsize=8)
+    plt.ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
+    ax_fisher.tick_params(axis='x', labelsize=8)
     [lab.set_y(0.01) for lab in ax_fisher.xaxis.get_majorticklabels()]
-    ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
+    #ax_fisher.set_xlim(np.floor(d0/d_scale), np.ceil(d1/d_scale))
     if plot_param_fits:
-        ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+        #ax_fisher.text(0.4,0.025,f"Distance ({pitch_sym})", fontsize=11, transform=ax_fisher.transAxes)
+        ax_fisher.set_xlabel(f"Distance ({pitch_sym})", fontsize=11, labelpad=-30)
     else:
         ax_fisher.set_xlabel(f"Distance ({pitch_sym})")
     fpft.spines_off(plt.gca())
 
     # The best frequency plots
     ax_best_freq = plt.subplot(gs[3,:] if plot_param_fits else gs[3:,:])
-    pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
-    ax_best_freq.semilogx(F.I_dists/d_scale,
-                          pc[1],
-                          "-",color="lightgray",markersize=3, linewidth=1,zorder=-5)
-    cols = [colfun(freqs[fi]) for fi in F.I_best_ifreqs_mode[which_probe]]
-    cols = [cm.gray(0.4) for fi in F.I_best_ifreqs_mode[which_probe]]
-    m = np.mean(F.I_best_freqs[which_probe],axis=0)
-    ax_best_freq.scatter(F.I_dists/d_scale,
-                         pc[1],
-                         c=cols,
-                         s=8)
-    ax_best_freq.set_prop_cycle('color', [fpft.set_alpha(c,0.5) for c in cols])
-    ax_best_freq.plot([F.I_dists/d_scale]*2, [pc[0],pc[-1]], linewidth=0.5)
-    
-    plot_param_fits and ax_best_freq.xaxis.tick_top()
-    not plot_param_fits and ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")    
-    plt.ylabel("Frequency (Hz)", labelpad=-1)
-    plot_param_fits and ax_best_freq.set_xticklabels([])
-    ax_best_freq.set_xlim(ax_fisher.get_xlim())
-    if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)    
-    fpft.spines_off(ax_best_freq, ["bottom" if plot_param_fits else "top", "right"])
+    if info_heatmap:
+        plot_fisher_information_heatmap(F, which_probe,
+                                        ax = ax_best_freq,
+                                        freq_max = freq_max,
+                                        heatmap_range = heatmap_range,
+                                        heatmap_cm    = heatmap_cm,
+                                        do_colorbar = True)
 
+        if plot_param_fits:
+            ax_best_freq.tick_params(axis='y', labelsize=8)
+            ax_best_freq.set_ylabel("Freq. (Hz)", labelpad=-0.5)
+            ax_best_freq.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
+                                    fontsize=8,
+                                    rotation=90,
+                                    color="black")                
+            ax_best_freq.tick_params(top=False, labeltop=False)
+            # Label the bottom xticks
+            ax_best_freq.tick_params(bottom=False, labelbottom=True)
+            for i, (di, label) in enumerate(zip(dp, ax_best_freq.get_xticklabels())):
+                label.set_color("k" if di<0.6 else "w")
+                label.set_transform(label.get_transform() + mtrans.Affine2D().translate(0, 70))
+            ax_best_freq.xaxis.set_label_position('top')            
+            ax_best_freq.set_xlabel(f"Distance ({pitch_sym})", fontsize=11,labelpad=-12, color="w")
+        
+    else:
+        pc = np.percentile(F.I_best_freqs[which_probe], [5,50,95], axis=0)    
+        ax_best_freq.semilogx(F.I_dists/d_scale,
+                              pc[1],
+                              "-",color="lightgray",markersize=3, linewidth=1,zorder=-5)
+        cols = [colfun(freqs[fi]) for fi in F.I_best_ifreqs_mode[which_probe]]
+        cols = [cm.gray(0.4) for fi in F.I_best_ifreqs_mode[which_probe]]
+        m = np.mean(F.I_best_freqs[which_probe],axis=0)
+        ax_best_freq.scatter(F.I_dists/d_scale,
+                             pc[1],
+                             c=cols,
+                             s=8)
+        ax_best_freq.set_prop_cycle('color', [fpft.set_alpha(c,0.5) for c in cols])
+        ax_best_freq.plot([F.I_dists/d_scale]*2, [pc[0],pc[-1]], linewidth=0.5)
+        
+        plot_param_fits and ax_best_freq.xaxis.tick_top()
+        not plot_param_fits and ax_best_freq.set_xlabel(f"Distance ({pitch_sym})")    
+        plt.ylabel("Frequency (Hz)", labelpad=-1)
+        plot_param_fits and ax_best_freq.set_xticklabels([])
+        ax_best_freq.set_xlim(ax_fisher.get_xlim())
+        if bf_ytick is not None: ax_best_freq.set_yticks(bf_ytick)        
+        fpft.spines_off(ax_best_freq, ["bottom" if plot_param_fits else "top", "right"])
+    
     # The parameter fits plots
     ax_d = []
     if plot_param_fits:
@@ -589,11 +675,93 @@ def plot_fisher_information(
                                               plot_scatter = False,
                                               plot_others = False,
                                               label_color = "white",
-                                              colfun = lambda f: colfun(freqs[which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]]), **kwargs)
+                                              #colfun = lambda f: colfun(freqs[which_ifreqs[list(F.freqs[which_ifreqs]).index(f)]]),
+                                              colfun = colfun,
+                                              
+                                              **kwargs)
             ax.set_title(f"{d/d_scale:.2g} {pitch_sym}")
             (i != 0) and (ax.set_ylabel(""), ax.set_yticklabels([]))
             ax_d.append(ax)
                 
     return ax_fisher, ax_best_freq, ax_d
 
-    
+
+def plot_fisher_information_heatmap(F, which_probe,
+                                    ax = None,
+                                    freq_max = None,
+                                    heatmap_range = [None, None],
+                                    heatmap_cm    = cm.Spectral_r,
+                                    do_colorbar = True,
+                                    
+):
+    d_scale = F.pitch.to(UNITS.um).magnitude    
+    I = F.I[which_probe][0] * d_scale**2
+    n_freqs, n_d = I.shape
+    fI = F.freqs[:n_freqs]
+    ind_use = fI > 0 * UNITS.Hz
+    if freq_max is not None: ind_use &= fI <= freq_max
+    used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
+    if ax is None: ax = plt.gca()
+    im = ax.matshow(np.log10(I[ind_use]),
+                    origin='upper',
+                    cmap=heatmap_cm,
+                    aspect="auto",
+                    vmin = heatmap_range[0],
+                    vmax = heatmap_range[1],
+                    extent = [0, n_d, used_freqs_hz[-1], used_freqs_hz[0]]
+    )
+
+    dp = F.I_dists/F.pitch.to(UNITS.um).magnitude
+    ax.tick_params(axis='y', labelsize=10)
+    ax.set_ylabel("Freq. (Hz)", labelpad=5)
+    ax.set_xticks(np.arange(len(dp))+0.5, labels=[f"{z:.2g}" for z in dp],
+                            fontsize=8,
+                            rotation=90,
+                            color="black",
+    )
+
+    ax.tick_params(top=False, labeltop=False)
+    ax.tick_params(bottom=True, labelbottom=True)
+    ax.xaxis.set_label_position('bottom')            
+    ax.set_xlabel(f"Distance ({pitch_sym})")
+
+    if do_colorbar:
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+
+        cb = plt.colorbar(im, cax=cax)
+        yt = cb.ax.get_yticks()
+        yl = cb.ax.get_ylim()
+        labels = []
+        for lab in [f"{10**yti:.1g}" for yti in yt]:
+            if "e+" in lab:
+                head, tail = lab.split("e+")
+                labels.append(f"{int(head) * 10**int(tail)}")
+            else:
+                labels.append(lab)
+
+        cb.ax.set_yticks(yt, labels)
+        cb.ax.set_ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
+        cb.ax.set_ylim(yl)
+    else:
+        cb = None
+
+    return ax, cb
+
+def plot_window_series(proc_data, window_name, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spectral_r, freq_max = None, heatmap_range = [-2, np.log10(500)], **kwargs):
+    plt.figure(figsize=figsize)
+    n_data = len(proc_data)
+    order = sorted([(wnd_t, wnd_sh) for (wnd_t, wnd_sh) in proc_data.keys() if window_name == fpt.get_window_name(wnd_sh)])
+    gs = GridSpec(n_rows, int(np.ceil(len(order)/n_rows)))    
+    axes, cbs = [], []
+    for k, gsi in zip(order, gs):
+        if freq_max is None: freq_max = proc_data[k].freq_max        
+        axes.append(plt.subplot(gsi))
+        axes[-1], cbi = plot_fisher_information_heatmap(proc_data[k], 0, ax = axes[-1], freq_max = freq_max,
+                                                            heatmap_range =heatmap_range,
+                                                            heatmap_cm    =heatmap_cm,
+                                                            do_colorbar   = gsi.is_last_col(),
+        )
+        axes[-1].set_title(f"{k[0]}")
+        if not gsi.is_first_col(): axes[-1].set_ylabel("")
+    plt.tight_layout()
