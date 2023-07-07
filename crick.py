@@ -7,6 +7,7 @@ import json
 import pandas as pd
 import numpy as np
 from matplotlib import cm
+from copy import deepcopy
 
 import imageio as iio # For importing field snapshot PNGs
 
@@ -14,8 +15,6 @@ from scipy.stats import skew, kurtosis
 
 import utils
 import fisher_plumes_tools as fpt
-
-import pdb
 
 from units import UNITS
 
@@ -102,45 +101,69 @@ class CrickSimulationData:
         INFO(f"Loaded probe data. {len(self.probe_coords)=} {len(self.probe_t)=} {self.data.shape=}.")
         assert len(self.probe_t)      == self.data.shape[0], f"{len(self.t)=} <> {self.data.shape[0]=}"                
         assert len(self.probe_coords) == self.data.shape[1], f"{len(self.probe_coords)=} <> {self.data.shape[1]=}"
-
+        
+    def init_from_dict(self, d, overwrite = False):
+        """
+        Initialize this object from a dictionary.
+        Only copy data fields, not methods.
+        """
+        INFO(f"Attempting to copy data fields.")
+        copied = []
+        for k,v in d.items():
+            if not callable(v):
+                if k in self.__dict__ and not overwrite:
+                    DEBUG(f"Skipping field {k} because it already exists.")
+                else:
+                    self.__dict__[k] = deepcopy(v)
+                    copied.append(k)
+                    DEBUG(f"Copied field {k}.")
+        return copied
         
     def __init__(self, full_name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, max_time = np.inf * UNITS.s, snapshots_folder = None):
-        INFO(f"Attemting to load {full_name=}.")
-        root = os.path.dirname(full_name)
-        name = os.path.basename(full_name)
-        self.path = os.path.join(data_root, root, name)
-        if not os.path.exists(self.path): raise FileExistsError(f"Could not find folder {self.path=}.")
-        sim_record = simulations[(simulations.name==name) & (simulations.root==root)]
-        if len(sim_record) != 1: raise ValueError(f"Expected exactly one record matching {name=} and {root=} but found {len(sim_record)=}.")
-        self.tol  = tol
-        self.full_name = full_name
-        self.root = root
-        self.name = name
-        self.load_probe_data_(max_time = max_time)
-        self.units = units
-        self.pitch_units = pitch_units
-        self.pitch_sym = pitch_sym
-        self.probe_t *= UNITS.s
-        self.t = self.probe_t
-        self.x, self.y, self.z = [np.array(u) * self.units for u in zip(*self.probe_coords)]
-        self.probe_coords *= self.units        
-        self.nx, self.ny, self.nz = [len(set(u)) for u in [self.x, self.y, self.z]]
-        self.source     = sim_record["source"].values[0] * self.units
-        self.dimensions = sim_record["dimensions"].values[0] * self.units
-        self.fields     = sim_record["fields"].values[0] 
-        self.fs         = sim_record["fs"].values[0] * UNITS.Hz
-        self.x_lim = [0 * self.units, self.dimensions[0]]
-        self.y_lim = [0 * self.units, self.dimensions[1]]
-        INFO(f"Loaded {full_name} with data at {len(self.probe_coords)} locations.")
-        INFO(f"1 {pitch_sym} = {(1 * pitch_units).to(units)}")
-        DEBUG(f"(nx,ny,nz) = ({self.nx},{self.ny},{self.nz})")
-        DEBUG(f"x-range: {min(self.x):8.3g} - {max(self.x):.3g}")
-        DEBUG(f"y-range: {min(self.y):8.3g} - {max(self.y):.3g}")
-        DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")        
-        self.used_probe_coords = [] # Locations of the used probes
-        self.init_snapshots(snapshots_folder if snapshots_folder is not None else os.path.join(self.path, "png"))
-
-    def init_snapshots(self, root_folder, snapshot_finder_fun = None):
+        if type(full_name) is dict:
+            INFO(f"Initializing from dictionary.")
+            self.init_from_dict(full_name)
+            self.init_snapshots(snapshots_folder)
+        else:
+            INFO(f"Attemting to load {full_name=}.")
+            root = os.path.dirname(full_name)
+            name = os.path.basename(full_name)
+            self.path = os.path.join(data_root, root, name)
+            if not os.path.exists(self.path): raise FileExistsError(f"Could not find folder {self.path=}.")
+            sim_record = simulations[(simulations.name==name) & (simulations.root==root)]
+            if len(sim_record) != 1: raise ValueError(f"Expected exactly one record matching {name=} and {root=} but found {len(sim_record)=}.")
+            self.tol  = tol
+            self.full_name = full_name
+            self.root = root
+            self.name = name
+            self.class_name = self.__class__.__name__
+            self.load_probe_data_(max_time = max_time)
+            self.units = units
+            self.pitch_units = pitch_units
+            self.pitch_sym = pitch_sym
+            self.probe_t *= UNITS.s
+            self.t = self.probe_t
+            self.x, self.y, self.z = [np.array(u) * self.units for u in zip(*self.probe_coords)]
+            self.probe_coords *= self.units        
+            self.nx, self.ny, self.nz = [len(set(u)) for u in [self.x, self.y, self.z]]
+            self.source     = sim_record["source"].values[0] * self.units
+            self.dimensions = sim_record["dimensions"].values[0] * self.units
+            self.fields     = sim_record["fields"].values[0] 
+            self.fs         = sim_record["fs"].values[0] * UNITS.Hz
+            self.x_lim = [0 * self.units, self.dimensions[0]]
+            self.y_lim = [0 * self.units, self.dimensions[1]]
+            INFO(f"Loaded {full_name} with data at {len(self.probe_coords)} locations.")
+            INFO(f"1 {pitch_sym} = {(1 * pitch_units).to(units)}")
+            DEBUG(f"(nx,ny,nz) = ({self.nx},{self.ny},{self.nz})")
+            DEBUG(f"x-range: {min(self.x):8.3g} - {max(self.x):.3g}")
+            DEBUG(f"y-range: {min(self.y):8.3g} - {max(self.y):.3g}")
+            DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")        
+            self.used_probe_coords = [] # Locations of the used probes
+            self.init_snapshots(snapshots_folder)
+    
+    def init_snapshots(self, root_folder = None, snapshot_finder_fun = None):
+        if root_folder is None:            
+            root_folder = os.path.join(self.path, "png")
         INFO(f"Initializing snapshots folder to {root_folder}.")
         if not os.path.exists(root_folder): raise FileExistsError(f"Snapshots folder {root_folder} not found.")
         if snapshot_finder_fun: self.snapshot_finder_fun = snapshot_finder_fun
