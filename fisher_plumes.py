@@ -1,9 +1,14 @@
+import pdb
+
 import os, sys
 import numpy as np
+from scipy.signal import stft
 from scipy.stats import mannwhitneyu, mode
 from scipy.special import betainc
 import logging
 from copy import deepcopy
+
+from sklearn.linear_model import LinearRegression
 
 import fisher_plumes_tools as fpt
 import utils
@@ -12,6 +17,7 @@ from units import UNITS
 
 import boulder
 import crick
+import surrogate
 
 from matplotlib import pyplot as plt
 
@@ -23,34 +29,79 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, copy_stats = False, pitch = 1 * UNITS.m, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, **kwargs):
+    def __init__(self, sim_name, copy_stats = False, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, max_time = np.inf * UNITS.s, **kwargs):
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
-            INFO(f"{sim_name=} is a FisherPlumes object.")
+            INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
-            INFO(f"Attempting to copy data fields.")
-            for k,v in other.__dict__.items():
-                if not callable(v):
-                    self.__dict__[k] = deepcopy(v)
-                    DEBUG(f"Copied field {k}.")
-            INFO(f"Copied data fields from FisherPlumes object.")        
+            copied = self.init_from_dict(other.__dict__)
+            INFO(f"Copied {len(copied)} data fields from FisherPlumes object.")
+        elif type(sim_name) is dict:
+            INFO(f"Initializing from dictionary.")
+            copied = self.init_from_dict(sim_name)
+            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")                
+            if hasattr(self, "sim0"):
+                if self.sim0["class_name"] == "CrickSimulationData":
+                    constructor = crick.CrickSimulationData
+                elif self.sim0["class_name"] == "BoulderSimulationData":
+                    constructor = boulder.BoulderSimulationData
+                elif self.sim0["class_name"] == "SurrogateSimulationData":
+                    constructor = surrogate.SurrogateSimulationData
+                else:
+                    raise ValueError(f"Unknown class name {self.class_name}.")
+                    
+                INFO(f"Found sim0 in dictionary.")
+                if type(self.sim0) is dict:
+                    INFO(f"Initializing sim0 from dictionary.")                    
+                    self.sim0 = constructor(self.sim0)
+
+                    
+            if hasattr(self, "sims"):
+                INFO(f"Found sims in dictionary.")
+                if type(self.sims) is dict:
+                    INFO(f"Initializing sims from dictionary.")                    
+                    self.sims = {k: constructor(v) for k,v in self.sims.items()}
+
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
-            self.name         = sim_name            
-            self.pitch = pitch
-            self.pitch_units = f"{self.name}_pitch"
-            UNITS.define(f"{self.pitch_units} = {self.pitch}")
-            INFO(f"1 {self.pitch_units} = {(1 * UNITS(f'{self.pitch_units}')).to(UNITS.um)}")
-            
+            self.name         = sim_name
+            self.pitch_string = f"{self.name}_pitch"
+            if self.pitch_string not in UNITS:
+                raise KeyError(f"{self.pitch_string} was not found in the units registry. Please define it in 'units.txt'.")                            
+            self.pitch = UNITS[self.pitch_string]            
+            INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.m)}")
+            INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.cm)}")                                    
+            INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.mm)}")
+            INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.um)}")
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um = boulder.load_sims(which_coords, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)
-            elif sim_name == "n12dishT":
-                self.sims, self.pairs_um = crick.load_sims(sim_name, pairs_mode = pairs_mode, units = UNITS.m, pitch_units = UNITS(self.pitch_units), **kwargs)               
+                self.sims, self.pairs_um = boulder.load_sims(which_coords,
+                                                             pairs_mode = pairs_mode,
+                                                             units = UNITS.m,
+                                                             pitch_units = UNITS(self.pitch_string),
+                                                             **kwargs)
+            elif sim_name in ["n12dishT", "n12T", "n12Tslow", "n16T", "n16Tslow"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
+                self.sims, self.pairs_um = crick.load_sims(sim_name,
+                                                           pairs_mode = pairs_mode,
+                                                           units = UNITS.m,
+                                                           pitch_units = UNITS(self.pitch_string),
+                                                           max_time = max_time,
+                                                           **kwargs)
+            elif sim_name.startswith("surr_"):
+                which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
+                surr_type = sim_name[5:]
+                self.sims, self.pairs_um = surrogate.load_sims(surr_type,
+                                                               which_coords,
+                                                               pairs_mode = pairs_mode,
+                                                               units = UNITS.m,
+                                                               pitch_units = UNITS(self.pitch_string),
+                                                               **kwargs)
+                INFO(f"{list(self.sims.keys())=}")
             else:
+                print(crick.list_datasets())
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
-            self.yvals_um = np.array(sorted(list(self.sims.keys())))
+            self.yvals_um     = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
@@ -60,7 +111,23 @@ class FisherPlumes:
         else:
             raise ValueError(f"Don't know what to do for {sim_name=}.")
                 
-
+    def init_from_dict(self, d, overwrite = False):
+        """
+        Initialize this object from a dictionary.
+        Only copy data fields, not methods.
+        """
+        INFO(f"Attempting to copy data fields.")
+        copied = []
+        for k,v in d.items():
+            if not callable(v):
+                if k in self.__dict__ and not overwrite:
+                    DEBUG(f"Skipping field {k} because it already exists.")
+                else:
+                    self.__dict__[k] = deepcopy(v)
+                    copied.append(k)
+                    DEBUG(f"Copied field {k}.")
+        return copied
+                
     def bootstrap(self, X, dim, to_array = True):
         np.random.seed(self.random_seed)
 
@@ -81,23 +148,31 @@ class FisherPlumes:
         self.freqs = np.arange(wnd)/wnd*self.fs
         INFO(f"Window set to {self.wnd=}.")
 
-    def compute_trig_coefs(self, istart = 0, tukey_param = 0.1, **kwargs):
-        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {tukey_param=} and {kwargs=}")
-        if self.wnd is None:
-            raise ValueError("Window size is unset. Use set_window to set it.")
+    def compute_stft(self):
+        INFO("Computing spectrum.")
+        self.stft = {}
+        fs = self.fs.to(UNITS.hertz).magnitude        
+        for k, s in self.sims.items():
+            self.stft[k] = [stft(s.data[:,iprb], fs = fs, window='boxcar', nperseg=int(fs), noverlap=fs//2, boundary=None, padded=False) for iprb in range(s.data.shape[1])]
+
+    def compute_trig_coefs(self, istart = 0, window = ('boxcar'), z_score = True, **kwargs):
+        INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {z_score=} and {kwargs=} ")
+        if self.wnd is None: raise ValueError("Window size is unset. Use set_window to set it.")
 
         wnd    = self.wnd
         n_probes = utils.d1(self.sims).data.shape[1]
         INFO(f"Computing coefficients for {n_probes} probes.")        
         self.ss, self.cc, self.tt = [{} for _ in range(n_probes)],[{} for _ in range(n_probes)],[{} for _ in range(n_probes)]
         
-        detrender = lambda x: fpt.Detrenders.tukey_normalizer(x, tukey_param)
         for src in self.sims:
             for i in range(n_probes):
-                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, detrender=detrender, **kwargs);
+                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, window=window, z_score = z_score, **kwargs);
                 self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
+        """
+        Compute the variances of the pooled sine and cosine coefficients for each frequency.
+        """
         INFO("Computing variances for harmonics.")
         sc_all = [np.concatenate([xkk for Fld in [ss, cc] for src, xkk in Fld.items()], axis = 1) # axis = 1: concatenate long the time axis.
                   for ss,cc in zip(self.ss, self.cc)] # Loop over probes
@@ -235,7 +310,10 @@ class FisherPlumes:
             [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
-    def compute_la_gen_fit_to_distance(self, dmax_um=100000):
+    def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True):
+        """
+        Computes a generalized exponential fit to the decay of correlations with distance.
+        """
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la[0].keys())))
         dd    = dists[np.abs(dists)<=dmax_um]
@@ -245,17 +323,23 @@ class FisherPlumes:
         n_bs, n_freqs, n_dists = la_sub[0].shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
+        
+        bounds_dict = {k:(0, np.inf) for k in "askb"}
+        if not fit_k:
+            bounds_dict["k"] = (1,1+1e-6)
+            INFO(f"Not fitting k by using {bounds_dict['k']=:}")
+        
         if ('vars_for_freqs' not in self.__dict__) or self.vars_for_freqs is None:
             # Loop over the rows of la_sub
             # Each row (la_subi) has the data for one frequency
-            self.fit_params = [np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_subi])
+            self.fit_params = [np.array([[fpt.fit_gen_exp(dd/np.std(dd),la_sub_bsi, bounds_dict = bounds_dict) for la_sub_bsi in la_sub_bs] for la_sub_bs in la_subi])
                                for la_subi in la_sub]
         else:
             INFO(f"Not fitting amplitudes, instead using given values.")
 
             self.fit_params = [
                 np.array([[
-                fpt.DUMP_IF_FAIL(fpt.fit_gen_exp_no_amp, dd/np.std(dd),la_sub_bsi, ampi, extra={"ifreq":ifreq, "ibs":ibs, "iprobe":iprobe})
+                fpt.DUMP_IF_FAIL(fpt.fit_gen_exp_no_amp, dd/np.std(dd),la_sub_bsi, ampi, bounds_dict = bounds_dict, extra={"ifreq":ifreq, "ibs":ibs, "iprobe":iprobe})
                 for ifreq,  (la_sub_bsi, ampi)             in enumerate(zip(la_sub_bs, 2*vars_for_freqs_bs))]
                 for ibs,    (la_sub_bs, vars_for_freqs_bs) in enumerate(zip(la_subi,     vars_for_freqsi))])
                 for iprobe, (la_subi, vars_for_freqsi)     in enumerate(zip(la_sub, self.vars_for_freqs))]
@@ -291,9 +375,9 @@ class FisherPlumes:
     
     def compute_fisher_information(self,
                                    d_min = 100 , d_max = -1, d_add = [100,200,500,1000,2000,5000],
-                                   weighting_freq_max = None,
+                                   pcs = [5, 50, 95]
                                    ):
-        INFO(f"Computing Fisher information (v2).")
+        INFO(f"Computing Fisher information.")
         d_vals = [d for d in list(sorted(self.la[0].keys())) if d>0]
         if len(d_add): d_vals += d_add
         d_vals = sorted(list(set(d_vals)))
@@ -309,55 +393,59 @@ class FisherPlumes:
         expected_shape = (self.n_bootstraps+1, n_freqs, len(d_vals))
         assert self.I[0].shape == expected_shape, f"{self.I[0].shape=} <> {expected_shape=}."
         DEBUG(f"{self.I[0].shape=} has the expected value.")
-
-        pcs = [5, 50, 95]
         # Compute the percentiles over bootstraps ([1:] in the first dimension)
         self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
-        
-        ifreq_max = self.freqs2inds([self.freq_max])[0]
 
-        Isort      = [np.argsort(I[1:][:, 1:ifreq_max+1,:],axis=1) for I in self.I] # Sort frequencies by information, skip DC
-        n_freqs    = Isort[0].shape[1]
-        self.I_best_ifreqs = [Isorti[:,-1,:] for Isorti in Isort] # Find the most informative frequency for each bootstrap and distance
-        res = [mode(best_ifreqsi, keepdims=False) for best_ifreqsi in self.I_best_ifreqs] # Find the frequency that was most frequently most informative
-        self.I_best_ifreqs_mode = [r.mode + 1 for r in res] # + 1 because we don't consider DC
+    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None):
+        if freq_max is None: freq_max = self.freq_max
+        INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")
+        self.reg_freq_range = (freq_min, freq_max)
+        n_bs, n_I_freq, n_d = self.I[0].shape    
+        ind   = (self.freqs >= freq_min) & (self.freqs <= freq_max)
+        freqs = self.freqs.to(UNITS.Hz).magnitude
+        lr  = LinearRegression()
+        self.reg_coefs = []    
+        for I in self.I:
+            reg_coefs = []
+            for Ibs in I:
+                for i in range(n_d):
+                    yy = Ibs[ind[:n_I_freq],i]
+                    xx = freqs[ind][:len(yy)]
+                    ivld = ~np.isnan(yy) & (yy>0) & ~np.isinf(yy)
+                    if len(ivld)>=2:
+                        lr.fit(xx[ivld].reshape(-1,1), np.log10(yy[ivld]))
+                        reg_coefs.append([lr.intercept_] + list(lr.coef_))
+                    else:
+                        reg_coefs.append([np.nan]*2)
+    
+            reg_coefs = np.array(reg_coefs).reshape(n_bs, n_d, 2)
+            self.reg_coefs.append(reg_coefs)        
 
-        self.I_best_freqs = [self.inds2freqs(Ibi+1) for Ibi in self.I_best_ifreqs]
-
-        # The p-values are those of binomial random variable
-        # Have a probability of 1/# frequencies
-        # and N = #bootstraps trials.
-        # We want to see how many times a given frequency would come out on top
-        # if it was happening by chance, and that's determined by the Binomial cdf
-        # Which is the Incomplete beta function below
-        self.I_pvals = [np.array([betainc(ci, self.n_bootstraps - ci + 1, 1./n_freqs) for ci in r.count]) for r in res]
-        # Note that this is NOT a p-value for the mode frequency being best.
-        # E.g. imagine a case where two frequencies were equally informative,
-        # and where one by chance came up slightly more times than the other in the bootstraps.
-        # In this situation the 'top' frequency shouldn't be declard most informative,
-        # despite the fact that it appeared as most informative way more than expected by chance,
-        # because this doesn't consider the runner-up.
-
-        # Compute information weighting of frequencies
-        self.I_weighting_freq_max = self.freq_max if weighting_freq_max is None else weighting_freq_max
-        freqs     = self.freqs.magnitude
-        ind_freqs = np.where((freqs > 0) & (freqs <= self.I_weighting_freq_max.magnitude))[0]
-        
-        Ifreqs    = [np.einsum('ijk,j',Ii[:,ind_freqs],freqs[ind_freqs]) for Ii in self.I]
-        Isum      = [np.sum(Ii[:, ind_freqs], axis=1) for Ii in self.I]
-        self.I_weighted_freqs = [Ifi/Isi for Ifi, Isi in zip(Ifreqs, Isum)]
-        
-        
-    def compute_all_for_window(self, wnd, istart=0, window='boxcar', tukey_param=0.1, dmax_um=25000, fit_vars = True, weighting_freq_max = None):
+    def regress_length_constants_on_frequency(self, freq_min):
+        ind_use = (self.freqs >= freq_min)  & (self.freqs <= self.freq_max)
+        INFO(f"Regressing length constants on frequency, using {freq_min=:g}: {self.freqs[ind_use][0]:g} - {self.freqs[ind_use][-1]:g}")        
+        ff = self.freqs[ind_use].to(UNITS.Hz).magnitude.reshape(-1,1)
+        d_scale = self.pitch.to(UNITS.um).magnitude
+        lr = LinearRegression()
+        pack_coefs = lambda lr: [lr.intercept_, lr.coef_[0]]
+        self.coef_γ_vs_freq = [np.array([pack_coefs(lr.fit(ff,γbs[ind_use[:len(γbs)]])) for γbs in fp[:, :, 1]/d_scale]) for fp in self.fit_params]            
+    
+    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, z_score = True):
+        INFO(f"STARTING COMPUTATION.")
+        wnd = int(window_length.to(UNITS.s).magnitude * self.fs.to(UNITS.Hz).magnitude)
+        INFO(f"Setting window to {wnd} samples.")
         self.set_window(wnd)
-        self.compute_trig_coefs(istart=istart, window=window, tukey_param=tukey_param)
+        self.compute_stft()
+        self.compute_trig_coefs(istart=istart, window=window_shape, z_score = z_score)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_pvalues()
         self.compute_r2values()
-        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um)
-        self.compute_fisher_information(weighting_freq_max = weighting_freq_max)
+        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
+        self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
+        self.compute_fisher_information()
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
@@ -372,5 +460,5 @@ class FisherPlumes:
         {k:s.save_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
 
     def load_saved_snapshots(self, t, data_dir = "."):
-        return {k:s.load_saved_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()}
+        return {k:s.load_saved_snapshot(t, data_dir = data_dir) for k, s in self.sims.items()} if hasattr(self.sim0, "load_saved_snapshot") else None
         
