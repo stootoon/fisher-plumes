@@ -11,7 +11,7 @@ import yaml
 from importlib import reload
 from builtins import sum as bsum
 from argparse import ArgumentParser
-from utils import eval_fields
+from utils import eval_fields, deepcopy_data_fields
 import itertools
 import hashlib
 
@@ -166,7 +166,14 @@ if __name__ == "__main__":
         print(f"Writing output to {output_file}.")
         if not args.mock:
             fp.compute_all_for_window(**compute_item)
-            results = fp.copy_data_fields()
+            results = deepcopy_data_fields(fp,dont_copy=["sim0", "sims"])
+            if hasattr(fp, "sim0"):
+                results["sim0"] = deepcopy_data_fields(fp.sim0)
+            if hasattr(fp, "sims"):
+                results["sims"] = {}
+                for k,v in fp.sims.items():
+                    results["sims"][k] = deepcopy_data_fields(v)                    
+                
             pickle.dump({"init":spec["init"], "compute":compute_item, "results":results}, open(output_file, "wb"))
             print(f"Results written to {output_file}.")
     
