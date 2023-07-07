@@ -185,10 +185,17 @@ if __name__ == "__main__":
     print(f"Registry with {len(registry)} items written to {args.registry}.")
         
     
+def load_data(init_filter, compute_filter, registry = None):
+    if registry is None: registry = get_registry("./proc")
+    matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
+    if len(matches) == 0:
+        print("No matches found.")
+        return None
     
-    
+    if len(matches) > 1: print("Warning: More than one match found")
+    match = matches[0]
 
-    
-
-
-
+    data_file = match["file"]
+    print(f"Loading {init_filter=} {compute_filter=} from {data_file}")
+    sys.stdout.flush()
+    return pickle.load(open(match["file"], "rb"))["results"]
