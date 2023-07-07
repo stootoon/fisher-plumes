@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib as mpl
 from matplotlib import pylab as plt
@@ -5,6 +6,7 @@ plt.style.use("default")
 from matplotlib import colors as mcolors
 from matplotlib.gridspec import GridSpec
 from matplotlib.transforms import TransformedBbox, Bbox
+from utils import remove_non_alphanum
 
 named_colors = dict(mcolors.BASE_COLORS, **mcolors.CSS4_COLORS)
 
@@ -91,6 +93,22 @@ def label_axes(ax_list, labs, dx=0, dy=0, x = None, y = None,
 
     
             
-            
-    
-    
+def get_fig_dir(window_shape = None, window_length = None, fit_k = None, root_dir="", create = False):
+    fig_dir = os.path.join(root_dir, "figs")
+    if window_shape is not None:
+        # append window_shape to fig_dir
+        fig_dir = os.path.join(fig_dir, f"{remove_non_alphanum(window_shape)}")
+
+    if window_length is not None:
+        # append window_length to fig_dir
+        fig_dir = os.path.join(fig_dir, f"{window_length}".replace(" ",""))
+
+    if fit_k is not None:
+        # append fit_k to fig_dir
+        fig_dir = os.path.join(fig_dir, f"{fit_k=}")
+        
+    if create:
+        os.makedirs(fig_dir, exist_ok=True)
+        assert os.path.exists(fig_dir), f"Could not create {fig_dir}."
+        
+    return fig_dir

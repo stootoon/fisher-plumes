@@ -98,3 +98,4 @@ def deepcopy_data_fields(obj, dont_copy = []):
             data[fld] = deepcopy(val)
     return data
     
+remove_non_alphanum = lambda wnd_shp: re.sub(r'[^A-Za-z0-9\.]+', '', str(wnd_shp))
