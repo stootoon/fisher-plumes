@@ -422,11 +422,26 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     kbs = fun(F.fit_params[which_probe][1:][:, which_fis, 2])
 
     if plot_scatter:
-        for γ, k in zip(γbs, kbs):
-            plt.scatter(γ, k,
-                        c=[fpft.set_alpha(colfun(f), scatter_alpha) for i, f in enumerate(F.freqs[which_fis])],
-                        s = scatter_size)
+        # If the standard deviation is very small, then assume we've fixed k,
+        # and plot box and whisker plots instead, using the data in the columns
+        # of γbs.
+        if np.std(kbs[0]) < 1e-5:
+            # Set the color of the boxplots to the color of the frequency
+            # (which is the same as the color of the scatter points).
+            
+            box = plt.boxplot(γbs, widths = 0.3, patch_artist=True)
+            [plt.setp(b, color = fpft.set_alpha(colfun(f),0.5), facecolor=fpft.set_alpha(colfun(f),0.25)) for f,b in zip(F.freqs[which_fis], box["boxes"])]
+            [plt.setp(b, color = colfun(f), linewidth=1) for f, b in zip(F.freqs[which_fis], box["medians"])]
 
+            plt.xticks(np.arange(1, len(which_fis)+1),
+                       labels = [f"{F.freqs[i].to('Hz').magnitude:g} Hz" for i in which_fis])
+            return 1 # number of parameters plotted
+        else:
+            for γ, k in zip(γbs, kbs):
+                plt.scatter(γ, k,
+                            c=[fpft.set_alpha(colfun(f), scatter_alpha) for i, f in enumerate(F.freqs[which_fis])],
+                            s = scatter_size)
+    
     if plot_others:
         ind_max = F.freqs2inds([F.freq_max])[0]
         other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
@@ -494,7 +509,7 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
     plt.xlabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
     plt.title("Fit Parameters")
 
-        
+    return 2
     
 def plot_la_gen_fits_vs_distance(F,
                                  which_probe = 0,
@@ -537,12 +552,18 @@ def plot_la_gen_fits_vs_distance(F,
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
-    plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, colfun = colfun, n_contours = 0, **kwargs)
-    
+    # n_params is 2 if two paramters were plotted, or 1 if only one was plotted (e.g. when k is fixed)
+    n_params = plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, colfun = colfun, n_contours = 0, **kwargs)    
     fpft.spines_off(plt.gca())
-    plt.ylabel("Exponent $k_n$")
-    plt.xlabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
-    plt.title("Fit Parameters")
+    if n_params == 2:
+        plt.ylabel("Exponent $k_n$")
+        plt.xlabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
+        plt.title("Fit Parameters")
+    elif n_params == 1:
+        plt.ylabel(f"Length Scale $\gamma_n$ ({pitch_sym})")
+        plt.xlabel(f"Frequency")
+        plt.title("Fit Parameters")
+        
     return ax
     
 def plot_fisher_information(
