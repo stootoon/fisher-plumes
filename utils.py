@@ -1,6 +1,7 @@
 import os, re
 from functools import reduce
 import logging
+from copy import deepcopy
 
 def create_logger(name):
     logger = logging.getLogger(name)
@@ -85,3 +86,15 @@ def get_args(req_args, kwargs):
     return *vals, kwargs
 
 
+def deepcopy_data_fields(obj, dont_copy = []):
+    """
+    Return a dictionary of all the data fields in the object.
+    A field is considered a data field if it is not callable.
+    """
+    data = {}
+    for fld,val in obj.__dict__.items():
+        if not callable(val):
+            if fld in dont_copy: continue
+            data[fld] = deepcopy(val)
+    return data
+    
