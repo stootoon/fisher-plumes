@@ -54,6 +54,7 @@ class SurrogateSimulationData:
     def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0, n_sources = 8, n_samples = 3001, fs = 50 * UNITS.Hz, **kwargs):
         self.tol = tol
         self.name = name
+        self.class_name = self.__class__.__name__
         self.units = units
         self.pitch_units = pitch_units
         self.pitch_sym = pitch_sym
