@@ -11,18 +11,24 @@ import yaml
 from importlib import reload
 from builtins import sum as bsum
 from argparse import ArgumentParser
-from utils import eval_fields, deepcopy_data_fields
+from utils import eval_fields, deepcopy_data_fields, create_logger
 import itertools
 import hashlib
 
 import units
+
+logger = create_logger(__name__)
+INFO = logger.info
+DEBUG = logger.debug
+WARN = logger.warning
+
 # This function will read all the subdirectories of the given directory.
 # For each subdirectory, it will read all the pickle files in that directory.
 # It will then add the init and compute fields from each pickle file to a list,
 # along with the file name.
 def get_registry(registry_loc, build=False, write=False):
     if build:
-        print("Building registry.")
+        INFO("Building registry.")
         # Create a new registry.
         registry = []
         for dirpath, dirnames, filenames in os.walk(registry_loc):
@@ -35,11 +41,11 @@ def get_registry(registry_loc, build=False, write=False):
                         continue
                     elif "init" not in data or "compute" not in data:
                         continue                
-                    print(f"Read {file_path}.")
+                    INFO(f"Read {file_path}.")
                     registry.append({"init":data["init"], "compute":data["compute"], "file":file_path})
         if write:
             pickle.dump(registry, open(os.path.join(registry_loc, "registry.p"), "wb"))
-            print(f"Registry written to {os.path.join(registry_loc, 'registry.p')}.")
+            INFO(f"Registry written to {os.path.join(registry_loc, 'registry.p')}.")
     else:
         if os.path.exists(os.path.join(registry_loc, "registry.p")):
             registry = pickle.load(open(os.path.join(registry_loc, "registry.p"), "rb"))
@@ -49,7 +55,7 @@ def get_registry(registry_loc, build=False, write=False):
 # It will return a list of all the registry items that match the given key-value pairs.
 def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}):
     if registry is None:
-        print("No registry given. Loading registry from proc/registry.p.")
+        INFO("No registry given. Loading registry from proc/registry.p.")
         registry = pickle.load(open("proc/registry.p", "rb"))
         
     matches = []
@@ -68,6 +74,30 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
             matches.append(item)
     return matches
 
+
+def load_data(init_filter, compute_filter, registry = None, return_matches = False):
+    """ Load data from the file in the registry that matches the given init and compute filters. """
+    if registry is None: registry = get_registry("./proc")
+
+    matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
+    INFO(f"Found {len(matches)} matches.")
+    
+    if len(matches) == 0:
+        WARN("No matches found.")
+        return None
+    elif len(matches) > 1:
+        WARN(f"{len(matches)} > 1 matches found for {init_filter=} an {compute_filter=}.")
+
+    results = []
+    for match in matches:
+        data_file = match["file"]
+        INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}")
+        sys.stdout.flush()
+        results.append(pickle.load(open(match["file"], "rb"))["results"])
+
+    INFO(f"Returning {len(results)} results.")
+    return results if not return_matches else (results, matches)
+        
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
@@ -183,19 +213,3 @@ if __name__ == "__main__":
     # Write the registry to disk.
     pickle.dump(registry, open(args.registry, "wb"))
     print(f"Registry with {len(registry)} items written to {args.registry}.")
-        
-    
-def load_data(init_filter, compute_filter, registry = None):
-    if registry is None: registry = get_registry("./proc")
-    matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
-    if len(matches) == 0:
-        print("No matches found.")
-        return None
-    
-    if len(matches) > 1: print("Warning: More than one match found")
-    match = matches[0]
-
-    data_file = match["file"]
-    print(f"Loading {init_filter=} {compute_filter=} from {data_file}")
-    sys.stdout.flush()
-    return pickle.load(open(match["file"], "rb"))["results"]

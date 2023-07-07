@@ -29,7 +29,7 @@ DEBUG = logger.debug
 
 class FisherPlumes:
 
-    def __init__(self, sim_name, copy_stats = False, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, max_time = np.inf * UNITS.s, **kwargs):
+    def __init__(self, sim_name, copy_stats = False, freq_max = np.inf * UNITS.hertz, pairs_mode = "unsigned", n_bootstraps=0, random_seed = 0, max_time = np.inf * UNITS.s, load_sims = True, **kwargs):
         if hasattr(sim_name,"__class__") and sim_name.__class__.__name__ == "FisherPlumes":
             INFO(f"{sim_name=} is a FisherPlumes object named {sim_name.name}.")
             other = sim_name
@@ -37,7 +37,7 @@ class FisherPlumes:
             INFO(f"Copied {len(copied)} data fields from FisherPlumes object.")
         elif type(sim_name) is dict:
             INFO(f"Initializing from dictionary.")
-            copied = self.init_from_dict(sim_name)
+            copied = self.init_from_dict(sim_name, dont_copy = ["sim0", "sims"] if load_sims is False else [])
             INFO(f"Copied {len(copied)} data fields from supplied dictionary.")                
             if hasattr(self, "sim0"):
                 if self.sim0["class_name"] == "CrickSimulationData":
@@ -111,7 +111,7 @@ class FisherPlumes:
         else:
             raise ValueError(f"Don't know what to do for {sim_name=}.")
                 
-    def init_from_dict(self, d, overwrite = False):
+    def init_from_dict(self, d, overwrite = False, dont_copy = []):
         """
         Initialize this object from a dictionary.
         Only copy data fields, not methods.
@@ -120,7 +120,9 @@ class FisherPlumes:
         copied = []
         for k,v in d.items():
             if not callable(v):
-                if k in self.__dict__ and not overwrite:
+                if k in dont_copy:
+                    DEBUG(f"Skipping field {k} because it is in dont_copy.")
+                elif k in self.__dict__ and not overwrite:
                     DEBUG(f"Skipping field {k} because it already exists.")
                 else:
                     self.__dict__[k] = deepcopy(v)
