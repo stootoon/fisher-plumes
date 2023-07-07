@@ -125,31 +125,53 @@ def _load_single_simulation(name):
     return {"probe_t":np.array(t), "probe_grid":probe_grid, "probe_data":probe_data}
         
 class BoulderSimulationData:
+    def init_from_dict(self, d, overwrite = False):
+        """
+        Initialize this object from a dictionary.
+        Only copy data fields, not methods.
+        """
+        INFO(f"Attempting to copy data fields.")
+        copied = []
+        for k,v in d.items():
+            if not callable(v):
+                if k in self.__dict__ and not overwrite:
+                    DEBUG(f"Skipping field {k} because it already exists.")
+                else:
+                    self.__dict__[k] = deepcopy(v)
+                    copied.append(k)
+                    DEBUG(f"Copied field {k}.")
+        return copied
+    
     def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0):
-        self.tol = tol
-        self.name = name
-        self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
-        self.units = units
-        self.pitch_units = pitch_units
-        self.pitch_sym = pitch_sym
-        self.probe_t *= UNITS.s
-        self.t  = self.probe_t
-        self.nt = len(self.probe_t)
-        self.probe_grid["x"]*=self.units
-        self.probe_grid["y"]*=self.units
-        self.x  = self.probe_grid["x"][:,0] 
-        self.nx = len(self.x)
-        self.y  = self.probe_grid["y"][0]
-        self.ny = len(self.y)
-        self.nz = 1
-        self.x_lim      = sorted([self.x[0], self.x[-1]]) 
-        self.y_lim      = sorted([self.y[0], self.y[-1]]) 
-        self.source     = simulations[simulations["name"] == name]["source"].values[0] * self.units
-        self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0] * self.units
-        self.fields     = simulations[simulations["name"] == name]["data_fields"].values[0]
-        self.fs         = simulations[simulations["name"] == name]["fs"].values[0] * UNITS.Hz
-        INFO(self)
-
+        if type(name) is dict:
+            INFO(f"Initializing from dictionary.")
+            self.init_from_dict(name)
+        else:
+            self.tol = tol
+            self.name = name
+            self.class_name = self.__class__.__name__
+            self.probe_grid, self.probe_t, self.data = utils.dd("probe_grid", "probe_t", "probe_data")(_load_single_simulation(name))
+            self.units = units
+            self.pitch_units = pitch_units
+            self.pitch_sym = pitch_sym
+            self.probe_t *= UNITS.s
+            self.t  = self.probe_t
+            self.nt = len(self.probe_t)
+            self.probe_grid["x"]*=self.units
+            self.probe_grid["y"]*=self.units
+            self.x  = self.probe_grid["x"][:,0] 
+            self.nx = len(self.x)
+            self.y  = self.probe_grid["y"][0]
+            self.ny = len(self.y)
+            self.nz = 1
+            self.x_lim      = sorted([self.x[0], self.x[-1]]) 
+            self.y_lim      = sorted([self.y[0], self.y[-1]]) 
+            self.source     = simulations[simulations["name"] == name]["source"].values[0] * self.units
+            self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0] * self.units
+            self.fields     = simulations[simulations["name"] == name]["data_fields"].values[0]
+            self.fs         = simulations[simulations["name"] == name]["fs"].values[0] * UNITS.Hz
+            INFO(self)
+    
     def __str__(self):
         s = [f"\n{self.name} <BoulderSimulationData>"]
         x = self.x
