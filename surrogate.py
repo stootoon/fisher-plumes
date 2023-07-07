@@ -134,9 +134,7 @@ class SurrogateSimulationData:
         S = np.sin(np.outer(t, f))
         c = (Xr + Xc)/2
         s = (Xr - Xc)/2
-        x = []
-        for i in range(n_src):
-            x.append(C @ c[i::n_src] + S @ s[i::n_src])
+        x = [C @ c[i::n_src] + S @ s[i::n_src] for i in range(n_src)]
         X = np.array(x)
 
         for fld, Xi in zip(self.fields, X):
