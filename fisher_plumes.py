@@ -38,7 +38,29 @@ class FisherPlumes:
         elif type(sim_name) is dict:
             INFO(f"Initializing from dictionary.")
             copied = self.init_from_dict(sim_name)
-            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")            
+            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")                
+            if hasattr(self, "sim0"):
+                if self.sim0["class_name"] == "CrickSimulationData":
+                    constructor = crick.CrickSimulationData
+                elif self.sim0["class_name"] == "BoulderSimulationData":
+                    constructor = boulder.BoulderSimulationData
+                elif self.sim0["class_name"] == "SurrogateSimulationData":
+                    constructor = surrogate.SurrogateSimulationData
+                else:
+                    raise ValueError(f"Unknown class name {self.class_name}.")
+                    
+                INFO(f"Found sim0 in dictionary.")
+                if type(self.sim0) is dict:
+                    INFO(f"Initializing sim0 from dictionary.")                    
+                    self.sim0 = constructor(self.sim0)
+
+                    
+            if hasattr(self, "sims"):
+                INFO(f"Found sims in dictionary.")
+                if type(self.sims) is dict:
+                    INFO(f"Initializing sims from dictionary.")                    
+                    self.sims = {k: constructor(v) for k,v in self.sims.items()}
+
         elif type(sim_name) is str:
             INFO(f"****** LOADING {sim_name=} ******")
             self.name         = sim_name
@@ -106,18 +128,6 @@ class FisherPlumes:
                     DEBUG(f"Copied field {k}.")
         return copied
                 
-    def copy_data_fields(self, copy_sims = False):
-        """
-        Return a dictionary of all the data fields in this object.
-        A field is considered a data field if it is not callable.
-        """
-        data = {}
-        for fld,val in self.__dict__.items():
-            if not callable(val):
-                if not copy_sims and fld in ["sim0", "sims"]: continue
-                data[fld] = deepcopy(val)
-        return data
-    
     def bootstrap(self, X, dim, to_array = True):
         np.random.seed(self.random_seed)
 
