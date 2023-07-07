@@ -80,8 +80,7 @@ def load_data(init_filter, compute_filter, registry = None, return_matches = Fal
     if registry is None: registry = get_registry("./proc")
 
     matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
-    INFO(f"Found {len(matches)} matches.")
-    
+
     if len(matches) == 0:
         WARN("No matches found.")
         return None
