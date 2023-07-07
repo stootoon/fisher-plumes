@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import matplotlib as mpl
 from matplotlib import pylab as plt
@@ -8,6 +9,7 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.transforms as mtrans
 from scipy.stats import mannwhitneyu,ttest_1samp
+import imageio as iio # For importing field snapshot PNGs
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
@@ -86,7 +88,14 @@ def clip_snapshots(fields, lev=0.8):
     limsx = np.array(limsx).mean(axis=0).astype(int)
     fclip = {k:X[limsy[0]:limsy[-1]][:, limsx[0]:limsx[-1]] for k, X in fields.items()}
     return fclip, limsx, limsy
-    
+
+
+def get_snapshot(fld, time, which_dim = 0, which_channel = 0, normalizer = 255., snapshots_dir = "."):
+    file_name = os.path.join(snapshots_dir, f"{fld}_d{which_dim}_{int(time.to(UNITS.ms).magnitude):06}.png") 
+    if not os.path.exists(file_name): raise FileExistsError(f"Could not find {file_name=}.")
+    img = iio.imread(file_name)
+    return np.array(img[:,:,which_channel])/normalizer    
+
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
                      which_probe = 0,
@@ -105,7 +114,14 @@ def plot_plumes_demo(F, t_snapshot,
     if "boulder" in F.pitch_string:
         fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
     else:
-        fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+        if hasattr(F, "sims"):
+            fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+        else:
+            print("No 'sims' attribute found. Trying to load snapshots from disk.")
+            data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
+            snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
+            fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
+            
         print(list(fields_orig.keys()))
         fields, limsx, limsy = clip_snapshots(fields_orig)
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
