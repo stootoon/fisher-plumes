@@ -2,3 +2,5 @@
 *pycache*
 data/
 *#*
+*.p
+*.log
