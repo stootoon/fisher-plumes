@@ -435,6 +435,11 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
 
             plt.xticks(np.arange(1, len(which_fis)+1),
                        labels = [f"{F.freqs[i].to('Hz').magnitude:g} Hz" for i in which_fis])
+
+            yl = plt.ylim()
+            yt = plt.yticks()[0];
+            log_scale and plt.yticks(yt, labels=[f"{10**yti:.2g}" for yti in yt]) and plt.ylim(yl)
+            
             return 1 # number of parameters plotted
         else:
             for γ, k in zip(γbs, kbs):
