@@ -117,7 +117,7 @@ class SurrogateSimulationData:
 
 
         n_src  = len(self.fields)
-        K = np.zeros((n_src * n_freq, n_src*n_freq))
+        K = np.zeros((n_src * n_freq, n_src * n_freq))
         for n in range(n_freq):
             for i in range(n_src):
                 for j in range(n_src):
