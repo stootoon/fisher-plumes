@@ -8,7 +8,7 @@ from scipy.special import betainc
 import logging
 from copy import deepcopy
 
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, HuberRegressor
 
 import fisher_plumes_tools as fpt
 import utils
@@ -398,14 +398,15 @@ class FisherPlumes:
         # Compute the percentiles over bootstraps ([1:] in the first dimension)
         self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
 
-    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None):
+    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None, Regressor = LinearRegression):
         if freq_max is None: freq_max = self.freq_max
         INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")
         self.reg_freq_range = (freq_min, freq_max)
         n_bs, n_I_freq, n_d = self.I[0].shape    
         ind   = (self.freqs >= freq_min) & (self.freqs <= freq_max)
         freqs = self.freqs.to(UNITS.Hz).magnitude
-        lr  = LinearRegression()
+        lr  = Regressor()
+        self.reg_type = Regressor.__class__.__name__
         self.reg_coefs = []    
         for I in self.I:
             reg_coefs = []
@@ -447,7 +448,7 @@ class FisherPlumes:
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
-        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz)
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, Regressor = HuberRegressor)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
