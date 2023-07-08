@@ -10,7 +10,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.transforms as mtrans
 from scipy.stats import mannwhitneyu,ttest_1samp
 import imageio as iio # For importing field snapshot PNGs
-
+from collections import defaultdict
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
@@ -796,7 +796,7 @@ def plot_window_series(proc_data, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spe
 def plot_length_constants_vs_frequency(data, which_ds, which_probe,
                                        names  = {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"},
                                        labels = {"s=p":"Surr", "bw":"Sims", "16Ts":"Supp"},
-                                       cols   = {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.25), },
+                                       cols   = {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), },
                                        gamma_plot_width = 2,
                                        figsize = None):
                                        
@@ -824,7 +824,8 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
         ax[-1].set_title("")
         ax[-1].set_yticks(np.arange(0,1.1,0.5))
         ax[-1].set_ylabel("Correlations")
-        ax.append(plt.subplot(gs[i,1:1+gamma_plot_width], sharey=None if not i else ax[1]))
+
+        ax.append(plt.subplot(gs[i,1:1+gamma_plot_width], sharey=None))# if not i else ax[1]))
         γbs = F.fit_params[0][1:][:,:,1]
         freq_max = F.freq_max
         freqs_γ  = F.freqs[:γbs.shape[1]]
@@ -852,3 +853,85 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
     
 
                                        
+def plot_information_regression(data, which_ds, iprb,
+                                which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [5e-3,1e-2, 5e-2]]}),
+                                mean_normalize = True,
+                                same_plot      = True,
+                                coef_plot_width = 2,
+                                names  = {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"},
+                                cols   = {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), },                                
+                                figsize = None,
+):
+    gs = GridSpec(len(which_ds), len(which_log10_dists[which_ds[0]])+coef_plot_width)
+    plt.figure(figsize=(8,2.5 * len(which_ds)) if figsize is None else figsize)
+    ax = []
+    for i, ds in enumerate(which_ds):
+        ax.append([])
+        F = data[ds]
+        I = F.I[iprb][0]
+        I_freqs = F.freqs[:I.shape[0]]
+        ind_use = (I_freqs >= F.reg_freq_range[0]) & (I_freqs <= F.reg_freq_range[1])
+        xx = I_freqs[ind_use].to(UNITS.Hz).magnitude
+        xe = np.linspace(min(xx),max(xx),101)    
+        d_scale = F.pitch.to(UNITS.um).magnitude        
+        dd = F.I_dists/d_scale
+        which_idists = []
+        for j, ddj in enumerate(which_log10_dists[which_ds[0]]):
+            which_idist = np.argmin(abs(dd - 10**ddj))
+            which_idists.append(which_idist)
+            ax[i].append(plt.subplot(gs[i,j]))
+            axij = ax[i][-1]
+            
+            yy = I[ind_use, which_idist]
+            c0,c1 = F.reg_coefs[iprb][0][which_idist]
+            ye = 10**(c0 + c1 * xe)
+            ym = 10**np.mean(np.log10(yy * d_scale**2))
+            axij.semilogy(xx, (yy * d_scale**2)/(ym**mean_normalize),
+                          "o", markersize=2,
+                          label=f"FI / {ym:.2g}",
+                          color = cols[ds],
+            )
+            axij.plot(xe, (ye * d_scale**2)/(ym**mean_normalize), "--",
+                      color=cols[ds], linewidth=1,
+                      label = f"$\\beta$" + f"={c1:1.1e}"
+            )
+            mean_normalize and axij.set_ylim(0.2,5)
+            axij.legend(frameon=True, fontsize=8, labelspacing=0, handletextpad=0.5)
+            xt = list(axij.get_xticks())
+            if xx[0] not in xt: xt = ([xx[0]] + xt[1:]) if xt[0] < xx[0] else ([xx[0]] + xt)
+            axij.set_xticks(xt)
+            axij.set_xlim(0, xx[-1]+1)
+            if mean_normalize:
+                yt = np.array(list(np.arange(0.2,1,0.1)) + list(range(1,6)))
+                axij.set_yticks(yt, labels= [s if s[-1] in "125" else "" for s in [f"{yti:g}" for yti in yt]], fontsize=10)
+            [axij.spines[w].set_visible(False) for w in ["right", "top"]]
+            not gs[i,j].is_first_col() and axij.set_yticklabels([])
+            gs[i,j].is_last_row() and axij.set_xlabel("Frequency (Hz)")
+            gs[i,j].is_first_col() and axij.set_ylabel("Fisher information")
+            
+        if same_plot and gs[i,j].is_first_row(): ax_coef = plt.subplot(gs[:,-coef_plot_width:])
+        elif not same_plot: ax_coef = plt.subplot(gs[i,-coef_plot_width:])
+        else: pass # ax_coef will already have been defined.
+        pc = np.percentile(F.reg_coefs[iprb][1:][:,:,-1],[5,50,95],axis=0)
+        ax_coef.semilogx(dd, pc[1], "o-", color=cols[ds], markersize=4, label = names[ds])
+        ax_coef.fill_between(dd, pc[0], pc[2],color=fpft.set_alpha(cols[ds],0.1))
+    #    ax_coef.semilogx(dd[which_idists], pc[1][which_idists], "o", color = "r", markersize=4)    
+        ax_coef.set_ylim(-0.05,0.05)
+        ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-8, fontsize=12)
+        ax_coef.set_xlabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
+        [ax_coef.spines[w].set_visible(False) for w in ["right", "top"]]
+    ax_coef.grid(True, linestyle=":")
+    ax_coef.legend(frameon=False, labelspacing =0)
+    plt.tight_layout(pad=0,w_pad=0)
+    
+    for i, axi in enumerate(ax):
+        for j, axij in enumerate(axi):
+            trans = mtrans.Affine2D().translate(-0.06*j,0).scale(sx=1.25,sy=1)
+            bbox  = axij.get_position()
+            axij.set_position(mtrans.TransformedBbox(bbox, trans))
+
+    return ax, ax_coef
+    
+
+    
+    
