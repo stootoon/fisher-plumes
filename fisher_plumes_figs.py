@@ -791,3 +791,64 @@ def plot_window_series(proc_data, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spe
         axes[-1].set_title(f"{k}")
         if not gsi.is_first_col(): axes[-1].set_ylabel("")
     plt.tight_layout()
+
+
+def plot_length_constants_vs_frequency(data, which_ds, which_probe,
+                                       names  = {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"},
+                                       labels = {"s=p":"Surr", "bw":"Sims", "16Ts":"Supp"},
+                                       cols   = {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.25), },
+                                       gamma_plot_width = 2,
+                                       figsize = None):
+                                       
+    gs = GridSpec(len(which_ds), 1+gamma_plot_width+1)
+    plt.figure(figsize=(8,2 * len(which_ds) if figsize is None else figsize))
+    ax = []
+    which_corr_freqs = [2,5,10,20] * UNITS.Hz
+    labs = [f"{f}" for f in which_corr_freqs]
+    cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/20) for f in which_corr_freqs])})
+    coef_γ_vs_freq = {}
+    for i, ds in enumerate(which_ds):        
+        F = data[ds]
+        freq_min = F.fs/F.wnd #(1/window_length.to(UNITS.s).magnitude) * UNITS.Hz        
+        coef_γ_vs_freq[ds] = F.coef_γ_vs_freq[which_probe]
+        d_scale   = F.pitch.to(UNITS.um).magnitude
+        freq_inds = F.freqs2inds(which_corr_freqs)
+        slices    = {}    
+        slices.update({l:slice(fi, fi+1) for l, fi in zip(labs, freq_inds)})    
+        ax.append(plt.subplot(gs[i,0]))
+        plot_correlations(F.rho[0], F.pitch.to(UNITS.um).magnitude, slices = slices, cols = cols,
+                          plot_slices = False, plot_overlay=True, ax = [ax[-1]],
+                          legend_args = {"handlelength":1.25, "handletextpad":0.5, "borderpad":0},
+        )
+        ax[-1].set_xlabel(f"Intersource distance ({pitch_sym})")
+        ax[-1].set_title("")
+        ax[-1].set_yticks(np.arange(0,1.1,0.5))
+        ax[-1].set_ylabel("Correlations")
+        ax.append(plt.subplot(gs[i,1:1+gamma_plot_width], sharey=None if not i else ax[1]))
+        γbs = F.fit_params[0][1:][:,:,1]
+        freq_max = F.freq_max
+        freqs_γ  = F.freqs[:γbs.shape[1]]
+        ind_use  = (freqs_γ > freq_min) & (freqs_γ <= freq_max)
+        lo,md,hi = np.percentile(γbs, [5,50,95], axis = 0) / d_scale
+        
+        ax[-1].plot(freqs_γ[ind_use].to(UNITS.Hz).magnitude, md[ind_use], "o",color=cols[ds], markersize=4)
+        ax[-1].plot([freqs_γ[ind_use].to(UNITS.Hz).magnitude]*2, [lo[ind_use], hi[ind_use]], color=cols[ds],linewidth=1)
+        ax[-1].set_xlabel("Frequency (Hz)")
+        ax[-1].set_ylabel(f"Length constant ({pitch_sym})")
+        fpft.spines_off(ax[-1])
+    
+    ax_γ = plt.subplot(gs[:,-1])
+    box = ax_γ.boxplot(np.vstack([coef_γ_vs_freq[ds][:,-1] for ds in which_ds]).T, patch_artist=True,
+                       widths=0.25, labels = [labels[dsi] for dsi in which_ds],
+                       whis = [5,95],
+                       
+    )
+    ax_γ.set_ylabel("$\Delta \gamma / \Delta f$", fontsize=11,labelpad=-1)
+    [plt.setp(b, color = fpft.set_alpha(cols[ds],0.5), facecolor=fpft.set_alpha(cols[ds],0.5)) for ds, b in zip(which_ds, box["boxes"])]
+    [plt.setp(b, color = cols[ds], linewidth=1) for ds, b in zip(which_ds, box["medians"])]
+    fpft.spines_off(ax_γ)
+    plt.tight_layout(w_pad=0)
+    return ax, ax_γ
+    
+
+                                       
