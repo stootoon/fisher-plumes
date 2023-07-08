@@ -126,14 +126,15 @@ class SurrogateSimulationData:
         L = np.linalg.cholesky(K)
 
         np.random.seed(seed)
-        Xr, Xc = np.random.randn(2, n_src*n_freq) @ L.T
+        # Xr, Xc = np.random.randn(2, n_src*n_freq) @ L.T
+        # c = (Xr + Xc)/2
+        # s = (Xr - Xc)/2
+        c, s = np.random.randn(2, n_src*n_freq) @ L.T
         
         t = np.arange(0,2*n_freq+1)
         f = 2*np.pi*np.arange(1,n_freq+1)/(2*n_freq)
         C = np.cos(np.outer(t, f))
         S = np.sin(np.outer(t, f))
-        c = (Xr + Xc)/2
-        s = (Xr - Xc)/2
         x = [C @ c[i::n_src] + S @ s[i::n_src] for i in range(n_src)]
         X = np.array(x)
 
