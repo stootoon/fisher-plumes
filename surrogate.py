@@ -115,7 +115,6 @@ class SurrogateSimulationData:
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
-
         n_src  = len(self.fields)
         K = np.zeros((n_src * n_freq, n_src * n_freq))
         for n in range(n_freq):
