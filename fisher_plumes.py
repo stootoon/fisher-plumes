@@ -1,5 +1,3 @@
-import pdb
-
 import os, sys
 import numpy as np
 from scipy.signal import stft
@@ -438,7 +436,7 @@ class FisherPlumes:
         wnd = int(window_length.to(UNITS.s).magnitude * self.fs.to(UNITS.Hz).magnitude)
         INFO(f"Setting window to {wnd} samples.")
         self.set_window(wnd)
-        self.compute_stft()
+        self.compute_stft() # For the power spectrum, uses a boxcar window.
         self.compute_trig_coefs(istart=istart, window=window_shape, z_score = z_score)
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
@@ -448,7 +446,7 @@ class FisherPlumes:
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
-        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, Regressor = HuberRegressor)
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = HuberRegressor)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
