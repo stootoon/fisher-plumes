@@ -854,7 +854,7 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
 
                                        
 def plot_information_regression(data, which_ds, iprb,
-                                which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [5e-3,1e-2, 5e-2]]}),
+                                which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [1e-1, 4e-1, 7e-1]]}),
                                 mean_normalize = True,
                                 same_plot      = True,
                                 coef_plot_width = 2,
