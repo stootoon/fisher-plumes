@@ -861,6 +861,7 @@ def plot_information_regression(data, which_ds, iprb,
                                 names  = {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"},
                                 cols   = {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), },                                
                                 figsize = None,
+                                plot_ils = False,
 ):
     gs = GridSpec(len(which_ds), len(which_log10_dists[which_ds[0]])+coef_plot_width)
     plt.figure(figsize=(8,2.5 * len(which_ds)) if figsize is None else figsize)
@@ -915,7 +916,19 @@ def plot_information_regression(data, which_ds, iprb,
         pc = np.percentile(F.reg_coefs[iprb][1:][:,:,-1],[5,50,95],axis=0)
         ax_coef.semilogx(dd, pc[1], "o-", color=cols[ds], markersize=4, label = names[ds])
         ax_coef.fill_between(dd, pc[0], pc[2],color=fpft.set_alpha(cols[ds],0.1))
-    #    ax_coef.semilogx(dd[which_idists], pc[1][which_idists], "o", color = "r", markersize=4)    
+        if plot_ils and hasattr(F, "sim0") and hasattr(F.sim0, "integral_length_scales"):
+            keys = list(F.sim0.integral_length_scales.keys())
+            origin_key = (0 * UNITS.m, 0 * UNITS.m, "y")
+            probe_key  = tuple([k for k in keys if k[-1] == "y" and k != origin_key][0])
+            ils_origin = F.sim0.integral_length_scales[origin_key]["l"].to(F.pitch)
+            ils_probe  = F.sim0.integral_length_scales[probe_key]["l"].to(F.pitch)
+            #ax_coef.axvline(ils_origin.magnitude, ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (origin)")
+            #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
+            ax_coef.scatter([ils_origin.magnitude], [0], c="springgreen", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
+            ax_coef.scatter([ils_probe.magnitude],  [0], c="red",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
+            print(f"{ils_origin=}")
+            print(f"{ils_probe=}")            
+            
         ax_coef.set_ylim(-0.05,0.05)
         ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-8, fontsize=12)
         ax_coef.set_xlabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
