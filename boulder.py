@@ -170,6 +170,7 @@ class BoulderSimulationData:
             self.dimensions = simulations[simulations["name"] == name]["dimensions"].values[0] * self.units
             self.fields     = simulations[simulations["name"] == name]["data_fields"].values[0]
             self.fs         = simulations[simulations["name"] == name]["fs"].values[0] * UNITS.Hz
+            self.integral_length_scales = {}
             INFO(self)
     
     def __str__(self):
@@ -325,6 +326,43 @@ class BoulderSimulationData:
     
     def cleanup_probe_data(self, x):
         return x*(x > self.tol)
+
+    def compute_integral_length_scale(self, which_dir, px, py, recompute = False):
+        assert which_dir in ["x", "y"], f"which_dir must be 'x' or 'y', not '{which_dir}'."
+        INFO(f"Computing integral length scale at {px=}, {py=} for {which_dir=}.")                
+        k = (px,py,which_dir) 
+        if k in self.integral_length_scales and recompute == False:
+            INFO(f"Using cached value for {k=}.")
+            v = self.integral_length_scales[k]
+            return v["l"], v["fr"]
+
+        ix, iy = self.nearest_probe(px, py)
+        INFO(f"Nearest probe index is {(ix, iy)}.")
+        with self.load_h5() as f:
+            if which_dir == "x":
+                s  = f["Flow Data"]["u"][:, :, iy]
+                ii = ix
+                ds = abs(self.probe_grid["x"][1,0] - self.probe_grid["x"][0,0])
+            elif which_dir == "y":
+                s  = f["Flow Data"]["v"][:, ix, :]
+                ii = iy
+                ds = abs(self.probe_grid["y"][0,1] - self.probe_grid["y"][0,0])
+            else:
+                raise ValueError(f"Unknown direction '{which_dir}'.")
+
+        sms = s - np.mean(s, axis=0)
+        ss  = {}
+        for r in range(sms.shape[1]):
+            ss[r] = []
+            if ii - r >=0:            ss[r].append(np.mean(sms[:,ii-r]*sms[:,ii]))
+            if ii + r < sms.shape[1]: ss[r].append(np.mean(sms[:,ii+r]*sms[:,ii]))
+        fr = np.array([np.mean(ssr) if len(ssr) else np.nan for _,ssr in sorted(ss.items())])
+        fr/= fr[0]
+        l  = np.nansum(fr * ds)
+
+        self.integral_length_scales[(px, py, which_dir)] = {"fr":fr, "l":l}
+
+        return l, fr
 
 def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
               units = UNITS.m, pitch_units = UNITS.m,
