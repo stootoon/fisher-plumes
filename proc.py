@@ -150,6 +150,7 @@ if __name__ == "__main__":
         print(fp)
     
     compute = spec["compute"]
+    
     # Generate a list of dictionaries, each with the same fielda as compute, but with the values
     # set by taking all combinations of the corresponding values in compute.
     
@@ -158,9 +159,10 @@ if __name__ == "__main__":
     verbose and print(f"Found the following keys: {keys}.")
     # Now, for each key generate a list of all the values.
     # If a given value is not a list type, make it into a singleton list.
-    values = [compute[k] if hasattr(compute[k], "__len__") else [compute[k]] for k in keys]
+    values = [compute[k] if hasattr(compute[k], "__len__") and not k.endswith("__") else [compute[k]] for k in keys]
     # Now, generate a list of dictionaries, each with the same keys as compute, but with the values
     # set by taking all combinations of the corresponding values in compute.
+    keys = [k if not k.endswith("__") else k[:-2] for k in keys]
     compute_list = [{k:v for k,v in zip(keys, vals)} for vals in itertools.product(*values)]
     
     # Create a directory for the output file.
