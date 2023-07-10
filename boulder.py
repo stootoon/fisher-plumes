@@ -360,9 +360,9 @@ class BoulderSimulationData:
         fr/= fr[0]
         l  = np.nansum(fr * ds)
 
-        self.integral_length_scales[(px, py, which_dir)] = {"fr":fr, "l":l}
+        self.integral_length_scales[(px, py, which_dir)] = {"fr":fr, "l":l, "ds":ds}
 
-        return l, fr
+        return l, fr, ds
 
 def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
               units = UNITS.m, pitch_units = UNITS.m,
