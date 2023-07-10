@@ -924,8 +924,8 @@ def plot_information_regression(data, which_ds, iprb,
             ils_probe  = F.sim0.integral_length_scales[probe_key]["l"].to(F.pitch)
             #ax_coef.axvline(ils_origin.magnitude, ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (origin)")
             #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
-            ax_coef.scatter([ils_origin.magnitude], [0], c="springgreen", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
-            ax_coef.scatter([ils_probe.magnitude],  [0], c="red",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
+            ax_coef.scatter([ils_origin.magnitude], [0], c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
+            ax_coef.scatter([ils_probe.magnitude],  [0], c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
             print(f"{ils_origin=}")
             print(f"{ils_probe=}")            
             
