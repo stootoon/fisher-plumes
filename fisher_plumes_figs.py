@@ -924,8 +924,8 @@ def plot_information_regression(data, which_ds, iprb,
             ils_probe  = F.sim0.integral_length_scales[probe_key]["l"].to(F.pitch)
             #ax_coef.axvline(ils_origin.magnitude, ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (origin)")
             #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
-            ax_coef.scatter([ils_origin.magnitude], [0], c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
-            ax_coef.scatter([ils_probe.magnitude],  [0], c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
+            ax_coef.scatter([ils_origin.magnitude], [0], zorder = 5, c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
+            ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 5, c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
             print(f"{ils_origin=}")
             print(f"{ils_probe=}")            
             
@@ -934,7 +934,7 @@ def plot_information_regression(data, which_ds, iprb,
         ax_coef.set_xlabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
         [ax_coef.spines[w].set_visible(False) for w in ["right", "top"]]
     ax_coef.grid(True, linestyle=":")
-    ax_coef.legend(frameon=False, labelspacing =0)
+    ax_coef.legend(frameon=False, labelspacing =0, loc="lower left")
     plt.tight_layout(pad=0,w_pad=0)
     
     for i, axi in enumerate(ax):
