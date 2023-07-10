@@ -1,3 +1,4 @@
+import pdb
 import os, sys
 import numpy as np
 from scipy.signal import stft
@@ -431,8 +432,17 @@ class FisherPlumes:
         pack_coefs = lambda lr: [lr.intercept_, lr.coef_[0]]
         self.coef_γ_vs_freq = [np.array([pack_coefs(lr.fit(ff,γbs[ind_use[:len(γbs)]])) for γbs in fp[:, :, 1]/d_scale]) for fp in self.fit_params]            
     
-    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, z_score = True):
+    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, z_score = True, **kwargs):
         INFO(f"STARTING COMPUTATION.")
+        if "integral_length_scale_locs_absolute" in kwargs:
+            locs = kwargs["integral_length_scale_locs_absolute"]
+            print(f"{locs=}")
+            if hasattr(self, "sim0"):
+                if hasattr(self.sim0, "compute_integral_length_scale"):
+                    for loc in locs:
+                        self.sim0.compute_integral_length_scale("x", loc[0], loc[1])
+                        self.sim0.compute_integral_length_scale("y", loc[0], loc[1])
+                        
         wnd = int(window_length.to(UNITS.s).magnitude * self.fs.to(UNITS.Hz).magnitude)
         INFO(f"Setting window to {wnd} samples.")
         self.set_window(wnd)
@@ -446,7 +456,7 @@ class FisherPlumes:
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
-        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = HuberRegressor)
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = LinearRegression)
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
