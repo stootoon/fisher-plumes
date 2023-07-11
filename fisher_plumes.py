@@ -25,6 +25,7 @@ logger.setLevel(logging.DEBUG)
 
 INFO  = logger.info
 DEBUG = logger.debug
+WARN  = logger.warning
 
 class FisherPlumes:
 
@@ -397,16 +398,17 @@ class FisherPlumes:
         # Compute the percentiles over bootstraps ([1:] in the first dimension)
         self.I_pcs = [{pc:Ipc for (pc, Ipc) in zip(pcs, np.percentile(I[1:], pcs, axis=0))} for I in self.I]
 
-    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None, Regressor = LinearRegression):
+    def regress_information_on_frequency(self, freq_min = 0 * UNITS.Hz, freq_max = None, Regressor = LinearRegression()):
         if freq_max is None: freq_max = self.freq_max
         INFO(f"Regressing fisher information on frequency between {freq_min=:} and {freq_max=:}.")
         self.reg_freq_range = (freq_min, freq_max)
         n_bs, n_I_freq, n_d = self.I[0].shape    
         ind   = (self.freqs >= freq_min) & (self.freqs <= freq_max)
         freqs = self.freqs.to(UNITS.Hz).magnitude
-        lr  = Regressor()
-        self.reg_type = Regressor.__class__.__name__
-        self.reg_coefs = []    
+        lr  = Regressor
+        self.reg_type = str(lr)
+        self.reg_params = lr.get_params()
+        self.reg_coefs = []
         for I in self.I:
             reg_coefs = []
             for Ibs in I:
@@ -414,10 +416,17 @@ class FisherPlumes:
                     yy = Ibs[ind[:n_I_freq],i]
                     xx = freqs[ind][:len(yy)]
                     ivld = ~np.isnan(yy) & (yy>0) & ~np.isinf(yy)
+
+                    success = False
                     if len(ivld)>=2:
-                        lr.fit(xx[ivld].reshape(-1,1), np.log10(yy[ivld]))
-                        reg_coefs.append([lr.intercept_] + list(lr.coef_))
-                    else:
+                        try:
+                            lr.fit(xx[ivld].reshape(-1,1), np.log10(yy[ivld]))
+                            success = True
+                            reg_coefs.append([lr.intercept_] + list(lr.coef_))
+                        except Exception as e:
+                            WARN(f"Regression failed with exception {e}.")
+                        
+                    if not success:
                         reg_coefs.append([np.nan]*2)
     
             reg_coefs = np.array(reg_coefs).reshape(n_bs, n_d, 2)
@@ -456,7 +465,7 @@ class FisherPlumes:
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
-        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = LinearRegression)
+        self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = HuberRegressor(max_iter=10000))
         INFO(f"Done computing all for {wnd=}.")
 
     def freqs2inds(self, which_freqs):
