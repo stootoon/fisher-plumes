@@ -82,7 +82,7 @@ def load_data(init_filter, compute_filter, registry = None, return_matches = Fal
     matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
 
     if len(matches) == 0:
-        WARN("No matches found.")
+        WARN(f"No matches found for {init_filter=} and {compute_filter=}.")
         return None
     elif len(matches) > 1:
         WARN(f"{len(matches)} > 1 matches found for {init_filter=} an {compute_filter=}.")
