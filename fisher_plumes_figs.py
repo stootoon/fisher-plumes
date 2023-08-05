@@ -229,6 +229,57 @@ def plot_correlations(rho,
 
     return ax
 
+def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
+                  figsize=(8,3),
+                     dist_col_scale = 120000,
+                     markersize=10,
+                     cols = ["C0","C1","C2","C3"],
+                     coef_names = {0:"Coef 1", 1:"Coef 2"},
+                     plot_grid = False,
+                     lim_scale = 4,
+):
+    
+    if type(coefs) is not list: coefs = [coefs]
+
+    dists   = np.array(sorted(pairs_um.keys()))
+    which_d = dists[dists>0][i_pos_dist]
+    pooled1  = np.concatenate([
+        [coef[y][0][:, ifreq] for y in (y1,y2) for coef in coefs] for (y1,y2) in pairs_um[which_d]],
+                             axis = 1)
+
+    plt.figure(figsize=figsize)
+    th = np.linspace(0,2*np.pi,1001)
+
+    dist2col_ = lambda d: dist2col(d,dist_col_scale)
+
+    axes = []
+    gs = GridSpec(len(pooled1), len(pooled1))
+    for i, p0 in enumerate(pooled1):
+        for j, p1 in enumerate(pooled1):
+            axes.append(plt.subplot(gs[i,j]))
+            U,S,_ = np.linalg.svd(np.cov([p0,p1]))
+            p0m= np.mean(p0)
+            p1m= np.mean(p1)
+            plt.plot(p0,  p1, "o", color=fpft.mix_colors([cols[i],cols[j]]), markersize=markersize)
+            plt.plot(p0m, p1m, "k+", markersize=10)
+        
+            for r in [1,2,3]:
+                xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
+                plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
+
+            pc = np.percentile(np.concatenate([p0,p1]).flatten(),[1,99])
+            scale = lim_scale*max(abs(pc))
+            plt.xlim([-scale,scale]);
+            plt.ylim([-scale,scale])
+            fpft.spines_off(plt.gca())
+            #plt.axis("equal")
+            plt.grid(True, linestyle=":", color="k", alpha=0.5)
+            if i==len(pooled1)-1: plt.xlabel(f"{coef_names[j%2]}, Src {(j//2)+1}")
+            if j==0: plt.ylabel(f"{coef_names[i%2]}, Src {(i//2)+1}")
+    return axes
+
+                  
+
 def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],

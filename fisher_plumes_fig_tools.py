@@ -27,6 +27,8 @@ hex2rgb    = lambda h: hex2rgb_(color2hex(h))
 set_alpha_ = lambda c,a: list(list(c[:3]) + [a])
 set_alpha  = lambda c, a: set_alpha_(c if type(c) in [list,tuple] else hex2rgb(c), a)
 
+mix_colors = lambda cols: np.mean(np.array([(mcolors.to_rgba(c) if type(c) is str else c) for c in cols]), axis=0)
+
 spines_off = lambda ax, which=['top','right']: [ax.spines[w].set_visible(False) for w in which]
 
 def pplot(*args, **kwargs):
