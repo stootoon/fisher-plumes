@@ -237,6 +237,7 @@ def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
                      coef_names = {0:"Coef 1", 1:"Coef 2"},
                      plot_grid = False,
                      lim_scale = 4,
+                     print_fun = None,
 ):
     
     if type(coefs) is not list: coefs = [coefs]
@@ -262,7 +263,9 @@ def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
             p1m= np.mean(p1)
             plt.plot(p0,  p1, "o", color=fpft.mix_colors([cols[i],cols[j]]), markersize=markersize)
             plt.plot(p0m, p1m, "k+", markersize=10)
-        
+            if print_fun is not None:
+                val = print_fun(p0,p1)[0,1]
+                plt.title(f"{np.round(val,2)}", loc="right", y=0.8)
             for r in [1,2,3]:
                 xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
                 plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
