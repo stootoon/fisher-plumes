@@ -6,6 +6,7 @@ init:
   pairs_mode: "unsigned"
   n_bootstraps: 50
   random_seed: 0
+  surrogate_k: 0
 compute:
   window_shape: "['boxcar', 'hann', ('kaiser',9), ('kaiser',16)]"
   window_length: "[1*SEC, 2*SEC, 4*SEC, 5*SEC, 10*SEC]"
