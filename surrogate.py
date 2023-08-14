@@ -88,27 +88,34 @@ class SurrogateSimulationData:
         one_over_f = lambda f,k,fc: 1/(max(f/fc,1)**k)
 
         n_freq      = self.surr_data_args["n_samples"]//2
-        surrogate_k = self.surr_data_args["surrogate_k"] if "surrogate_k" in self.surr_data_args else 4.
 
-        self.nt = 2 * n_freq + 1        
+        surrogate_k = self.surr_data_args["surrogate_k"] if "surrogate_k" in self.surr_data_args else 4.
+        INFO(f"Using {surrogate_k=:g}.")
+
+        phi = self.surr_data_args["phi"] if "phi" in self.surr_data_args else 0.
+        INFO(f"Using {phi=:g}.")        
+
+        self.nt = 2 * n_freq + 1
+        INFO(f"Generating surogate data with {self.nt} time samples.")
+        
         if self.name == "no_info":
-            INFO(f"Generating surogate data where all frequencies are uninformative. {surrogate_k=:.1f}")                                    
+            INFO(f"Generating surrogate data where all frequencies are uninformative. {surrogate_k=:.1f}")                                    
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n)
         elif self.name == "all_equal":
-            INFO(f"Generating surogate data where all frequencies are equally informative.")                        
+            INFO(f"Generating surrogate data where all frequencies are equally informative.")                        
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/12) - 1
             #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
         elif self.name == "one_info":
-            INFO(f"Generating surogate data where one frequency is more informative than the others.")            
+            INFO(f"Generating surrogate data where one frequency is more informative than the others.")            
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==4))) - 1
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
         elif self.name == "high":
-            INFO(f"Generating surogate data where high frequencies are more informative.")
+            INFO(f"Generating surrogate data where high frequencies are more informative.")
             ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)            
             ker_spat = lambda i,j,n: 1 if (i==j) else np.exp(-abs(i-j)/(12. if n< n_freq//2 else 2.))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
@@ -116,19 +123,20 @@ class SurrogateSimulationData:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
         n_src  = len(self.fields)
-        K = np.zeros((n_src * n_freq, n_src * n_freq))
+        Kin = np.zeros((n_src * n_freq, n_src * n_freq))
+        Kout= np.zeros((n_src * n_freq, n_src * n_freq))
         for n in range(n_freq):
             for i in range(n_src):
                 for j in range(n_src):
-                    K[n_src * n + i, n_src * n + j] = kernel(i,j,n)
-
+                    Kin[ n_src * n + i, n_src * n + j]  = kernel(i,j,n)
+                    Kout[n_src * n + i, n_src * n + j]  = sign(j-i) * kernel(i,j,n) * np.tan(phi)
+        K = np.block([[Kin, Kout], [Kout.T, Kin]])
         L = np.linalg.cholesky(K)
 
         np.random.seed(seed)
-        # Xr, Xc = np.random.randn(2, n_src*n_freq) @ L.T
-        # c = (Xr + Xc)/2
-        # s = (Xr - Xc)/2
-        c, s = np.random.randn(2, n_src*n_freq) @ L.T
+        cs = L @ np.random.randn(2*n_src*n_freq)
+        c  = cs[:n_src*n_freq]
+        s  = cs[n_src*n_freq:]
         
         t = np.arange(0,2*n_freq+1)
         f = 2*np.pi*np.arange(1,n_freq+1)/(2*n_freq)
