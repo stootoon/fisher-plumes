@@ -16,7 +16,11 @@ from utils import eval_fields, deepcopy_data_fields, create_logger
 import itertools
 import hashlib
 
-import units
+import units; UNITS = units.UNITS
+HZ = UNITS.Hz
+SEC= UNITS.s
+M  = UNITS.m
+UM = UNITS.um
 
 logger = create_logger(__name__)
 INFO = logger.info
@@ -97,7 +101,34 @@ def load_data(init_filter, compute_filter, registry = None, return_matches = Fal
 
     INFO(f"Returning {len(results)} results.")
     return results if not return_matches else (results, matches)
-        
+
+def load_spec(spec_file, verbose = False):
+    """ Load the YAML file containing the specification for the runs to perform. """
+    with open(spec_file, "r") as f:
+        spec = yaml.load(f, Loader=yaml.FullLoader)
+
+    # Set the evaluation context to be the current globals.
+    context = globals()
+    spec    = eval_fields(spec, context=context)
+    verbose and print(spec)
+
+    compute = spec["compute"]
+    
+    # Generate a list of dictionaries, each with the same fielda as compute, but with the values
+    # set by taking all combinations of the corresponding values in compute.
+    
+    # First, generate a list of all the keys in compute.
+    keys = list(compute.keys())
+    verbose and print(f"Found the following keys: {keys}.")
+    # Now, for each key generate a list of all the values.
+    # If a given value is not a list type, make it into a singleton list.
+    values = [compute[k] if hasattr(compute[k], "__len__") and not k.endswith("__") else [compute[k]] for k in keys]
+    # Now, generate a list of dictionaries, each with the same keys as compute, but with the values
+    # set by taking all combinations of the corresponding values in compute.
+    keys = [k if not k.endswith("__") else k[:-2] for k in keys]
+    compute_list = [{k:v for k,v in zip(keys, vals)} for vals in itertools.product(*values)]
+    
+    return spec, compute_list
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
@@ -118,13 +149,6 @@ if __name__ == "__main__":
         print("No run specification file given. Exiting.")
         exit(1)
 
-    from fisher_plumes import FisherPlumes
-    import units; UNITS = units.UNITS
-    HZ = UNITS.Hz
-    SEC= UNITS.s
-    M  = UNITS.m
-    UM = UNITS.um
-                
     verbose   = args.verbose    
     if not os.path.exists(args.registry):
         print(f"Registry file {args.registry} does not exist. Creating registry.")
@@ -133,38 +157,15 @@ if __name__ == "__main__":
         print(f"Registry file {args.registry} exists. Loading registry.")
         registry = pickle.load(open(args.registry, "rb"))
         print(f"Registry loaded. Found {len(registry)} items.")
-        
-        
+           
     # Load the run specification file.
-    spec_file = args.run_spec
-    with open(spec_file, "r") as stream:
-        spec = yaml.safe_load(stream)
-    
-    # Set the evaluation context to be the current globals.
-    context = globals()
-    spec    = eval_fields(spec, context=context)
-    verbose and print(spec)
-    
+    spec, compute_list  = load_spec(args.run_spec, verbose = verbose)
+
     if not args.mock:
+        from fisher_plumes import FisherPlumes            
         print("Creating FisherPlumes object.")
         fp = FisherPlumes(**spec["init"])
         print(fp)
-    
-    compute = spec["compute"]
-    
-    # Generate a list of dictionaries, each with the same fielda as compute, but with the values
-    # set by taking all combinations of the corresponding values in compute.
-    
-    # First, generate a list of all the keys in compute.
-    keys = list(compute.keys())
-    verbose and print(f"Found the following keys: {keys}.")
-    # Now, for each key generate a list of all the values.
-    # If a given value is not a list type, make it into a singleton list.
-    values = [compute[k] if hasattr(compute[k], "__len__") and not k.endswith("__") else [compute[k]] for k in keys]
-    # Now, generate a list of dictionaries, each with the same keys as compute, but with the values
-    # set by taking all combinations of the corresponding values in compute.
-    keys = [k if not k.endswith("__") else k[:-2] for k in keys]
-    compute_list = [{k:v for k,v in zip(keys, vals)} for vals in itertools.product(*values)]
     
     # Create a directory for the output file.
     # The directory name will be the same as the spec file, but with the extension removed.
