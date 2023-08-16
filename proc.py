@@ -169,7 +169,7 @@ if __name__ == "__main__":
     
     # Create a directory for the output file.
     # The directory name will be the same as the spec file, but with the extension removed.
-    output_dir = os.path.splitext(spec_file)[0]
+    output_dir = os.path.splitext(args.run_spec)[0]
     print(output_dir)
     if not os.path.exists(output_dir):
         print(f"Creating output directory {output_dir}.")
