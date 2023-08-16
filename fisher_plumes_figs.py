@@ -371,8 +371,8 @@ def plot_alaplace_fits(F, which_dists_um,
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],1.2)        
         xvals = np.linspace(xl[0],xl[-1],1001)
 
-        la_   = F.la[which_probe][d][0][which_ifreq]
-        mu_   = F.mu[which_probe][d][0][which_ifreq]
+        la_   = F.la[which_probe][d][0][which_ifreq][0] # 0 to get the in-phase valuea
+        mu_   = F.mu[which_probe][d][0][which_ifreq][0]
         ypred = fpt.alaplace_cdf(la_, mu_, xvals)
 
         hdata = fpft.cdfplot(rr,color=dist2col(d), linewidth=1, label='F$_{data}$($x$)')
@@ -425,10 +425,10 @@ def plot_alaplace_fits(F, which_dists_um,
 
         ax_hm.append(plt.subplot(gs[i,-2:] if plot_pvals else gs[:,-2:]))
 
-        dists_um = np.array(sorted(vals))
+        dists_um = np.array([d for d in sorted(vals) if d >= 0])
         n_dists = len(dists_um)
         dd = np.mean(np.diff(dists_um))
-        v = np.array([vals[d][0] for d in sorted(vals)]).T
+        v = np.array([vals[d][0] for d in dists_um]).T
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
@@ -582,6 +582,7 @@ def plot_la_gen_fits_vs_distance(F,
 
     gs     = GridSpec(2,3)
     dd_all_um = np.array(sorted(list(F.la[which_probe].keys())))
+    dd_nneg_um = dd_all_um[dd_all_um>=0] 
     la     = {d:F.la[which_probe][d][0] for d in F.la[which_probe]}
     la_sub = np.array(la[d] for d in dd_all_um if d in F.dd_fit)
     freqs  = np.arange(F.wnd)/F.wnd*F.fs
@@ -590,12 +591,13 @@ def plot_la_gen_fits_vs_distance(F,
     identity = lambda y: y
 
     d_scale = F.pitch.to(UNITS.um).magnitude
-    dx = dd_all_um / d_scale
+    dx = dd_nneg_um / d_scale
     for i, fi in enumerate(which_ifreqs):
         row   = i // 2
         col   = i %  2
         ax.append(plt.subplot(gs[row, col]))
-        X = np.stack([F.la[which_probe][d][1:, fi] for d in dd_all_um],axis=1) # 1: is to take the bootstraps (0 is the raw data)
+        # X = ... 1: is to take the bootstraps (0 is the raw data), ...0] is to take the in_phase values of la    
+        X = np.stack([F.la[which_probe][d][1:, fi, 0] for d in dd_nneg_um],axis=1) 
         la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
         ax[-1].plot(dx, la_med, "o-", color=colfun(F.freqs[fi]), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
         ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)

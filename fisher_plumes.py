@@ -341,6 +341,16 @@ class FisherPlumes:
                 diff_in_phase  = self.la[iprb][d][:,:,0] - self.mu[iprb][d][:,:,0]
                 diff_out_phase = self.la[iprb][d][:,:,1] - self.mu[iprb][d][:,:,1]
                 self.phi[iprb][d] = np.arccos(np.sqrt(diff_in_phase**2 / (diff_in_phase**2 + diff_out_phase**2)))
+
+    def compute_pvalues(self, skip_bootstrap = True):
+        INFO("Computing p-values.")
+        if skip_bootstrap:
+            INFO("(Skipping p-value computation for bootstraps.)")
+        self.pvals = [
+            {d:np.array([
+                # [:,0] is to get the in-phase data
+                [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f[0], mud_bs_f[0], rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+                for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
     def compute_r2values(self, skip_bootstrap = True):
         INFO("Computing R^2-values.")
@@ -348,7 +358,8 @@ class FisherPlumes:
             INFO("(Skipping R^2-value computation for bootstraps.)")
         self.r2vals = [
             {d:np.array([
-            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+                # [:,0] is to get the in-phase data
+            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f[0], mud_bs_f[0], rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
     def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True):
@@ -357,10 +368,10 @@ class FisherPlumes:
         """
         INFO(f"Computing generalized exponential fit to distance.")
         dists = np.array(sorted(list(self.la[0].keys())))
-        dd    = dists[np.abs(dists)<=dmax_um]
+        dd    = np.array([d for d in dists if 0 <= d <= dmax_um])
     
-        INFO(f"Using {len(dd)} distances <= {dmax_um} um ")
-        la_sub = [np.stack([la[d] for d in dists if abs(d) <= dmax_um],axis=-1) for la in self.la]
+        INFO(f"Using {len(dd)} distances >= 0 and <= {dmax_um} um ")
+        la_sub = [np.stack([la[d][:,:,0] for d in dd],axis=-1) for la in self.la]
         n_bs, n_freqs, n_dists = la_sub[0].shape
         
         INFO(f"Computed λ for {n_freqs} frequencies and {n_dists} distances and {n_bs} bootstraps.")
@@ -500,7 +511,7 @@ class FisherPlumes:
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         self.compute_phi()
-        return
+        self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
