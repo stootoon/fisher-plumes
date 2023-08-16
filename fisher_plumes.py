@@ -320,15 +320,6 @@ class FisherPlumes:
                 
         DEBUG(f"{utils.d1(self.la[0]).shape=}")
     
-    def compute_pvalues(self, skip_bootstrap = True):
-        INFO("Computing p-values.")
-        if skip_bootstrap:
-            INFO("(Skipping p-value computation for bootstraps.)")
-        self.pvals = [
-            {d:np.array([
-                [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f, mud_bs_f, rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
-                for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
-
     def compute_r2values(self, skip_bootstrap = True):
         INFO("Computing R^2-values.")
         if skip_bootstrap:
