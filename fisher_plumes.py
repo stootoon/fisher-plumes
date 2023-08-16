@@ -478,7 +478,6 @@ class FisherPlumes:
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
         return
-        self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
