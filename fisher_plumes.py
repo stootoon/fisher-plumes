@@ -282,7 +282,10 @@ class FisherPlumes:
 
         dists = sorted(list(self.pairs_um.keys()))
         n_probes = len(self.ss)
-        self.la,  self.mu  = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
+
+        self.la  = [{d:[] for d in dists} for _ in range(n_probes)]
+        self.mu  = [{d:[] for d in dists} for _ in range(n_probes)]
+
         freqs = np.arange(self.wnd)/self.wnd * self.fs
         if fmax is None: fmax = self.fs/2
         DEBUG(f"{sum(freqs<=fmax)=}.")
@@ -316,10 +319,29 @@ class FisherPlumes:
             for d in dists:
                 #.T for bootstraps x data, then reshape to (bootstraps, freqs,{in-phase, out-of-phase})
                 self.la[iprb][d]  = np.array(self.la[iprb][d]).T.reshape(self.n_bootstraps+1,-1,2)
-                self.mu[iprb][d]  = np.array(self.mu[iprb][d]).T.reshape(self.n_bootstraps+1,-1,2)
+                self.mu[iprb][d]  = np.array(self.mu[iprb][d]).T.reshape(self.n_bootstraps+1,-1,2)                
                 
         DEBUG(f"{utils.d1(self.la[0]).shape=}")
-    
+        
+    def compute_phi(self):
+        """ Compute the phase ϕ of the interaction between sources.
+        Computing la - mu for the in-phase data gives β cos(ϕ)
+        Computing la - mu for the out-of-phase data gives β sin(ϕ)
+        That means that the ratio of the square of the in-phase data
+        to the sum of the squares of the in phase data and the out-of-phase data
+        gives cos(ϕ)^2. Taking the square root gives cos(ϕ).
+        """
+        INFO("Computing ϕ.")
+        pos_dists = [d for d in sorted(list(self.pairs_um.keys())) if d > 0]
+        n_probes  = len(self.ss)
+        self.phi  = [{d:[] for d in pos_dists} for _ in range(n_probes)]        
+
+        for iprb in range(n_probes):
+            for d in pos_dists:
+                diff_in_phase  = self.la[iprb][d][:,:,0] - self.mu[iprb][d][:,:,0]
+                diff_out_phase = self.la[iprb][d][:,:,1] - self.mu[iprb][d][:,:,1]
+                self.phi[iprb][d] = np.arccos(np.sqrt(diff_in_phase**2 / (diff_in_phase**2 + diff_out_phase**2)))
+        
     def compute_r2values(self, skip_bootstrap = True):
         INFO("Computing R^2-values.")
         if skip_bootstrap:
@@ -477,6 +499,7 @@ class FisherPlumes:
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
+        self.compute_phi()
         return
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)

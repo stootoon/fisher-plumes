@@ -229,8 +229,9 @@ def plot_correlations(rho,
 
     return ax
 
-def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
-                  figsize=(8,3),
+def plot_scattergram(F, ifreq, i_pos_dist,
+                     which_probe = 0,
+                     figsize=(8,3),
                      dist_col_scale = 120000,
                      markersize=10,
                      cols = ["C0","C1","C2","C3"],
@@ -240,13 +241,11 @@ def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
                      print_fun = None,
 ):
     
-    if type(coefs) is not list: coefs = [coefs]
+    dists    = np.array(sorted(F.pairs_um.keys()))
+    which_d  = dists[dists>0][i_pos_dist]
 
-    dists   = np.array(sorted(pairs_um.keys()))
-    which_d = dists[dists>0][i_pos_dist]
-    pooled1  = np.concatenate([
-        [coef[y][0][:, ifreq] for y in (y1,y2) for coef in coefs] for (y1,y2) in pairs_um[which_d]],
-                             axis = 1)
+    ibs = 0 # Use the raw data, not the bootstrapps
+    pooled1  = F.pool_trig_coefs_for_distance(which_d)[which_probe][ibs,:,:,ifreq]
 
     plt.figure(figsize=figsize)
     th = np.linspace(0,2*np.pi,1001)
@@ -281,7 +280,8 @@ def plot_scattergram(coefs, ifreq, i_pos_dist, pairs_um, pitch_units,
             if j==0: plt.ylabel(f"{coef_names[i%2]}, Src {(i//2)+1}")
     return axes
 
-                  
+
+
 
 def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
                         figsize=(8,3),
