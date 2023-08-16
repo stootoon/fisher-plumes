@@ -767,6 +767,26 @@ def plot_fisher_information(
                 
     return ax_fisher, ax_best_freq, ax_d
 
+def plot_phase_heatmap(F, which_probe,
+                    heatmap_cm    = cm.magma,
+):
+    dd       = np.array(sorted(F.phi[which_probe]))
+    phi      = np.array([F.phi[which_probe][d][0] for d in dd])
+    freq_res = F.fs/F.wnd
+    plt.figure(figsize=(8,4))
+    plt.matshow(phi * 180/np.pi, vmin=0,vmax=90,
+        extent = [(F.freqs[0] - freq_res/2).to(UNITS.Hz).magnitude, (F.freqs[phi.shape[1]] - freq_res/2).to(UNITS.Hz).magnitude, -0.5, len(dd)-0.5],
+        cmap=heatmap_cm,
+        fignum=False, origin="lower");
+    plt.axis("auto")
+    cbar = plt.colorbar(pad=0.02)
+    plt.gca().xaxis.tick_bottom()
+    plt.yticks(np.arange(len(dd)), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dd],
+               fontsize=10, rotation=0);
+    plt.ylabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
+    plt.xlabel(f"Frequency (Hz)", fontsize=12)
+    cbar.set_label("Phase (deg)")
+
 
 def plot_fisher_information_heatmap(F, which_probe,
                                     ax = None,
