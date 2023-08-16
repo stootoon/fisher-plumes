@@ -187,11 +187,20 @@ class FisherPlumes:
                        for d,pairsd in self.pairs_um.items()} for ss,cc in zip(self.ss, self.cc)]
 
     def pool_trig_coefs_for_distance(self, d):
-        cs_0 = [np.concatenate([coef_prb[y0] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs_um[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
-        cs_1 = [np.concatenate([coef_prb[y1] for coef_prb in [ss_prb, cc_prb] for (y0,y1) in self.pairs_um[d]], axis=1) for (ss_prb,cc_prb) in zip(self.ss, self.cc)]
-        cs_pooled = [np.transpose(np.stack((cs0_prb, cs1_prb), 3), [0,3,1,2]) for (cs0_prb, cs1_prb) in zip(cs_0, cs_1)]
-        return cs_pooled
-        # cs_pooled[iprb][bs, 2, #windows, fi]
+        """ Pool the trig coefficients for distance d. 
+        Returns a list of pooled coefficients for each probe.
+        The list elements are arrays of shape (bs, 4, #windows, #freqs).
+        The 4 is for s0, c0, s1, c1.
+        """
+        pooled = [
+            np.concatenate([
+                [coef[y] for y in (y0,y1) for coef in (ss_prb,cc_prb)]
+                for (y0, y1) in self.pairs_um[d]],
+                           axis=2).transpose([1,0,2,3]) # Transpose to get bs x 4 x #windows x freqs
+            for ss_prb, cc_prb in zip(self.ss, self.cc)]
+
+        return pooled
+        # pooled[iprb][bs, 4=(s0,c0,s1,c1), #windows, fi]
 
     def test_trig_coef_pooling(self):
         DEBUG("Testing trig coef pooling.")
@@ -214,19 +223,20 @@ class FisherPlumes:
         dist  = list(self.pairs_um.keys())[1]
         ifreq = 1
         ibs   = min(1,self.n_bootstraps)
+        sc    = 0
         y01   = 1
-        DEBUG(f"Testing with {iprb=} {dist=} {ifreq=} {ibs=} {y01=}.")
+        DEBUG(f"Testing with {iprb=} {dist=} {ifreq=} {ibs=} {sc=} {y01=}.")
 
         self.ss = ss
         self.cc = cc
-        pooled  = self.pool_trig_coefs_for_distance(dist)[iprb][:,:,:,ifreq] # bs, (y0,y1), time, freq
+        pooled  = self.pool_trig_coefs_for_distance(dist)[iprb][:,:,:,ifreq] # bs, (s_y0,c_y0,s_y1,c_y1), (dists x time), freq
 
-        expected  = [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. + 1j*(iprb+1) for (y0,y1) in self.pairs_um[dist] for itime in range(self.ss[iprb][y0].shape[1])]
-        expected += [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. - 1j*(iprb+1) for (y0,y1) in self.pairs_um[dist] for itime in range(self.ss[iprb][y0].shape[1])]
-        expected  = np.array(expected)
-
+        expected  = [[y0,y1][y01]*10000 + ibs*100 + ifreq + itime/1000. + 1j*(iprb+1)*((-1)**sc)
+                     for (y0,y1) in self.pairs_um[dist]
+                     for itime in range(self.ss[iprb][y0].shape[1])]
         exp_vals = sorted(np.imag(expected))
-        obs_vals = sorted(np.imag(pooled[ibs][y01][:]))            
+        obs_vals = sorted(np.imag(pooled[ibs][y01*2 + sc][:]))
+        DEBUG(f"{len(exp_vals)=}, {len(obs_vals)=}.")
         if not np.allclose(exp_vals, obs_vals):
             plt.plot(exp_vals, label="expected")
             plt.plot(obs_vals, label="observed")
@@ -239,7 +249,7 @@ class FisherPlumes:
             DEBUG("Imaginary values were OK.")
 
         exp_vals = sorted(np.real(expected))
-        obs_vals = sorted(np.real(pooled[ibs][y01][:]))
+        obs_vals = sorted(np.real(pooled[ibs][y01*2 + sc][:]))
         if not np.allclose(exp_vals, obs_vals):
             plt.plot(exp_vals, label="expected")
             plt.plot(obs_vals, label="observed")
@@ -272,25 +282,44 @@ class FisherPlumes:
 
         dists = sorted(list(self.pairs_um.keys()))
         n_probes = len(self.ss)
-        self.la, self.mu = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
+        self.la,  self.mu  = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
+        self.la2, self.mu2 = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
         freqs = np.arange(self.wnd)/self.wnd * self.fs
         if fmax is None: fmax = self.fs/2
         DEBUG(f"{sum(freqs<=fmax)=}.")
         for d in dists:
-            pooled_data = self.pool_trig_coefs_for_distance(d)                    
+            pooled_data = self.pool_trig_coefs_for_distance(d)                     
             for iprb in range(n_probes):
                 for fi,f in enumerate(freqs[freqs<=fmax]):
-                    data = pooled_data[iprb][:,:,:,fi] # bs x (y0, y1) x data                    
-                    vars = np.array([compute_variances(datai) for datai in data]).T # .T so μ is the first row, and λ is the second
-                    fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data.shape=}"),DEBUG(f"{vars.shape=}"))
+                    data = pooled_data[iprb][:,:,:,fi] # bs x (s0,c0,s1,c1) x data
+
+                    # Grab the in-phase data
+                    s0, c0, s1, c1 = [data[:,i, :] for i in range(4)]
+                    # The in-phase data should be s0 vs s1 and c0 vs c1
+                    s0c0 = np.concatenate([s0,c0], axis=1)
+                    s1c1 = np.concatenate([s1,c1], axis=1)
+                    data_in_phase = np.stack([s0c0, s1c1], axis=1)
+                    vars = np.array([compute_variances(datai) for datai in data_in_phase]).T # .T so μ is the first row, and λ is the second
+                    fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data_in_phase.shape=}"),DEBUG(f"{vars.shape=}"))
                     # Append the data for this frequency
                     self.la[iprb][d].append(vars[0]) # Projection along (1,1)             
                     self.mu[iprb][d].append(vars[1]) # Projection along (1,-1)
+
+                    # The out-of-phase data should be s0 vs -c1 and c0 vs s1
+                    c1s1 = np.concatenate([-c1,s1], axis=1) # -ve because <s0, c1> = -β sin(ϕ)
+                    data_out_phase = np.stack([s0c0, c1s1], axis=1) 
+                    vars = np.array([compute_variances(datai) for datai in data_out_phase]).T # .T so μ is the first row, and λ is the second
+                    fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data_out_phase.shape=}"),DEBUG(f"{vars.shape=}"))
+                    self.la2[iprb][d].append(vars[0]) # Projection along (1,1)             
+                    self.mu2[iprb][d].append(vars[1]) # Projection along (1,-1)                    
         
         for iprb in range(n_probes):
             for d in dists:
-                self.la[iprb][d] = np.array(self.la[iprb][d]).T # .T for bootstraps x data
-                self.mu[iprb][d] = np.array(self.mu[iprb][d]).T
+                self.la[iprb][d]  = np.array(self.la[iprb][d]).T # .T for bootstraps x data
+                self.mu[iprb][d]  = np.array(self.mu[iprb][d]).T
+                self.la2[iprb][d] = np.array(self.la2[iprb][d]).T 
+                self.mu2[iprb][d] = np.array(self.mu2[iprb][d]).T
+                
 
         DEBUG(f"{utils.d1(self.la[0]).shape=}")
     
@@ -460,6 +489,7 @@ class FisherPlumes:
         not fit_vars and self.compute_vars_for_freqs() 
         self.compute_correlations_from_trig_coefs()
         self.compute_lambdas()
+        return
         self.compute_pvalues()
         self.compute_r2values()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
