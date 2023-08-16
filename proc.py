@@ -7,6 +7,7 @@ determined which runs have already been performed, and which have not.
 """
 
 import os,sys,pickle
+import numpy as np
 import yaml
 from importlib import reload
 from builtins import sum as bsum

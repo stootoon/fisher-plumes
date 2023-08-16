@@ -3,7 +3,7 @@ init:
   freq_max: '20 * HZ'
   which_coords: '[(1.0,0.) * M]'
   n_sources: 16
-  pairs_mode: "unsigned"
+  pairs_mode: "signed"
   n_bootstraps: 50
   random_seed: 0
   surrogate_k: 0

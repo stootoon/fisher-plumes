@@ -2,7 +2,7 @@ init:
   sim_name: "n16Tslow"
   freq_max: '20 * HZ'
   which_coords: '[(1.0,0.5) * M]'
-  pairs_mode: "unsigned"
+  pairs_mode: "signed"
   py_mode: "absolute"
   n_bootstraps: 50
   random_seed: 0

@@ -2,7 +2,7 @@ init:
   sim_name: "boulder16"
   freq_max: '20 * HZ'
   which_coords: '[(0.45,0.5) * M]'
-  pairs_mode: "unsigned"
+  pairs_mode: "signed"
   py_mode: "relative"
   suffix: "manuscript"
   n_bootstraps: 50

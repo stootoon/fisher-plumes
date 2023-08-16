@@ -97,55 +97,76 @@ class SurrogateSimulationData:
 
         self.nt = 2 * n_freq + 1
         INFO(f"Generating surogate data with {self.nt} time samples.")
-        
+
+        ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)        
         if self.name == "no_info":
             INFO(f"Generating surrogate data where all frequencies are uninformative. {surrogate_k=:.1f}")                                    
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             kernel   = lambda i,j,n: (i==j) * ker_freq(i,j,n)
         elif self.name == "all_equal":
             INFO(f"Generating surrogate data where all frequencies are equally informative.")                        
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
-            ker_spat = lambda i,j,n: 1 - abs(i-j)/5*0.5
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/12) - 1
-            #ker_spat = lambda i,j,n: np.exp(-abs(i-j))
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
         elif self.name == "one_info":
             INFO(f"Generating surrogate data where one frequency is more informative than the others.")            
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)
             ker_spat = lambda i,j,n: 2*np.exp(-abs(i-j)/(12 - 4 * (n==4))) - 1
             kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
         elif self.name == "high":
             INFO(f"Generating surrogate data where high frequencies are more informative.")
-            ker_freq = lambda i,j,n: one_over_f(n/self.nt*fs, k=surrogate_k, fc = 1)            
             ker_spat = lambda i,j,n: 1 if (i==j) else np.exp(-abs(i-j)/(12. if n< n_freq//2 else 2.))
-            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)                        
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
+        elif self.name == "quad":
+            INFO(f"Generating surrogate data with quadrature components.")
+            ker_spat = lambda i,j,n: 1 if (i==j) else ((0.5 ** abs(i-j)) * np.cos(phi))
+            kernel   = lambda i,j,n: ker_spat(i,j,n) * ker_freq(i,j,n)
         else:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
+        np.random.seed(seed)
+        
         n_src  = len(self.fields)
-        Kin = np.zeros((n_src * n_freq, n_src * n_freq))
-        Kout= np.zeros((n_src * n_freq, n_src * n_freq))
+        c, s = [],[]
         for n in range(n_freq):
+            Kin    = np.zeros((n_src, n_src))
+            Kout   = np.zeros((n_src, n_src))
             for i in range(n_src):
                 for j in range(n_src):
-                    Kin[ n_src * n + i, n_src * n + j]  = kernel(i,j,n)
-                    Kout[n_src * n + i, n_src * n + j]  = sign(j-i) * kernel(i,j,n) * np.tan(phi)
-        K = np.block([[Kin, Kout], [Kout.T, Kin]])
-        L = np.linalg.cholesky(K)
+                    Kin[i, j]  = kernel(i,j,n)
+                    # Kin looks like
+                    # [1,  β cos(ϕ)]
+                    # [β cos(ϕ),  1]
+                                        
+                    # We want Kout to look like like
+                    # [0,  -β sin(ϕ)]
+                    # [β sin(ϕ),  0]
+                    Kout[i, j]  = np.sign(i-j) * kernel(i,j,n) * np.tan(phi)
+                    # sign(i-j) makes the Kout kernel anti-symmetric.
+                    # tan(phi) converts β cos(ϕ) of the in-phase component
+                    # to β sin(ϕ) of the quadrature component.
+                    
+            K  = np.block([[Kin, Kout], [Kout.T, Kin]])
+            ev = sorted(np.linalg.eigvalsh(K))
+            # Try to compute the Cholesky decomposition of K
+            # If it fails, try print out the eigenvalues of K
+            try:
+                L  = np.linalg.cholesky(K)
+            except:
+                INFO(f"Failed performing Cholesky decomposition. Eigenvalues of K range from {ev[0]} to {ev[-1]}.")
+                raise
+                
+            cs = L @ np.random.randn(2*n_src)
+            c.append(cs[:n_src])
+            s.append(cs[n_src:])
 
-        np.random.seed(seed)
-        cs = L @ np.random.randn(2*n_src*n_freq)
-        c  = cs[:n_src*n_freq]
-        s  = cs[n_src*n_freq:]
+        self.c = np.array(c)
+        self.s = np.array(s)
         
         t = np.arange(0,2*n_freq+1)
         f = 2*np.pi*np.arange(1,n_freq+1)/(2*n_freq)
         C = np.cos(np.outer(t, f))
         S = np.sin(np.outer(t, f))
-        x = [C @ c[i::n_src] + S @ s[i::n_src] for i in range(n_src)]
-        X = np.array(x)
+        self.X = np.array(C @ self.c + S @ self.s).T
 
-        for fld, Xi in zip(self.fields, X):
+        for fld, Xi in zip(self.fields, self.X):
             self.data[fld] = [Xi]
 
         for p in self.data:
@@ -157,7 +178,8 @@ class SurrogateSimulationData:
         t = self.t
         INFO(f"Generated surrogated data for {n_src} sources.")
         INFO(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
-        
+
+        self.K = K
         
     def __str__(self):
         s = [f"\n{self.name} {self.__class__}"]

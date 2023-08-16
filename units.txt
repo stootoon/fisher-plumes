@@ -6,6 +6,7 @@ n16Tslow_pitch       = 76000 * um
 boulder16_pitch      = 25000 * um
 surr_all_equal_pitch = 0.025 * m
 surr_high_pitch      = 0.025 * m
+surr_quad_pitch      = 0.025 * m
 crimgrid_w1_pitch = 25 * mm
 crimgrid_w2_pitch = 25 * mm
 crimgrid_w3_pitch = 25 * mm

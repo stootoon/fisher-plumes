@@ -36,11 +36,11 @@ def pool_sorted_keys(d, res=0):
             else: dd.append([d[i]])
     return dd
     
-def compute_pairs(yvals, pairs_mode="all", pair_resolution = 0):
+def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
     INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
-    if pairs_mode == "all":
+    if pairs_mode == "signed":
         for i, y1 in enumerate(yvals):
             for y2 in yvals[i:]: # Start at i instead of i+1 so that we get the dist 0 data as well.
                 if (y2-y1) not in pairs:
