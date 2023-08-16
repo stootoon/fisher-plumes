@@ -283,7 +283,6 @@ class FisherPlumes:
         dists = sorted(list(self.pairs_um.keys()))
         n_probes = len(self.ss)
         self.la,  self.mu  = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
-        self.la2, self.mu2 = [{d:[] for d in dists} for _ in range(n_probes)], [{d:[] for d in dists} for _ in range(n_probes)]
         freqs = np.arange(self.wnd)/self.wnd * self.fs
         if fmax is None: fmax = self.fs/2
         DEBUG(f"{sum(freqs<=fmax)=}.")
@@ -310,17 +309,15 @@ class FisherPlumes:
                     data_out_phase = np.stack([s0c0, c1s1], axis=1) 
                     vars = np.array([compute_variances(datai) for datai in data_out_phase]).T # .T so μ is the first row, and λ is the second
                     fi==0 and iprb ==0 and d == dists[0] and (DEBUG(f"{data_out_phase.shape=}"),DEBUG(f"{vars.shape=}"))
-                    self.la2[iprb][d].append(vars[0]) # Projection along (1,1)             
-                    self.mu2[iprb][d].append(vars[1]) # Projection along (1,-1)                    
+                    self.la[iprb][d].append(vars[0]) # Projection along (1,1)             
+                    self.mu[iprb][d].append(vars[1]) # Projection along (1,-1)                    
         
         for iprb in range(n_probes):
             for d in dists:
-                self.la[iprb][d]  = np.array(self.la[iprb][d]).T # .T for bootstraps x data
-                self.mu[iprb][d]  = np.array(self.mu[iprb][d]).T
-                self.la2[iprb][d] = np.array(self.la2[iprb][d]).T 
-                self.mu2[iprb][d] = np.array(self.mu2[iprb][d]).T
+                #.T for bootstraps x data, then reshape to (bootstraps, freqs,{in-phase, out-of-phase})
+                self.la[iprb][d]  = np.array(self.la[iprb][d]).T.reshape(self.n_bootstraps+1,-1,2)
+                self.mu[iprb][d]  = np.array(self.mu[iprb][d]).T.reshape(self.n_bootstraps+1,-1,2)
                 
-
         DEBUG(f"{utils.d1(self.la[0]).shape=}")
     
     def compute_pvalues(self, skip_bootstrap = True):
