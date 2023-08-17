@@ -329,18 +329,22 @@ class FisherPlumes:
         Computing la - mu for the out-of-phase data gives β sin(ϕ)
         That means that the ratio of the square of the in-phase data
         to the sum of the squares of the in phase data and the out-of-phase data
-        gives cos(ϕ)^2. Taking the square root gives cos(ϕ).
+        gives cos(ϕ)^2. Taking the square root gives |cos(ϕ)|. We then multiply by 
+        the sign of β sin(ϕ) to get the sign of ϕ.
         """
-        INFO("Computing ϕ.")
+        INFO("Computing ϕ and β/σ.")
         pos_dists = [d for d in sorted(list(self.pairs_um.keys())) if d > 0]
         n_probes  = len(self.ss)
-        self.phi  = [{d:[] for d in pos_dists} for _ in range(n_probes)]        
+        self.phi  = [{d:[] for d in pos_dists} for _ in range(n_probes)]
+        self.beta_norm = [{d:[] for d in pos_dists} for _ in range(n_probes)]
 
         for iprb in range(n_probes):
             for d in pos_dists:
+                σ2             = (self.la[iprb][d][:,:,0] + self.mu[iprb][d][:,:,0])/2
                 diff_in_phase  = self.la[iprb][d][:,:,0] - self.mu[iprb][d][:,:,0]
                 diff_out_phase = self.la[iprb][d][:,:,1] - self.mu[iprb][d][:,:,1]
-                self.phi[iprb][d] = np.arccos(np.sqrt(diff_in_phase**2 / (diff_in_phase**2 + diff_out_phase**2)))
+                self.beta_norm[iprb][d] = np.sqrt(diff_in_phase**2 + diff_out_phase**2) / np.sqrt(σ2)
+                self.phi[iprb][d]  = np.arccos(np.sqrt(diff_in_phase**2 / (diff_in_phase**2 + diff_out_phase**2))) * np.sign(diff_out_phase)
 
     def compute_pvalues(self, skip_bootstrap = True):
         INFO("Computing p-values.")
