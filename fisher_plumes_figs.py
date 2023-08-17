@@ -11,6 +11,8 @@ import matplotlib.transforms as mtrans
 from scipy.stats import mannwhitneyu,ttest_1samp
 import imageio as iio # For importing field snapshot PNGs
 from collections import defaultdict
+import colorsys
+
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
 from boulder import concs2rgb
@@ -254,28 +256,34 @@ def plot_scattergram(F, ifreq, i_pos_dist,
 
     axes = []
     gs = GridSpec(len(pooled1), len(pooled1))
-    for i, p0 in enumerate(pooled1):
-        for j, p1 in enumerate(pooled1):
+    for i, p1 in enumerate(pooled1):
+        for j, p0 in enumerate(pooled1):
             axes.append(plt.subplot(gs[i,j]))
-            U,S,_ = np.linalg.svd(np.cov([p0,p1]))
-            p0m= np.mean(p0)
-            p1m= np.mean(p1)
-            plt.plot(p0,  p1, "o", color=fpft.mix_colors([cols[i],cols[j]]), markersize=markersize)
-            plt.plot(p0m, p1m, "k+", markersize=10)
-            if print_fun is not None:
-                val = print_fun(p0,p1)[0,1]
-                plt.title(f"{np.round(val,2)}", loc="right", y=0.8)
-            for r in [1,2,3]:
-                xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
-                plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
-
             pc = np.percentile(np.concatenate([p0,p1]).flatten(),[1,99])
             scale = lim_scale*max(abs(pc))
-            plt.xlim([-scale,scale]);
-            plt.ylim([-scale,scale])
-            fpft.spines_off(plt.gca())
-            #plt.axis("equal")
-            plt.grid(True, linestyle=":", color="k", alpha=0.5)
+            
+            if i != j:
+                U,S,_ = np.linalg.svd(np.cov([p0,p1]))
+                p0m= np.mean(p0)
+                p1m= np.mean(p1)
+                plt.plot(p0,  p1, "o", color=fpft.mix_colors([cols[i],cols[j]]), markersize=markersize)
+                plt.plot(p0m, p1m, "k+", markersize=10)
+                if print_fun is not None:
+                    val = print_fun(p0,p1)[0,1]
+                    plt.title(f"{np.round(val,2)}", loc="right", y=0.8)
+                for r in [1,2,3]:
+                    xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
+                    plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
+    
+                plt.xlim([-scale,scale]);
+                plt.ylim([-scale,scale])
+                fpft.spines_off(plt.gca())
+                #plt.axis("equal")
+                plt.grid(True, linestyle=":", color="k", alpha=0.5)
+            else:
+                plt.hist(p0, color=cols[i], bins=np.linspace(-scale, scale, int(np.sqrt(len(p0)))))
+                plt.xlim([-scale,scale]);
+                
             if i==len(pooled1)-1: plt.xlabel(f"{coef_names[j%2]}, Src {(j//2)+1}")
             if j==0: plt.ylabel(f"{coef_names[i%2]}, Src {(i//2)+1}")
     return axes
@@ -767,25 +775,59 @@ def plot_fisher_information(
                 
     return ax_fisher, ax_best_freq, ax_d
 
-def plot_phase_heatmap(F, which_probe,
-                    heatmap_cm    = cm.magma,
+def plot_phase_heatmap(F, which_probe=0,
+                       phase_cm = cm.RdBu,
+                       max_beta = 1,
+                       max_phi  = np.pi/2,
 ):
     dd       = np.array(sorted(F.phi[which_probe]))
-    phi      = np.array([F.phi[which_probe][d][0] for d in dd])
+    phi      = np.array([F.phi[which_probe][d][0]  for d in dd])
+    beta     = np.array([F.beta_norm[which_probe][d][0] for d in dd])
     freq_res = F.fs/F.wnd
     plt.figure(figsize=(8,4))
-    plt.matshow(phi * 180/np.pi, vmin=0,vmax=90,
+
+    phi_  = (np.clip(phi, -max_phi, max_phi) + max_phi)/2/max_phi
+    print(phi_.min(), phi_.max())
+    beta_ = np.clip((beta/max_beta)**2, 0, 1)
+
+    hue_min = 0
+    hue_max = 0.66
+    hue = phi_*(hue_max - hue_min) + hue_min
+    sat = np.clip(beta/max_beta,   0, 1)
+    val = 0*sat + 1
+    hsv_colors = np.stack([hue, sat, val], axis=-1)
+    rgb_colors = mpl.colors.hsv_to_rgb(hsv_colors)
+    plt.imshow(rgb_colors,
         extent = [(F.freqs[0] - freq_res/2).to(UNITS.Hz).magnitude, (F.freqs[phi.shape[1]] - freq_res/2).to(UNITS.Hz).magnitude, -0.5, len(dd)-0.5],
-        cmap=heatmap_cm,
-        fignum=False, origin="lower");
+               origin="lower");
     plt.axis("auto")
-    cbar = plt.colorbar(pad=0.02)
-    plt.gca().xaxis.tick_bottom()
+    ax = plt.gca()
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position('top')
+    
     plt.yticks(np.arange(len(dd)), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dd],
                fontsize=10, rotation=0);
-    plt.ylabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
-    plt.xlabel(f"Frequency (Hz)", fontsize=12)
-    cbar.set_label("Phase (deg)")
+    plt.ylabel(f"Intersource distance ({pitch_sym})",labelpad=1, fontsize=12)
+    plt.xlabel(f"Frequency (Hz)", fontsize=12,labelpad=5)
+    
+    norm_phase = plt.Normalize(-max_phi * 180/np.pi, max_phi * 180/np.pi)
+    cmap_mag = mcolors.LinearSegmentedColormap.from_list('mag', cm.hsv(np.linspace(hue_min, hue_max,256)))
+    sm_phase = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_phase)
+    sm_phase.set_array([])
+    cbph = plt.colorbar(sm_phase, orientation='vertical', label='Phase (degrees)', pad=0.015)
+
+    norm_mag = plt.Normalize(0, max_beta)
+    cmap_mag = mcolors.LinearSegmentedColormap.from_list('white_to_black', ['#FFFFFF', '#000000'])
+    sm_mag = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_mag)
+    sm_mag.set_array([])
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("bottom",
+                                    size="6%",
+                                    pad=0.1)
+    cmag = plt.colorbar(sm_mag, cax = cax, orientation='horizontal')
+    cax.set_xlabel("Strength $(\\beta^2/\\sigma^2)$", labelpad=0)
+    return []
 
 
 def plot_fisher_information_heatmap(F, which_probe,
