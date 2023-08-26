@@ -1,4 +1,80 @@
 
+fisher_plumes_tools.py,563
+def pool_sorted_keys(21,425
+def compute_pairs(39,994
+def validate_py_mode(89,3189
+def validate_coords(100,3544
+class Detrenders:Detrenders105,3716
+    def normalizer(107,3752
+    def tukey_normalizer(111,3859
+    def windowed_then_zscored(117,4094
+    def windowed(122,4285
+    def mean_subtract(127,4383
+    def identity(132,4507
+def compute_sin_cos_stft(135,4546
+def DUMP_IF_FAIL(173,6928
+def compute_fisher_information_for_gen_exp_decay(185,7312
+def compute_fisher_information_estimates_for_gen_exp_decay(197,7599
+def get_window_name(212,8093
+
+crick.py,524
+def list_datasets(36,789
+def print_datasets(52,1261
+def _load_single_simulation(66,1724
+class CrickSimulationData:CrickSimulationData98,3232
+    def load_probe_data_(99,3259
+    def init_from_dict(105,3838
+    def __init__(122,4461
+    def init_snapshots(164,6987
+    def get_snapshot(172,7572
+    def nearest_probe(179,8074
+    def coord2str(187,8376
+    def use_coords(212,9377
+    def cleanup_probe_data(272,12396
+    def get_used_probe_coords(275,12466
+    def get_key(279,12547
+def load_sims(283,12626
+
+fisher_plumes_fig_tools.py,153
+def setup_axes(13,357
+def pplot(34,1424
+def plot_bivariate_gaussian(38,1513
+def expand_lims(55,2909
+def label_axes(61,3033
+def get_fig_dir(98,4233
+
+proc.py,144
+def get_registry(34,1120
+def find_registry_matches(61,2538
+def load_data(83,3314
+def load_spec(105,4275
+    def hash_init_compute(178,7989
+
+utils.py,180
+def create_logger(6,85
+def progn(19,546
+def eval_fields(33,926
+def dd(64,2311
+def expand_environment_variables(72,2646
+def get_args(79,2943
+def deepcopy_data_fields(89,3188
+
+surrogate.py,465
+def list_datasets(28,578
+def print_datasets(31,623
+def _load_single_simulation(37,769
+class SurrogateSimulationData:SurrogateSimulationData53,1561
+    def __init__(54,1592
+    def generate_surrogate_data(83,2995
+    def __str__(184,7507
+    def nearest_probe(210,8826
+    def coord2str(220,9105
+    def get_key(242,9998
+    def use_coords(245,10076
+    def get_used_probe_coords(274,11494
+    def cleanup_probe_data(278,11667
+def load_sims(281,11737
+
 boulder.py,736
 def parse_registry(33,713
 def list_datasets(67,2434
@@ -24,51 +100,7 @@ class BoulderSimulationData:BoulderSimulationData127,4506
     def compute_integral_length_scale(330,13586
 def load_sims(367,15228
 
-crick.py,524
-def list_datasets(36,789
-def print_datasets(52,1261
-def _load_single_simulation(66,1724
-class CrickSimulationData:CrickSimulationData98,3232
-    def load_probe_data_(99,3259
-    def init_from_dict(105,3838
-    def __init__(122,4461
-    def init_snapshots(164,6987
-    def get_snapshot(172,7572
-    def nearest_probe(179,8074
-    def coord2str(187,8376
-    def use_coords(212,9377
-    def cleanup_probe_data(272,12396
-    def get_used_probe_coords(275,12466
-    def get_key(279,12547
-def load_sims(283,12626
-
-fisher_plumes_figs.py,596
-def plot_two_plumes(36,1028
-def clip_snapshots(80,3349
-def get_snapshot(93,3925
-def plot_plumes_demo(99,4323
-def plot_correlations(170,7848
-def plot_scattergram(232,10452
-def plot_coef1_vs_coef2(286,12599
-def plot_coef_vs_coef_and_traces(333,14654
-def plot_alaplace_fits(349,15798
-def plot_gen_exp_parameter_fits_panel(459,20725
-def plot_la_gen_fits_vs_distance(573,26043
-def plot_fisher_information(628,28638
-def plot_fisher_information_heatmap(769,35910
-def plot_window_series(831,38148
-def plot_length_constants_vs_frequency(850,39137
-def plot_information_regression(910,42437
-
-fisher_plumes_fig_tools.py,153
-def setup_axes(13,357
-def pplot(34,1424
-def plot_bivariate_gaussian(38,1513
-def expand_lims(55,2909
-def label_axes(61,3033
-def get_fig_dir(98,4233
-
-fisher_plumes.py,1023
+fisher_plumes.py,1054
 class FisherPlumes:FisherPlumes30,561
     def __init__(32,582
     def init_from_dict(114,5956
@@ -79,70 +111,41 @@ class FisherPlumes:FisherPlumes30,561
     def compute_vars_for_freqs(174,8714
     def compute_correlations_from_trig_coefs(184,9302
     def pool_trig_coefs_for_distance(189,9668
-    def test_trig_coef_pooling(196,10241
-    def compute_lambdas(258,13001
-    def compute_pvalues(297,15040
-    def compute_r2values(306,15614
-    def compute_la_gen_fit_to_distance(315,16197
-    def compute_fisher_information_at_distances(360,18828
-    def compute_fisher_information_estimates_at_distances(369,19573
-    def compute_fisher_information(378,20351
-    def regress_information_on_frequency(401,21623
-    def regress_length_constants_on_frequency(435,23182
-    def compute_all_for_window(444,23850
-    def freqs2inds(471,25464
-    def inds2freqs(475,25673
-    def save_snapshots(479,25819
-    def load_saved_snapshots(482,25951
+    def test_trig_coef_pooling(205,10365
+    def compute_lambdas(268,13073
+    def compute_phi(326,16383
+    def compute_pvalues(345,17410
+    def compute_r2values(355,18050
+    def compute_la_gen_fit_to_distance(365,18691
+    def compute_fisher_information_at_distances(410,21334
+    def compute_fisher_information_estimates_at_distances(419,22079
+    def compute_fisher_information(428,22857
+    def regress_information_on_frequency(451,24129
+    def regress_length_constants_on_frequency(485,25688
+    def compute_all_for_window(494,26356
+    def freqs2inds(522,27997
+    def inds2freqs(526,28206
+    def save_snapshots(530,28352
+    def load_saved_snapshots(533,28484
 
-fisher_plumes_tools.py,563
-def pool_sorted_keys(21,425
-def compute_pairs(39,994
-def validate_py_mode(89,3183
-def validate_coords(100,3538
-class Detrenders:Detrenders105,3710
-    def normalizer(107,3746
-    def tukey_normalizer(111,3853
-    def windowed_then_zscored(117,4088
-    def windowed(122,4279
-    def mean_subtract(127,4377
-    def identity(132,4501
-def compute_sin_cos_stft(135,4540
-def DUMP_IF_FAIL(173,6922
-def compute_fisher_information_for_gen_exp_decay(185,7306
-def compute_fisher_information_estimates_for_gen_exp_decay(197,7593
-def get_window_name(212,8087
-
-proc.py,120
-def get_registry(30,1045
-def find_registry_matches(57,2463
-def load_data(79,3239
-    def hash_init_compute(177,7833
-
-surrogate.py,465
-def list_datasets(28,578
-def print_datasets(31,623
-def _load_single_simulation(37,769
-class SurrogateSimulationData:SurrogateSimulationData53,1561
-    def __init__(54,1592
-    def generate_surrogate_data(83,2995
-    def __str__(184,7507
-    def nearest_probe(210,8826
-    def coord2str(220,9105
-    def get_key(242,9998
-    def use_coords(245,10076
-    def get_used_probe_coords(274,11494
-    def cleanup_probe_data(278,11667
-def load_sims(281,11737
-
-utils.py,180
-def create_logger(6,85
-def progn(19,546
-def eval_fields(33,926
-def dd(64,2311
-def expand_environment_variables(72,2646
-def get_args(79,2943
-def deepcopy_data_fields(89,3188
+fisher_plumes_figs.py,630
+def plot_two_plumes(36,1028
+def clip_snapshots(80,3349
+def get_snapshot(93,3925
+def plot_plumes_demo(99,4323
+def plot_correlations(170,7848
+def plot_scattergram(232,10452
+def plot_coef1_vs_coef2(286,12515
+def plot_coef_vs_coef_and_traces(333,14570
+def plot_alaplace_fits(349,15714
+def plot_gen_exp_parameter_fits_panel(459,20697
+def plot_la_gen_fits_vs_distance(573,26015
+def plot_fisher_information(630,28722
+def plot_phase_heatmap(770,35993
+def plot_fisher_information_heatmap(791,36925
+def plot_window_series(853,39163
+def plot_length_constants_vs_frequency(872,40152
+def plot_information_regression(932,43452
 
 units.py,0
 
