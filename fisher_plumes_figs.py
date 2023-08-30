@@ -29,7 +29,7 @@ INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
 
-pitch_sym = "ϕ"
+pitch_sym = "$\\phi$"
 
 scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
@@ -109,6 +109,7 @@ def plot_plumes_demo(F, t_snapshot,
                      figsize=(8,3),
                      t_center = None,
                      data_dir = None,
+                     nneg_dists = True,
                      **kwargs
 ):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
@@ -152,7 +153,8 @@ def plot_plumes_demo(F, t_snapshot,
         
     ax_corr_dist = plt.subplot(gs[:,-1])
     rho   = F.rho[which_probe]
-    dists = np.array(sorted(list(rho.keys()))) 
+    dists = np.array(sorted(list(rho.keys())))
+    if nneg_dists: dists = dists[dists>=0]
     rho   = {d:rho[d][0] for d in dists} # Take the raw data, not the bootstraps
     rhom  = np.array([np.mean(np.sum(rho[d],axis=0)) for d in dists])
     rhos  = np.array([ np.std(np.sum(rho[d],axis=0)) for d in dists])
@@ -178,12 +180,14 @@ def plot_correlations(rho,
                       figsize=None,
                       plot_slices = True,
                       plot_overlay = True,
+                      nneg_dists = True,
                       ax = [],
                       legend_args = {},
 ):
 
     
     dists    = np.array(sorted(list(rho.keys())))
+    if nneg_dists: dists = dists[dists>=0]
     dists_p  = dists/d_scale    
     rho      = {d:rho[d][0] for d in dists} # [0] to take the raw data
     rho_mean = {k:np.array([np.mean(np.sum(rho[d][slc,:],axis=0)) for d in dists]) for k, slc in slices.items()}
@@ -360,6 +364,7 @@ def plot_alaplace_fits(F, which_dists_um,
                        figsize=None, vmin=None,vmax=None,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
+                       expansion = 1.2,
                        plot_dvals = False,
                        plot_pvals = False):
     if figsize is not None:
@@ -376,7 +381,7 @@ def plot_alaplace_fits(F, which_dists_um,
         INFO(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         rr    = F.rho[which_probe][d][0][which_ifreq]
-        xl    = fpft.expand_lims([np.min(rr), np.max(rr)],1.2)        
+        xl    = fpft.expand_lims([np.min(rr), np.max(rr)],expansion)
         xvals = np.linspace(xl[0],xl[-1],1001)
 
         la_   = F.la[which_probe][d][0][which_ifreq][0] # 0 to get the in-phase valuea
@@ -777,57 +782,88 @@ def plot_fisher_information(
 
 def plot_phase_heatmap(F, which_probe=0,
                        phase_cm = cm.RdBu,
+                       plot_which = "both",
                        max_beta = 1,
                        max_phi  = np.pi/2,
+                       max_corr = 1,
+                       figsize = (8,4),
 ):
+    assert plot_which in ["phase", "mag", "both", "corr", "all"], "plot_which must be one of 'phase', 'mag', 'both', 'corr', or 'all'"
+        
     dd       = np.array(sorted(F.phi[which_probe]))
     phi      = np.array([F.phi[which_probe][d][0]  for d in dd])
-    beta     = np.array([F.beta_norm[which_probe][d][0] for d in dd])
+    beta     = np.array([F.beta[which_probe][d][0] for d in dd])
+    corr     = beta * np.sin(phi) # Out of phase correlations
     freq_res = F.fs/F.wnd
-    plt.figure(figsize=(8,4))
+    plt.figure(figsize=figsize)
 
-    phi_  = (np.clip(phi, -max_phi, max_phi) + max_phi)/2/max_phi
-    print(phi_.min(), phi_.max())
-    beta_ = np.clip((beta/max_beta)**2, 0, 1)
+    if plot_which == "all":
+        pw = ["phase", "mag", "both", "corr"]
+    else:
+        pw = [plot_which]
 
-    hue_min = 0
-    hue_max = 0.66
-    hue = phi_*(hue_max - hue_min) + hue_min
-    sat = np.clip(beta/max_beta,   0, 1)
-    val = 0*sat + 1
-    hsv_colors = np.stack([hue, sat, val], axis=-1)
-    rgb_colors = mpl.colors.hsv_to_rgb(hsv_colors)
-    plt.imshow(rgb_colors,
-        extent = [(F.freqs[0] - freq_res/2).to(UNITS.Hz).magnitude, (F.freqs[phi.shape[1]] - freq_res/2).to(UNITS.Hz).magnitude, -0.5, len(dd)-0.5],
-               origin="lower");
-    plt.axis("auto")
-    ax = plt.gca()
-    ax.xaxis.tick_top()
-    ax.xaxis.set_label_position('top')
+    n_rows = 2 if len(pw) > 1 else 1
+    n_cols = len(pw)//n_rows
+
+    ax = []
+    for i, plot_which in enumerate(pw):
+        ax.append(plt.subplot(n_rows, n_cols, i+1))
+        
+        phi_  = (np.clip(phi, -max_phi, max_phi) + max_phi)/2/max_phi
+        beta_ = np.clip((beta/max_beta), 0, 1)
     
-    plt.yticks(np.arange(len(dd)), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dd],
-               fontsize=10, rotation=0);
-    plt.ylabel(f"Intersource distance ({pitch_sym})",labelpad=1, fontsize=12)
-    plt.xlabel(f"Frequency (Hz)", fontsize=12,labelpad=5)
+        hue_min = 0
+        hue_max = 0.66
+        hue = (phi_*(hue_max - hue_min) + hue_min) if plot_which in ["phase", "both"] else 0.5 * np.ones_like(phi_)
+        sat = np.clip(beta/max_beta,   0, 1) if plot_which in ["mag", "both"] else 1. * np.ones_like(phi_)
+        val = 0*sat + 1
+        hsv_colors = np.stack([hue, sat, val], axis=-1)
+        rgb_colors = mpl.colors.hsv_to_rgb(hsv_colors)
+        if plot_which in ["phase", "mag", "both"]:
+            plt.imshow(rgb_colors if plot_which != "mag" else beta,
+                       extent = [(F.freqs[0] - freq_res/2).to(UNITS.Hz).magnitude, (F.freqs[phi.shape[1]] - freq_res/2).to(UNITS.Hz).magnitude, -0.5, len(dd)-0.5],
+                       cmap = None if plot_which != "mag" else cm.gray_r,
+                       origin="lower");
+        elif plot_which == "corr":
+            plt.imshow(corr,
+                       extent = [(F.freqs[0] - freq_res/2).to(UNITS.Hz).magnitude, (F.freqs[phi.shape[1]] - freq_res/2).to(UNITS.Hz).magnitude, -0.5, len(dd)-0.5],
+                       origin="lower", cmap=cm.bwr, vmin=-max_corr, vmax=max_corr);
+        plt.axis("auto")
+        ax[-1].xaxis.tick_top()
+        ax[-1].xaxis.set_label_position('top')
+        
+        plt.yticks(np.arange(len(dd)), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dd],
+                   fontsize=10, rotation=0);
+        plt.ylabel(f"Intersource distance ({pitch_sym})",labelpad=1, fontsize=12)
+        plt.xlabel(f"Frequency (Hz)", fontsize=12, labelpad=5)
     
-    norm_phase = plt.Normalize(-max_phi * 180/np.pi, max_phi * 180/np.pi)
-    cmap_mag = mcolors.LinearSegmentedColormap.from_list('mag', cm.hsv(np.linspace(hue_min, hue_max,256)))
-    sm_phase = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_phase)
-    sm_phase.set_array([])
-    cbph = plt.colorbar(sm_phase, orientation='vertical', label='Phase (degrees)', pad=0.015)
+        if plot_which in ["phase", "both"]:
+            norm_phase = plt.Normalize(-max_phi * 180/np.pi, max_phi * 180/np.pi)
+            cmap_mag = mcolors.LinearSegmentedColormap.from_list('mag', cm.hsv(np.linspace(hue_min, hue_max,256)))
+            sm_phase = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_phase)
+            sm_phase.set_array([])
+            cbph = plt.colorbar(sm_phase, orientation='vertical', label='Phase ($\\theta$, degrees)', pad=0.015)
+    
+        if plot_which in ["mag", "both"]:
+            norm_mag = plt.Normalize(0, max_beta)
+            cmap_mag = mcolors.LinearSegmentedColormap.from_list('white_to_black', ['#FFFFFF' , '#000000'])
+            sm_mag = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_mag)
+            sm_mag.set_array([])
+    
+            divider = make_axes_locatable(ax[-1])
+            if plot_which == "both":
+                cax = divider.append_axes("bottom",
+                                          size="6%",
+                                          pad=0.1)
+                cmag = plt.colorbar(sm_mag, cax = cax, orientation='horizontal')
+                cax.set_xlabel("Strength $(\\beta)$", labelpad=0)
+            else:
+                cbph = plt.colorbar(sm_mag, orientation='vertical', label='Strength $(\\beta)$', pad=0.015)
+    
+        if plot_which == "corr":
+            cbcorr = plt.colorbar(orientation='vertical', label='Out-of-phase correlation ($\\rho^\\perp$)', pad=0.015)
 
-    norm_mag = plt.Normalize(0, max_beta)
-    cmap_mag = mcolors.LinearSegmentedColormap.from_list('white_to_black', ['#FFFFFF', '#000000'])
-    sm_mag = plt.cm.ScalarMappable(cmap=cmap_mag, norm=norm_mag)
-    sm_mag.set_array([])
-
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("bottom",
-                                    size="6%",
-                                    pad=0.1)
-    cmag = plt.colorbar(sm_mag, cax = cax, orientation='horizontal')
-    cax.set_xlabel("Strength $(\\beta^2/\\sigma^2)$", labelpad=0)
-    return []
+    return ax
 
 
 def plot_fisher_information_heatmap(F, which_probe,
