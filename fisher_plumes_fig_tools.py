@@ -95,7 +95,7 @@ def label_axes(ax_list, labs, dx=0, dy=0, x = None, y = None,
 
     
             
-def get_fig_dir(window_shape = None, window_length = None, fit_k = None, root_dir="", create = False):
+def get_fig_dir(window_shape = None, window_length = None, fit_k = None, fit_b = None, root_dir="", create = False):
     fig_dir = os.path.join(root_dir, "figs")
     if window_shape is not None:
         # append window_shape to fig_dir
@@ -108,6 +108,10 @@ def get_fig_dir(window_shape = None, window_length = None, fit_k = None, root_di
     if fit_k is not None:
         # append fit_k to fig_dir
         fig_dir = os.path.join(fig_dir, f"{fit_k=}")
+
+    if fit_b is not None:
+        # append fit_b to fig_dir
+        fig_dir = os.path.join(fig_dir, f"{fit_b=}")        
         
     if create:
         os.makedirs(fig_dir, exist_ok=True)
