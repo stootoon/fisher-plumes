@@ -363,10 +363,13 @@ class FisherPlumes:
         self.r2vals = [
             {d:np.array([
                 # [:,0] is to get the in-phase data
-            [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_r2_value(lad_bs_f[0], mud_bs_f[0], rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+            [[np.nan, np.nan] if ((ibs>0) and skip_bootstrap) else [
+                fpt.compute_r2_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = None), # Using the data distribution
+                fpt.compute_r2_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = 1001)] # Using evenly spaced points
+             for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
-    def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True):
+    def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True, fit_b = True):
         """
         Computes a generalized exponential fit to the decay of correlations with distance.
         """
@@ -384,6 +387,10 @@ class FisherPlumes:
         if not fit_k:
             bounds_dict["k"] = (1,1+1e-6)
             INFO(f"Not fitting k by using {bounds_dict['k']=:}")
+        if not fit_b:
+            bounds_dict["b"] = (0,0+1e-6)
+            INFO(f"Not fitting b by using {bounds_dict['b']=:}")
+            
         
         if ('vars_for_freqs' not in self.__dict__) or self.vars_for_freqs is None:
             # Loop over the rows of la_sub
@@ -495,7 +502,7 @@ class FisherPlumes:
         pack_coefs = lambda lr: [lr.intercept_, lr.coef_[0]]
         self.coef_γ_vs_freq = [np.array([pack_coefs(lr.fit(ff,γbs[ind_use[:len(γbs)]])) for γbs in fp[:, :, 1]/d_scale]) for fp in self.fit_params]            
     
-    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, z_score = True, **kwargs):
+    def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, fit_b = True, z_score = True, **kwargs):
         INFO(f"STARTING COMPUTATION.")
         if "integral_length_scale_locs_absolute" in kwargs:
             locs = kwargs["integral_length_scale_locs_absolute"]
@@ -517,7 +524,7 @@ class FisherPlumes:
         self.compute_phi()
         self.compute_pvalues()
         self.compute_r2values()
-        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k)
+        self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k, fit_b = fit_b)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
         self.regress_information_on_frequency(freq_min = 1 * UNITS.Hz, freq_max = 15 * UNITS.Hz, Regressor = HuberRegressor(max_iter=10000))
