@@ -365,8 +365,12 @@ def plot_alaplace_fits(F, which_dists_um,
                        heatmap_xmax = np.inf,
                        heatmap_default_xticks = False,
                        expansion = 1.2,
+                       cdf_mode = "even",
                        plot_dvals = False,
                        plot_pvals = False):
+    if cdf_mode not in ["even", "data"]:
+        raise ValueError(f"cdf_mode must be 'even' or 'data', not {cdf_mode}")
+    
     if figsize is not None:
         plt.figure(figsize=figsize)
 
@@ -441,9 +445,15 @@ def plot_alaplace_fits(F, which_dists_um,
         dists_um = np.array([d for d in sorted(vals) if d >= 0])
         n_dists = len(dists_um)
         dd = np.mean(np.diff(dists_um))
-        v = np.array([vals[d][0] for d in dists_um]).T
+        print("val shape: ", vals[0][0].shape)
+        if i == 0: # pvals
+            v = np.array([vals[d][0] for d in dists_um]).T
+        else: # r2vals
+            v = np.array([vals[d][0][:,int(cdf_mode=="even")].flatten() for d in dists_um]).T
+            print(v.shape)
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
+
         v = v[ifreq_lim[0]:ifreq_lim[1],:]
         
         # The distances are non-uniform, so just have one tick each and label them according to the actual distance
