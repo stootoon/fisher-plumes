@@ -80,9 +80,9 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     return matches
 
 
-def load_data(init_filter, compute_filter, registry = None, return_matches = False):
+def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False):
     """ Load data from the file in the registry that matches the given init and compute filters. """
-    if registry is None: registry = get_registry("./proc")
+    if registry is None: registry = get_registry(data_dir)
 
     matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
 
@@ -130,16 +130,38 @@ def load_spec(spec_file, verbose = False):
     
     return spec, compute_list
 
+
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
     parser.add_argument("--run_spec", help="YAML file specifying the runs to perform.", type=str)    
     parser.add_argument("--mock", action = "store_true", help="Don't actually create the objects or run the computation.")
     parser.add_argument("--verbose", action = "store_true", help="Print more information about what is happening. ")
-    parser.add_argument("--registry", help="Python dictionary containing the registry of all generated data.", type=str, default="proc/registry.p")
+    parser.add_argument("--registry",  help="Python dictionary containing the registry of all generated data.", type=str, default="proc/registry.p")
     parser.add_argument("--overwrite", help="Overwrite existing runs, if they exist.", action="store_true")
-    parser.add_argument("--rebuild", help="Whether to rebuild the registry from scratch. The directory of the --registry flag will be used.", action="store_true")
+    parser.add_argument("--rebuild",   help="Whether to rebuild the registry from scratch. The directory of the --registry flag will be used.", action="store_true")
+    parser.add_argument("--set", help="Field (e.g. 'compute.window_length') and value (e.g. '[1*SEC,2*SEC]') to set in spec file.", nargs=2, action="append", default=None)
     args = parser.parse_args()
 
+    if args.set is not None:
+        if args.run_spec is None:
+            print("No run specification file given. Exiting.")
+            exit(1)
+        # If the spec file doesn't exist, exit.
+        if not os.path.exists(args.run_spec):
+            print(f"Spec file {args.run_spec} does not exist. Exiting.")
+            exit(1)
+
+        top_field, sub_field  = args.set[0][0].split(".")
+        value = args.set[0][1]
+        # Load the yaml file, and set the field
+        spec = yaml.load(open(args.run_spec, "r"), Loader=yaml.FullLoader)
+        spec[top_field][sub_field] = value
+        # Write the yaml file back out.
+        with open(args.run_spec, "w") as f:
+            yaml.dump(spec, f)
+        print(f"Set {top_field}.{sub_field} to {value} in {args.run_spec}.")
+        exit(0)
+    
     # If the registry is to be rebuilt, get the data from the registry directory.
     if args.rebuild:
         registry = get_registry(os.path.dirname(args.registry), build=True, write=True)
