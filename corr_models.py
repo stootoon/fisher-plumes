@@ -5,10 +5,11 @@ from collections import namedtuple
 from sklearn.base import BaseEstimator
 import logging
 
-from scipy.stats import norm as norm_dist
+from scipy.stats import    norm as norm_dist
 from scipy.stats import   gamma as gamma_dist
+from scipy.stats import   geninvgauss
 from scipy.special import gamma as gamma_fun
-from scipy.special import digamma
+from scipy.special import digamma, kv
 
 import fisher_plumes_tools as fpt
 import utils
@@ -387,3 +388,153 @@ class IntermittentGamma(IntermittentExponential):
         self.labs = labs
 
         return self
+
+
+class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
+    Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
+    HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+
+    @staticmethod
+    def gig_Z(η, p, θ):
+        return 2 * η * kv(p, θ)
+    
+    @staticmethod
+    def agig_Z(params):        
+        λ = params.λ
+        μ = params.μ
+        k = params.k
+        m = params.m
+        α = params.α
+        β = params.β
+
+        Z0 = IntermittentGeneralizedInverseGaussian.gig_Z(μ, m, β)        
+        Z1 = IntermittentGeneralizedInverseGaussian.gig_Z(λ, k, α)
+        Z  = Z0 + Z1
+
+        return Z, Z0, Z1
+
+    @staticmethod
+    def agig_cdf(y, params):
+        λ = params.λ
+        μ = params.μ
+        k = params.k
+        m = params.m
+        α = params.α
+        β = params.β
+
+        Z, Z0, Z1 = IntermittentGeneralizedInverseGaussian.agig_Z(params)
+        cdf = 0*y
+        cdf[y<0]  = (1 -   geninvgauss.cdf(abs(y[y<0]), m, β, scale = μ)) * Z0/Z
+        cdf[y>=0] = Z0/Z + geninvgauss.cdf(y[y>=0],     k, α, scale = λ) * Z1/Z
+        return cdf
+
+    @staticmethod    
+    def cdf(y, params):
+        # Compute the CDF
+        R = IntermittentGeneralizedInverseGamma.agig_cdf(y, params)
+        H = norm_dist.cdf(y, scale = params.σ)
+        return params.γ*R + (1-params.γ)*H
+    
+    @staticmethod
+    def gen_data(M, params):
+        λ, μ, σ, γ, k, m, α, β = [params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β']]
+        y = np.zeros(M)
+        z = rand(M) < γ
+        i0= ~z
+        n0= np.sum(~z)
+        i1= z
+        n1= np.sum(z)
+        Z, Z0, Z1 = IntermittentGeneralizedInverseGaussian.agig_Z(params)
+        pp= Z1/(Z1 + Z0)
+        ip= rand(M)<pp
+        y[ip] =  geninvgauss.rvs(k, α, scale=λ, size=sum(ip))
+        y[~ip]= -geninvgauss.rvs(m, β, scale=μ, size=sum(~ip))       
+        y[~z] = randn(n0)*σ
+        
+        labs = 0*z
+        labs[z & (y>=0)] = 1
+        labs[z & (y<0)]  = -1
+
+        return y, labs
+
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000):
+        assert y is None, "y must be None"
+        y = X.flatten()
+
+        # Initialize
+        M     = len(y)
+
+        # Initialize the parameters from self.init_params
+        λ, μ, σ, γ, k, m = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm']]    
+        λ_old, μ_old, σ_old, γ_old, k_old, m_old = λ, μ, σ, γ, k, m
+    
+        ZFUN = lambda λ, μ, k, m: gamma_fun(m) * μ**m + gamma_fun(k) * λ**k
+        for i in range(max_iter):
+            Z = ZFUN(λ, μ, k, m)
+    
+            # E-step        
+            lrho       = 0 * y
+            lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/λ
+            lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/μ
+            leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
+            z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
+    
+            # M-step        
+            γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
+    
+            i0= ~z
+            n0= sum(i0)        
+            if n0>0:
+                y0 = y[i0]
+                if self.hyper_params.σ_penalty>0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
+                else:                             σ2 = np.mean(y0**2)
+            else:
+                σ2 = np.var(y)*1e-3 # Don't make it exactly 0
+
+            σ = np.sqrt(σ2)
+                        
+            ip   = z & (y>=0)
+            i_n  = z & (y<0)    
+            n_p  = sum(ip)
+            nn   = sum(i_n)
+            n    = n_p + nn
+            yps  = sum(y[ip]) if n_p else 0
+            lyps = sum(np.log(y[ip])) if n_p else 0
+            yns  = sum(abs(y[i_n])) if nn else 0
+            lyns = sum(np.log(abs(y[i_n]))) if nn else 0
+
+            fixed_point_function = lambda x: np.array([
+                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[1])/x[1]*yps)**(1/(x[1]+1)),
+                (np.log(x[0]) + digamma(x[1]))/x[0]*yps/lyps,
+                self.min_μ if nn==0 else (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[3])/x[3]*yns)**(1/(x[3]+1)),
+                1 if nn==0 else (np.log(x[2]) + digamma(x[3]))/x[2]*yns/lyns
+            ])
+
+            fixed_point_init = np.array([λ_old, k_old, μ_old, m_old])
+            
+            (λ, k, μ, m), status = fixed_point_iterate(fixed_point_function,
+                                                       fixed_point_init,
+                                                       damping  = damping,
+                                                       max_iter = max_fp_iter,)
+            
+            # Print the values at the current iteration, including the iteration number
+            self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
+            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params))
+            # Check convergence
+            if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
+                INFO("Converged.")
+                break
+            λ_old = λ
+            μ_old = μ
+            σ_old = σ
+            γ_old = γ
+            m_old = m
+            k_old = k
+    
+        labs = 0*z
+        labs[z & (y>=0)] = 1
+        labs[z & (y<0)]  = -1
+        self.labs = labs
+
+        return self
+    
