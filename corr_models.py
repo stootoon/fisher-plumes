@@ -10,6 +10,7 @@ from scipy.stats import   gamma as gamma_dist
 from scipy.stats import   geninvgauss
 from scipy.special import gamma as gamma_fun
 from scipy.special import digamma, kv
+from scipy.optimize import minimize
 
 import fisher_plumes_tools as fpt
 import utils
@@ -24,6 +25,17 @@ rand = np.random.rand
 randn= np.random.randn
 
 params2str  = lambda params: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items()])
+
+params_all_close = lambda p1, p2: np.allclose([p1.__getattribute__(p) for p in p1._fields], 
+                                              [p2.__getattribute__(p) for p in p1._fields],
+                                              rtol=0, atol=1e-6)
+
+def kvv(v, z, ε = 1e-6):
+    """
+    Numerically estimate the derivative of the modified Bessel function of the second kind
+    with respect to the order v.
+    """
+    return (kv(v+ε, z) - kv(v-ε, z))/(2*ε)
 
 def cdf_data(y, n = 1001):
     ys  = np.array(sorted(y))
@@ -431,7 +443,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
     @staticmethod    
     def cdf(y, params):
         # Compute the CDF
-        R = IntermittentGeneralizedInverseGamma.agig_cdf(y, params)
+        R = IntermittentGeneralizedInverseGaussian.agig_cdf(y, params)
         H = norm_dist.cdf(y, scale = params.σ)
         return params.γ*R + (1-params.γ)*H
     
@@ -457,7 +469,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
         return y, labs
 
-    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000):
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "CG"):
         assert y is None, "y must be None"
         y = X.flatten()
 
@@ -465,17 +477,16 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         M     = len(y)
 
         # Initialize the parameters from self.init_params
-        λ, μ, σ, γ, k, m = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm']]    
-        λ_old, μ_old, σ_old, γ_old, k_old, m_old = λ, μ, σ, γ, k, m
+        λ, μ, σ, γ, k, m, α, β = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β']]    
+        λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old = λ, μ, σ, γ, k, m, α, β
     
-        ZFUN = lambda λ, μ, k, m: gamma_fun(m) * μ**m + gamma_fun(k) * λ**k
         for i in range(max_iter):
-            Z = ZFUN(λ, μ, k, m)
+            Z = self.agig_Z(self.params)[0]
     
             # E-step        
             lrho       = 0 * y
-            lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/λ
-            lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/μ
+            lrho[y>0]  = -np.log(Z) + (k - 1) * np.log( y[y>0]/λ) - α/2*(y[y>0]/λ + λ/y[y>0])
+            lrho[y<0]  = -np.log(Z) + (m - 1) * np.log(-y[y<0]/μ) + β/2*(y[y<0]/μ + μ/y[y<0])
             leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
             z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
     
@@ -498,38 +509,40 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             n_p  = sum(ip)
             nn   = sum(i_n)
             n    = n_p + nn
-            yps  = sum(y[ip]) if n_p else 0
-            lyps = sum(np.log(y[ip])) if n_p else 0
-            yns  = sum(abs(y[i_n])) if nn else 0
-            lyns = sum(np.log(abs(y[i_n]))) if nn else 0
-
-            fixed_point_function = lambda x: np.array([
-                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[1])/x[1]*yps)**(1/(x[1]+1)),
-                (np.log(x[0]) + digamma(x[1]))/x[0]*yps/lyps,
-                self.min_μ if nn==0 else (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[3])/x[3]*yns)**(1/(x[3]+1)),
-                1 if nn==0 else (np.log(x[2]) + digamma(x[3]))/x[2]*yns/lyns
-            ])
-
-            fixed_point_init = np.array([λ_old, k_old, μ_old, m_old])
+            ypm  = np.mean(y[ip])  if n_p else 0
+            ynm  = np.mean(-y[i_n]) if nn  else 0
+            lypm = np.mean(np.log(y[ip]))   if n_p else 0
+            lynm = np.mean(np.log(-y[i_n])) if nn  else 0
+            iypm = np.mean(1/y[ip])       if n_p   else 0
+            iynm = np.mean(-1/y[i_n])     if nn    else 0
             
-            (λ, k, μ, m), status = fixed_point_iterate(fixed_point_function,
-                                                       fixed_point_init,
-                                                       damping  = damping,
-                                                       max_iter = max_fp_iter,)
+            def neg_ll(p):
+                λ, μ, k, m, α, β = p
+                lZ   = np.log(2*(λ * kv(k, α) + μ * kv(m, β)))
+                lpos = n_p/n*((k-1)*np.log(λ) - (k-1)*lypm + α/(2*λ) * ypm + α * λ/2 * iypm)
+                lneg =  nn/n*((m-1)*np.log(μ) - (m-1)*lynm + β/(2*μ) * ynm + β * μ/2 * iynm)
+                return (lZ + lpos + lneg)
+
+            sol = minimize(neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old], bounds = [(1e-6, 10)]*6, method=method)
+            DEBUG(f"{sol.message} after {sol.nit} iterations.")
+            λ, μ, k, m, α, β = (1 - damping) * sol.x + damping * np.array([λ_old, μ_old, k_old, m_old, α_old, β_old])
             
             # Print the values at the current iteration, including the iteration number
-            self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
+            self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
             INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params))
+
             # Check convergence
-            if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
+            if np.allclose([λ, μ, σ, γ, k, m, α, β], [λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old], atol=1e-6, rtol=0):
                 INFO("Converged.")
-                break
+                break            
             λ_old = λ
             μ_old = μ
             σ_old = σ
             γ_old = γ
             m_old = m
             k_old = k
+            α_old = α
+            β_old = β
     
         labs = 0*z
         labs[z & (y>=0)] = 1
