@@ -129,7 +129,8 @@ class Exponential(BaseEstimator):
     
 
 class IntermittentExponential(Exponential):
-    Params = namedtuple('Params', ['λ', 'μ', 'σ', 'γ'])
+    Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ'])
+    HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
     
     @staticmethod
     def cdf(x, params):
@@ -161,13 +162,11 @@ class IntermittentExponential(Exponential):
         
         return y, labs
 
-    def __init__(self, init_params, min_μ = 1e-6, σ_penalty = 0, γ_pr_mean = 1, γ_pr_strength = 0):
+    def __init__(self, init_params, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
         self.min_μ = min_μ
+        self.hyper_params= self.HyperParams(σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0)
         self.init_params = init_params
         self.params      = init_params
-        self.σ_penalty   = σ_penalty
-        self.γ_pr_mean     = γ_pr_mean
-        self.γ_pr_strength = γ_pr_strength
 
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
@@ -176,14 +175,14 @@ class IntermittentExponential(Exponential):
 
         # Initialize
         M     = len(y)
-        γ_old = self.γ_pr_mean
+        γ_old = self.hyper_params.γ_pr_mean
         λ_old, μ_old, σ_old = self.init_params.λ, self.init_params.μ, self.init_params.σ
 
         # Take the top M γ active values as those that active
         ind_z = np.argsort(-abs(y))[:int(M * γ_old)]    
         z = 0*y
         z[ind_z] = 1
-        z = z.astype(bool)
+        z = z.astype(bool)    
         for i in range(max_iter):
             # E-step
             if i > 0:
@@ -193,16 +192,14 @@ class IntermittentExponential(Exponential):
                 leta       = -y**2/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
                 z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
             # M-step
-            γ = (sum(z) + self.γ_pr_mean*self.γ_pr_strength*len(z))/(len(z) + self.γ_pr_strength*len(z))
-    
+            γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
+            
             i0= ~z
             n0= sum(i0)        
             if n0>0:
                 y0 = y[i0]
-                if σ_penalty > 0:
-                    σ2 = n0/(2*σ_penalty) * (-1 + np.sqrt(1 + 4 * σ_penalty * np.mean(y0**2)/n0))
-                else:
-                    σ2 = np.mean(y0**2)
+                if self.hyper_params.σ_penalty > 0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
+                else: σ2 = np.mean(y0**2)
             else:
                 σ2 = np.var(y)*1e-3 # Don't make it exactly 0
 
