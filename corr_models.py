@@ -625,3 +625,15 @@ class CorrModel: # A wrapper over the correlation models that will aid model sel
     def score(self, *args, **kwargs):
         return self.model.score(*args, **kwargs)
     
+    def cdf(self, *args, **kwargs):
+        return self.model.cdf(*args, **kwargs)
+
+    def __str__(self):
+        return str(self.model)
+
+    def __repr__(self):
+        return repr(self.model)
+    
+    @property
+    def params(self):
+        return self.model.params
