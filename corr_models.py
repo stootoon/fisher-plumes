@@ -490,7 +490,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
         gammaness = [IntermittentGeneralizedInverseGaussian.gammaness(p) for p in [μ, λ]]
         if gammaness[0] > gammaness_thresh:
-            gamma_scale = β/μ/2            
+            gamma_scale = 2*μ/β            
             INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
             Z0 = IntermittentGamma.gam_Z(gamma_scale, m)
             neg_cdf = lambda y: (1 - gamma_dist.cdf(np.abs(y), m, scale=gamma_scale))
@@ -499,7 +499,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             neg_cdf = lambda y: (1 - geninvgauss.cdf(np.abs(y), m, β, scale = μ))
 
         if gammaness[1] > gammaness_thresh:
-            gamma_scale = α/λ/2                      
+            gamma_scale = 2*λ/α                      
             INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
             Z1 = IntermittentGamma.gam_Z(gamma_scale, k)
             pos_cdf = lambda y: gamma_dist.cdf(y, k, scale=gamma_scale)
