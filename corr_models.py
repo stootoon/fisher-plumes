@@ -82,7 +82,7 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
 
     status = 0
     if any(np.isnan(x)):
-        WARN("Nans encountered.")
+        raise Exception("Nans encountered.")
         status = 2
     elif i == max_iter - 1:
         WARN("Not converged.")
@@ -200,12 +200,19 @@ class IntermittentExponential(Exponential):
         
         return y, labs
 
-    def __init__(self, init_params, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+    def __init__(self, init_params, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
         self.init_params = init_params
         self.params      = init_params
 
+        self.intermittent = intermittent
+        if not self.intermittent:
+            self.init_params  = self.init_params._replace(γ = 1)
+            self.params       = self.params._replace(γ = 1)
+            self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
+
+        
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
 
@@ -224,23 +231,31 @@ class IntermittentExponential(Exponential):
         for i in range(max_iter):
             # E-step
             if i > 0:
-                lrho = 0 * y
-                lrho[y>=0] = -np.log(λ + μ)-abs(y[y>=0])/λ
-                lrho[y<0]  = -np.log(λ + μ)-abs(y[y< 0])/μ
-                leta       = -y**2/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
-                z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
+                if self.intermittent:
+                    lrho = 0 * y
+                    lrho[y>=0] = -np.log(λ + μ)-abs(y[y>=0])/λ
+                    lrho[y<0]  = -np.log(λ + μ)-abs(y[y< 0])/μ
+                    leta       = -y**2/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
+                    z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
+                else:
+                    z = (0*y + 1).astype(bool)
             # M-step
-            γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
-            
             i0= ~z
             n0= sum(i0)        
-            if n0>0:
-                y0 = y[i0]
-                if self.hyper_params.σ_penalty > 0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
-                else:                               σ2 = np.mean(y0**2)
+            
+            if self.intermittent:
+                γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
+                
+                if n0>0:
+                    y0 = y[i0]
+                    if self.hyper_params.σ_penalty > 0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
+                    else:                               σ2 = np.mean(y0**2)
+                else:
+                    σ2 = np.var(y)*1e-3 # Don't make it exactly 0
             else:
-                σ2 = np.var(y)*1e-3 # Don't make it exactly 0
-
+                γ  = 1
+                σ2 = 0
+    
             σ = np.sqrt(σ2)
                         
             ip  = z & (y>=0)
@@ -320,7 +335,15 @@ class IntermittentGamma(IntermittentExponential):
 
         return y, labs
 
-    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000):
+    @staticmethod
+    def neg_ll(p, fp, fn, ypm, ynm, lypm, lynm):
+        λ, μ, k, m = p
+        lZ   = np.log(gamma_fun(m) * (μ**m) + gamma_fun(k) * (λ**k))
+        lpos = fp*(-(k-1)*lypm + ypm/λ)
+        lneg = fn*(-(m-1)*lynm + ynm/μ)
+        return (lZ + lpos + lneg)
+    
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         assert y is None, "y must be None"
         y = X.flatten()
 
@@ -335,25 +358,33 @@ class IntermittentGamma(IntermittentExponential):
         for i in range(max_iter):
             Z = ZFUN(λ, μ, k, m)
     
-            # E-step        
-            lrho       = 0 * y
-            lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/λ
-            lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/μ
-            leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
-            z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
-    
-            # M-step        
-            γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
-    
+            # E-step
+            if self.intermittent:
+                lrho       = 0 * y
+                lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/λ
+                lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/μ
+                leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
+                z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
+            else:
+                z = (0*y + 1).astype(bool)
+
             i0= ~z
             n0= sum(i0)        
-            if n0>0:
-                y0 = y[i0]
-                if self.hyper_params.σ_penalty>0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
-                else:                             σ2 = np.mean(y0**2)
+            
+            # M-step
+            if self.intermittent:
+                γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
+        
+                if n0>0:
+                    y0 = y[i0]
+                    if self.hyper_params.σ_penalty>0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
+                    else:                             σ2 = np.mean(y0**2)
+                else:
+                    σ2 = np.var(y)*1e-3 # Don't make it exactly 0
             else:
-                σ2 = np.var(y)*1e-3 # Don't make it exactly 0
-
+                γ = 1
+                σ2= 0
+    
             σ = np.sqrt(σ2)
                         
             ip   = z & (y>=0)
@@ -361,25 +392,31 @@ class IntermittentGamma(IntermittentExponential):
             n_p  = sum(ip)
             nn   = sum(i_n)
             n    = n_p + nn
-            yps  = sum(y[ip]) if n_p else 0
-            lyps = sum(np.log(y[ip])) if n_p else 0
-            yns  = sum(abs(y[i_n])) if nn else 0
-            lyns = sum(np.log(abs(y[i_n]))) if nn else 0
+            ypm  = np.mean(y[ip]) if n_p else 0
+            lypm = np.mean(np.log(y[ip])) if n_p else 0
+            ynm  = np.mean(abs(y[i_n])) if nn else 0
+            lynm = np.mean(np.log(abs(y[i_n]))) if nn else 0
 
             fixed_point_function = lambda x: np.array([
-                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[1])/x[1]*yps)**(1/(x[1]+1)),
-                (np.log(x[0]) + digamma(x[1]))/x[0]*yps/lyps,
-                self.min_μ if nn==0 else (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[3])/x[3]*yns)**(1/(x[3]+1)),
-                1 if nn==0 else (np.log(x[2]) + digamma(x[3]))/x[2]*yns/lyns
+                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[1])/x[1]*ypm*n_p)**(1/(x[1]+1)),
+                (np.log(x[0]) + digamma(x[1]))/x[0]*ypm/lypm,
+                self.min_μ if nn==0 else (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[3])/x[3]*ynm*nn)**(1/(x[3]+1)),
+                1 if nn==0 else (np.log(x[2]) + digamma(x[3]))/x[2]*ynm/lynm
             ])
 
-            fixed_point_init = np.array([λ_old, k_old, μ_old, m_old])
-            
-            (λ, k, μ, m), status = fixed_point_iterate(fixed_point_function,
-                                                       fixed_point_init,
-                                                       damping  = damping,
-                                                       max_iter = max_fp_iter,)
-            
+            if method == "FP":
+                fixed_point_init = np.array([λ_old, k_old, μ_old, m_old])
+                
+                (λ, k, μ, m), status = fixed_point_iterate(fixed_point_function,
+                                                           fixed_point_init,
+                                                           damping  = damping,
+                                                           max_iter = max_fp_iter,)
+            else:            
+                sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old],
+                           args   = (n_p/n, nn/n, ypm, ynm, lypm, lynm),
+                           bounds = [(1e-6, 10)]*4,
+                           method = method)                
+                
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
             INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params))
@@ -459,22 +496,30 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         Z, Z0, Z1 = IntermittentGeneralizedInverseGaussian.agig_Z(params)
         pp= Z1/(Z1 + Z0)
         ip= rand(M)<pp
-        y[ip] =  geninvgauss.rvs(k, α, scale=λ, size=sum(ip))
-        y[~ip]= -geninvgauss.rvs(m, β, scale=μ, size=sum(~ip))       
-        y[~z] = randn(n0)*σ
+        y[ip]  =  geninvgauss.rvs(k, α, scale=λ, size=sum(ip))
+        y[~ip] = -geninvgauss.rvs(m, β, scale=μ, size=sum(~ip))       
+        y[~z]  =  randn(n0)*σ
         
-        labs = 0*z
+        labs             = 0*z
         labs[z & (y>=0)] = 1
         labs[z & (y<0)]  = -1
 
         return y, labs
 
-    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "CG"):
+    @staticmethod
+    def neg_ll(p, fp, fn, ypm, ynm, iypm, iynm, lypm, lynm):
+        λ, μ, k, m, α, β = p
+        lZ   = np.log(2*(λ * kv(k, α) + μ * kv(m, β)))
+        lpos = fp*((k-1)*np.log(λ) - (k-1)*lypm + α/(2*λ) * ypm + α * λ/2 * iypm)
+        lneg = fn*((m-1)*np.log(μ) - (m-1)*lynm + β/(2*μ) * ynm + β * μ/2 * iynm)
+        return (lZ + lpos + lneg)
+
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         assert y is None, "y must be None"
         y = X.flatten()
 
         # Initialize
-        M     = len(y)
+        M = len(y)
 
         # Initialize the parameters from self.init_params
         λ, μ, σ, γ, k, m, α, β = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β']]    
@@ -483,25 +528,33 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         for i in range(max_iter):
             Z = self.agig_Z(self.params)[0]
     
-            # E-step        
-            lrho       = 0 * y
-            lrho[y>0]  = -np.log(Z) + (k - 1) * np.log( y[y>0]/λ) - α/2*(y[y>0]/λ + λ/y[y>0])
-            lrho[y<0]  = -np.log(Z) + (m - 1) * np.log(-y[y<0]/μ) + β/2*(y[y<0]/μ + μ/y[y<0])
-            leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
-            z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
-    
-            # M-step        
-            γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
-    
+            # E-step
+            if self.intermittent:
+                lrho       = 0 * y
+                lrho[y>0]  = -np.log(Z) + (k - 1) * np.log( y[y>0]/λ) - α/2*(y[y>0]/λ + λ/y[y>0])
+                lrho[y<0]  = -np.log(Z) + (m - 1) * np.log(-y[y<0]/μ) + β/2*(y[y<0]/μ + μ/y[y<0])
+                leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
+                z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
+            else:
+                z = (0*y + 1).astype(bool)
+
             i0= ~z
             n0= sum(i0)        
-            if n0>0:
-                y0 = y[i0]
-                if self.hyper_params.σ_penalty>0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
-                else:                             σ2 = np.mean(y0**2)
+            
+            # M-step
+            if self.intermittent:
+                γ = (sum(z) + self.hyper_params.γ_pr_mean*self.hyper_params.γ_pr_strength*len(z))/(len(z) + self.hyper_params.γ_pr_strength*len(z))
+        
+                if n0>0:
+                    y0 = y[i0]
+                    if self.hyper_params.σ_penalty>0: σ2 = n0/(2*self.hyper_params.σ_penalty) * (-1 + np.sqrt(1 + 4 * self.hyper_params.σ_penalty * np.mean(y0**2)/n0))
+                    else:                             σ2 = np.mean(y0**2)
+                else:
+                    σ2 = np.var(y)*1e-3 # Don't make it exactly 0
             else:
-                σ2 = np.var(y)*1e-3 # Don't make it exactly 0
-
+                γ = 1
+                σ2= 0
+    
             σ = np.sqrt(σ2)
                         
             ip   = z & (y>=0)
@@ -509,21 +562,19 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             n_p  = sum(ip)
             nn   = sum(i_n)
             n    = n_p + nn
-            ypm  = np.mean(y[ip])  if n_p else 0
-            ynm  = np.mean(-y[i_n]) if nn  else 0
+
+            ypm  = np.mean(y[ip])           if n_p else 0
+            ynm  = np.mean(-y[i_n])         if nn  else 0
             lypm = np.mean(np.log(y[ip]))   if n_p else 0
             lynm = np.mean(np.log(-y[i_n])) if nn  else 0
-            iypm = np.mean(1/y[ip])       if n_p   else 0
-            iynm = np.mean(-1/y[i_n])     if nn    else 0
+            iypm = np.mean(1/y[ip])         if n_p else 0
+            iynm = np.mean(-1/y[i_n])       if nn  else 0
             
-            def neg_ll(p):
-                λ, μ, k, m, α, β = p
-                lZ   = np.log(2*(λ * kv(k, α) + μ * kv(m, β)))
-                lpos = n_p/n*((k-1)*np.log(λ) - (k-1)*lypm + α/(2*λ) * ypm + α * λ/2 * iypm)
-                lneg =  nn/n*((m-1)*np.log(μ) - (m-1)*lynm + β/(2*μ) * ynm + β * μ/2 * iynm)
-                return (lZ + lpos + lneg)
-
-            sol = minimize(neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old], bounds = [(1e-6, 10)]*6, method=method)
+            sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old],
+                           args   = (n_p/n, nn/n, ypm, ynm, iypm, iynm, lypm, lynm),
+                           bounds = [(1e-6, 10)]*6,
+                           method = method)
+            
             DEBUG(f"{sol.message} after {sol.nit} iterations.")
             λ, μ, k, m, α, β = (1 - damping) * sol.x + damping * np.array([λ_old, μ_old, k_old, m_old, α_old, β_old])
             
@@ -534,7 +585,8 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             # Check convergence
             if np.allclose([λ, μ, σ, γ, k, m, α, β], [λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old], atol=1e-6, rtol=0):
                 INFO("Converged.")
-                break            
+                break
+            
             λ_old = λ
             μ_old = μ
             σ_old = σ
@@ -550,4 +602,26 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         self.labs = labs
 
         return self
+
+
+class CorrModel: # A wrapper over the correlation models that will aid model selection.
+    def __init__(self, *args, model = "gig", **kwargs):
+        if model == "exp":
+            self.model = IntermittentExponential(*args, **kwargs)
+        elif model == "gamma":
+            self.model = IntermittentGamma(*args, **kwargs)
+        elif model == "gig":
+            self.model = IntermittentGeneralizedInverseGaussian(*args, **kwargs)
+        else:
+            raise Exception(f"Unknown model {model}")
+
+    def fit(self, *args, **kwargs):
+        self.model.fit(*args, **kwargs)
+        return self
+
+    def predict(self, *args, **kwargs):
+        return self.model.predict(*args, **kwargs)
+
+    def score(self, *args, **kwargs):
+        return self.model.score(*args, **kwargs)
     
