@@ -62,7 +62,7 @@ def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.com
         labs = [str(mdl) for mdl in mdls]
         
     for mdl,lab in zip(mdls, labs):
-        cdf_mdl = mdl.cdf(xv, mdl.params)
+        cdf_mdl = mdl.cdf(xv)
         gof = gof_fun(mdl.predict, y, n = n)
         plt.plot(xv, cdf_mdl, "-", label=f"{lab}: {gof:.3f}")
 
@@ -95,8 +95,8 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
 class Exponential(BaseEstimator):
     Params = namedtuple('Params', ['λ', 'μ'])
     
-    @staticmethod
-    def cdf(x, params):
+    def cdf(self, x, params = None):
+        if params is None: params = self.params
         return fpt.alaplace_cdf(2*params.λ, 2*params.μ, x)
 
     @staticmethod
@@ -118,10 +118,10 @@ class Exponential(BaseEstimator):
         self.params      = init_params
 
     def __repr__(self):
-        return f"{self.__class__.__name__}(Params({params2str(self.params)}))"
+        return f"{self.__class__.__name__}\n(Params({params2str(self.params)}))"
 
     def __str__(self):
-        return f"{self.__class__.__name__}({params2str(self.params)})"
+        return f"{self.__class__.__name__}\n({params2str(self.params)})"
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
@@ -170,8 +170,8 @@ class IntermittentExponential(Exponential):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ'])
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
     
-    @staticmethod
-    def cdf(x, params):
+    def cdf(self, x, params = None):
+        if params is None: params = self.params
         λ, μ, σ, γ = params.λ, params.μ, params.σ, params.γ
         R = fpt.alaplace_cdf(2*λ, 2*μ, x)
         H = norm_dist.cdf(x, scale=σ)
@@ -288,6 +288,23 @@ class IntermittentExponential(Exponential):
 class IntermittentGamma(IntermittentExponential):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm'])
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+
+    @staticmethod
+    def gam_Z(λ, k):
+        return gamma_fun(k) * (λ**k)
+    
+    @staticmethod
+    def agam_Z(params):        
+        λ = params.λ
+        μ = params.μ
+        k = params.k
+        m = params.m
+
+        Z0 = IntermittentGamma.gam_Z(μ, m)
+        Z1 = IntermittentGamma.gam_Z(λ, k)
+        Z  = Z0 + Z1
+
+        return Z, Z0, Z1
     
     @staticmethod
     def agamma_cdf(y, params):
@@ -304,8 +321,8 @@ class IntermittentGamma(IntermittentExponential):
         cdf[y>=0] = Z0/Z + gamma_dist.cdf(y[y>=0],     k, scale = λ) * Z1/Z
         return cdf
 
-    @staticmethod    
-    def cdf(y, params):
+    def cdf(self, y, params = None):
+        if params is None: params = self.params
         λ, μ, k, m, σ, γ = [params._asdict()[k] for k in ['λ', 'μ', 'k', 'm', 'σ', 'γ']]    
         # Compute the CDF
         R = IntermittentGamma.agamma_cdf(y, params)
@@ -463,7 +480,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         return Z, Z0, Z1
 
     @staticmethod
-    def agig_cdf(y, params):
+    def agig_cdf(y, params, gammaness_thresh):
         λ = params.λ
         μ = params.μ
         k = params.k
@@ -471,16 +488,35 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         α = params.α
         β = params.β
 
-        Z, Z0, Z1 = IntermittentGeneralizedInverseGaussian.agig_Z(params)
+        gammaness = [IntermittentGeneralizedInverseGaussian.gammaness(p) for p in [μ, λ]]
+        if gammaness[0] > gammaness_thresh:
+            gamma_scale = β/μ/2            
+            INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
+            Z0 = IntermittentGamma.gam_Z(gamma_scale, m)
+            neg_cdf = lambda y: (1 - gamma_dist.cdf(np.abs(y), m, scale=gamma_scale))
+        else:
+            Z0 = IntermittentGeneralizedInverseGaussian.gig_Z(μ, m, β)
+            neg_cdf = lambda y: (1 - geninvgauss.cdf(np.abs(y), m, β, scale = μ))
+
+        if gammaness[1] > gammaness_thresh:
+            gamma_scale = α/λ/2                      
+            INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
+            Z1 = IntermittentGamma.gam_Z(gamma_scale, k)
+            pos_cdf = lambda y: gamma_dist.cdf(y, k, scale=gamma_scale)
+        else:
+            Z1 = IntermittentGeneralizedInverseGaussian.gig_Z(λ, k, α)
+            pos_cdf = lambda y: geninvgauss.cdf(y, k, α, scale = λ)
+        
+        Z = Z0 + Z1
         cdf = 0*y
-        cdf[y<0]  = (1 -   geninvgauss.cdf(abs(y[y<0]), m, β, scale = μ)) * Z0/Z
-        cdf[y>=0] = Z0/Z + geninvgauss.cdf(y[y>=0],     k, α, scale = λ) * Z1/Z
+        cdf[y<0] = neg_cdf(y[y<0]) * Z0/Z
+        cdf[y>=0]= Z0/Z + pos_cdf(y[y>=0]) * Z1/Z
         return cdf
 
-    @staticmethod    
-    def cdf(y, params):
+    def cdf(self, y, params = None):
+        if params is None: params = self.params
         # Compute the CDF
-        R = IntermittentGeneralizedInverseGaussian.agig_cdf(y, params)
+        R = IntermittentGeneralizedInverseGaussian.agig_cdf(y, params, self.gammaness_thresh)
         H = norm_dist.cdf(y, scale = params.σ)
         return params.γ*R + (1-params.γ)*H
     
@@ -514,6 +550,20 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         lneg = fn*((m-1)*np.log(μ) - (m-1)*lynm + β/(2*μ) * ynm + β * μ/2 * iynm)
         return (lZ + lpos + lneg)
 
+    @staticmethod
+    def gammaness(λ):
+        # Measures how close the data is to the gamma distribution
+        # For an IGIG distribution, the exponential term is exp(-α(x/λ + λ/x)/2)
+        # The gamma distribution has the exponential term exp(-x/λ)
+        # So the gammaness is the ratio of the two exponents in th IGIG term.
+        # If it's very large, then the data is very gamma-like, since the 1/x term is small.
+        return λ**-2
+
+    def __init__(self, *args, gammaness_thresh = np.inf, **kwargs):
+        # Call the parent constructor
+        super().__init__(*args, **kwargs)
+        self.gammaness_thresh = gammaness_thresh # How gamma-like the data must be to be considered gamma distributed.
+        
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         assert y is None, "y must be None"
         y = X.flatten()
@@ -572,7 +622,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             
             sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old],
                            args   = (n_p/n, nn/n, ypm, ynm, iypm, iynm, lypm, lynm),
-                           bounds = [(1e-6, 10)]*6,
+                           bounds = [(1e-6, 10)]*4  + [(1e-6, 10)]*2,
                            method = method)
             
             DEBUG(f"{sol.message} after {sol.nit} iterations.")
