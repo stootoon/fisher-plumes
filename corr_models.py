@@ -24,7 +24,7 @@ DEBUG = logger.debug
 rand = np.random.rand
 randn= np.random.randn
 
-params2str  = lambda params: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items()])
+params2str  = lambda params, flds: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items() if p in flds])
 
 params_all_close = lambda p1, p2: np.allclose([p1.__getattribute__(p) for p in p1._fields], 
                                               [p2.__getattribute__(p) for p in p1._fields],
@@ -118,10 +118,10 @@ class Exponential(BaseEstimator):
         self.params      = init_params
 
     def __repr__(self):
-        return f"{self.__class__.__name__}\n(Params({params2str(self.params)}))"
+        return f"{self.__class__.__name__}\n(Params({params2str(self.params, self.Params._fields)}))"
 
     def __str__(self):
-        return f"{self.__class__.__name__}\n({params2str(self.params)})"
+        return f"{self.__class__.__name__}\n({params2str(self.params, self.Params._fields)})"
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
@@ -145,7 +145,7 @@ class Exponential(BaseEstimator):
 
             self.params = self.Params(λ=λ, μ=μ)
             # Print the values at the current iteration, including the iteration number
-            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params))
+            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol:
                 INFO("Converged.")
@@ -270,7 +270,7 @@ class IntermittentExponential(Exponential):
 
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
             # Print the values at the current iteration, including the iteration number
-            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params))
+            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol:
                 INFO("Converged.")
@@ -436,7 +436,7 @@ class IntermittentGamma(IntermittentExponential):
                 
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
-            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params))
+            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
                 INFO("Converged.")
@@ -630,7 +630,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
-            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params))
+            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
 
             # Check convergence
             if np.allclose([λ, μ, σ, γ, k, m, α, β], [λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old], atol=1e-6, rtol=0):
