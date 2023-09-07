@@ -60,9 +60,10 @@ def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.com
     plt.plot(xv, cdf_true, "-",label="data" )
 
     if len(labs) == 0:
-        labs = [str(mdl) for mdl in mdls]
+        labs = [str(mdl).replace("(", "\n(") for mdl in mdls]
         
     for mdl,lab in zip(mdls, labs):
+        INFO(f"Plotting cdf for model: " + lab.replace("\n",""))        
         cdf_mdl = mdl.cdf(xv)
         gof = gof_fun(mdl.predict, y, n = n)
         plt.plot(xv, cdf_mdl, "-", label=f"{lab}: {gof:.3f}")
@@ -113,16 +114,17 @@ class Exponential(BaseEstimator):
         labs  = np.sign(y)
         return y, labs
 
-    def __init__(self, init_params = None, min_μ = 1e-6):
+    def __init__(self, init_params = None, min_μ = 1e-6, name = "Model"):
+        self.name  = name
         self.min_μ = min_μ
         self.init_params = init_params
         self.params      = init_params
 
     def __repr__(self):
-        return f"{self.__class__.__name__}\n(Params({params2str(self.params, self.Params._fields)}))"
+        return f"{self.name}, {self.__class__.__name__}(Params({params2str(self.params, self.Params._fields)}))"
 
     def __str__(self):
-        return f"{self.__class__.__name__}\n({params2str(self.params, self.Params._fields)})"
+        return f"{self.name}, {self.__class__.__name__}({params2str(self.params, self.Params._fields)})"
 
     def init_from_fit(self, y):
         INFO("Initializing from fit.")        
@@ -140,6 +142,7 @@ class Exponential(BaseEstimator):
         
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
+        INFO(f"Fitting exponential model {self.name}.")
         assert y is None, "y must be None"
 
         y = X.flatten()
@@ -163,7 +166,7 @@ class Exponential(BaseEstimator):
 
             self.params = self.Params(λ=λ, μ=μ)
             # Print the values at the current iteration, including the iteration number
-            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
+            DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol:
                 INFO("Converged.")
@@ -218,7 +221,8 @@ class IntermittentExponential(Exponential):
         
         return y, labs
 
-    def __init__(self, init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+    def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+        self.name  = name
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
         self.init_params = init_params
@@ -260,6 +264,7 @@ class IntermittentExponential(Exponential):
             
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
+        INFO(f"Fitting {self.__class__.__name__} model {self.name:s}.")
         assert y is None, "y must be None"
 
         y = X.flatten()
@@ -319,7 +324,7 @@ class IntermittentExponential(Exponential):
 
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
             # Print the values at the current iteration, including the iteration number
-            INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
+            DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol:
                 INFO("Converged.")
@@ -402,6 +407,16 @@ class IntermittentGamma(IntermittentExponential):
         return y, labs
 
     @staticmethod
+    def params_from_gig(gig_params):
+        λ = 2*gig_params.λ / gig_params.α
+        μ = 2*gig_params.μ / gig_params.β
+        k = gig_params.k
+        m = gig_params.m
+        σ = gig_params.σ
+        γ = gig_params.γ
+        return IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)        
+
+    @staticmethod
     def neg_ll(p, fp, fn, ypm, ynm, lypm, lynm):
         λ, μ, k, m = p
         lZ   = np.log(gamma_fun(m) * (μ**m) + gamma_fun(k) * (λ**k))
@@ -438,6 +453,7 @@ class IntermittentGamma(IntermittentExponential):
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
             
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
+        INFO(f"Fitting {self.__class__.__name__} model {self.name}.")
         assert y is None, "y must be None"
         y = X.flatten()
 
@@ -517,7 +533,7 @@ class IntermittentGamma(IntermittentExponential):
                 
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
-            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
+            DEBUG(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
                 INFO("Converged.")
@@ -676,6 +692,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
+        INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
         assert y is None, "y must be None"
         y = X.flatten()
 
@@ -744,7 +761,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
-            INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
+            DEBUG(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
 
             # Check convergence
             if np.allclose([λ, μ, σ, γ, k, m, α, β], [λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old], atol=1e-6, rtol=0):
