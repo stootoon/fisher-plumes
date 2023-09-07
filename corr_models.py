@@ -370,6 +370,7 @@ class IntermittentGamma(IntermittentExponential):
         Z0 = gamma_fun(m) * (μ**m)
         Z1 = gamma_fun(k) * (λ**k)
         Z  =  Z0 + Z1
+        print(f"agam_cdf: Z0 = {Z0:.2g}, Z1 = {Z1:.2g}")        
         cdf = 0*y
         cdf[y<0]  = (1 -   gamma_dist.cdf(abs(y[y<0]), m, scale = μ)) * Z0/Z
         cdf[y>=0] = Z0/Z + gamma_dist.cdf(y[y>=0],     k, scale = λ) * Z1/Z
@@ -377,11 +378,10 @@ class IntermittentGamma(IntermittentExponential):
 
     def cdf(self, y, params = None):
         if params is None: params = self.params
-        λ, μ, k, m, σ, γ = [params._asdict()[k] for k in ['λ', 'μ', 'k', 'm', 'σ', 'γ']]    
         # Compute the CDF
-        R = IntermittentGamma.agamma_cdf(y, params)
-        H = norm_dist.cdf(y, scale = σ)
-        return γ*R + (1-γ)*H
+        R = self.agamma_cdf(y, params)
+        H = norm_dist.cdf(y, scale = params.σ)
+        return R#params.γ*R + (1-params.γ)*H
     
     @staticmethod
     def gen_data(M, params):
@@ -587,23 +587,23 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
         gammaness = [IntermittentGeneralizedInverseGaussian.gammaness(p) for p in [μ, λ]]
         if gammaness[0] > gammaness_thresh:
-            gamma_scale = 2*μ/β            
-            INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
-            Z0 = IntermittentGamma.gam_Z(gamma_scale, m)
-            neg_cdf = lambda y: (1 - gamma_dist.cdf(np.abs(y), m, scale=gamma_scale))
+            gamma_neg_scale = 2*μ/β            
+            INFO(f"Using Gamma distribution with scale = {gamma_neg_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
+            Z0 = IntermittentGamma.gam_Z(gamma_neg_scale, m)
+            neg_cdf = lambda y: (1 - gamma_dist.cdf(np.abs(y), m, scale=gamma_neg_scale))
         else:
             Z0 = IntermittentGeneralizedInverseGaussian.gig_Z(μ, m, β)
             neg_cdf = lambda y: (1 - geninvgauss.cdf(np.abs(y), m, β, scale = μ))
 
         if gammaness[1] > gammaness_thresh:
-            gamma_scale = 2*λ/α                      
-            INFO(f"Using Gamma distribution with scale = {gamma_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
-            Z1 = IntermittentGamma.gam_Z(gamma_scale, k)
-            pos_cdf = lambda y: gamma_dist.cdf(y, k, scale=gamma_scale)
+            gamma_pos_scale = 2*λ/α                      
+            INFO(f"Using Gamma distribution with scale = {gamma_pos_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
+            Z1 = IntermittentGamma.gam_Z(gamma_pos_scale, k)
+            pos_cdf = lambda y: gamma_dist.cdf(y, k, scale=gamma_pos_scale)
         else:
             Z1 = IntermittentGeneralizedInverseGaussian.gig_Z(λ, k, α)
             pos_cdf = lambda y: geninvgauss.cdf(y, k, α, scale = λ)
-        
+
         Z = Z0 + Z1
         cdf = 0*y
         cdf[y<0] = neg_cdf(y[y<0]) * Z0/Z
@@ -613,9 +613,9 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
     def cdf(self, y, params = None):
         if params is None: params = self.params
         # Compute the CDF
-        R = IntermittentGeneralizedInverseGaussian.agig_cdf(y, params, self.gammaness_thresh)
+        R = self.agig_cdf(y, params, self.gammaness_thresh)
         H = norm_dist.cdf(y, scale = params.σ)
-        return params.γ*R + (1-params.γ)*H
+        return R #params.γ*R + (1-params.γ)*H
     
     @staticmethod
     def gen_data(M, params):
@@ -688,8 +688,6 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
-        
-        
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
