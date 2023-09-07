@@ -30,6 +30,7 @@ params2str  = lambda params, flds: ", ".join([f"{p}={v:<.2g}" for p,v in params.
 params_all_close = lambda p1, p2: np.allclose([p1.__getattribute__(p) for p in p1._fields], 
                                               [p2.__getattribute__(p) for p in p1._fields],
                                               rtol=0, atol=1e-6)
+hasfield = lambda p, fld: fld in p._fields
 
 def kvv(v, z, ε = 1e-6):
     """
@@ -222,17 +223,43 @@ class IntermittentExponential(Exponential):
         return y, labs
 
     def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+        INFO(f"__init__ {self.__class__.__name__} {name} {id(self)=}")
         self.name  = name
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
-        self.init_params = init_params
-        self.params      = init_params
 
+        if init_params is not None and not isinstance(init_params, self.Params):
+            self.cast_params(init_params)
+        else:
+            self.init_params = init_params
+            self.params      = init_params
+            
         self.intermittent = intermittent
         if not self.intermittent:
             self.init_params  = self.init_params._replace(γ = 1)
             self.params       = self.params._replace(γ = 1)
             self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
+        
+        INFO(f"Initialized self.init_params = {params2str(self.init_params, self.Params._fields) if self.init_params else self.init_params}")
+        INFO(f"Initialized self.params      = {params2str(self.params, self.Params._fields) if self.params else self.params}")
+            
+    def cast_params(self, params):
+        γ = params.γ
+        σ = params.σ
+        if hasfield(params, "α"): # It's a GenInvGauss
+            INFO("Casting IntermittentGenInvGauss to IntermittentExponential.")
+            λ = 2 * params.λ / params.α
+            μ = 2 * params.μ / params.β
+        elif hasfield(params, "k"): # It's a Gamma
+            INFO("Casting IntermittentGamma to IntermittentExponential.")
+            λ = params.λ
+            μ = params.μ
+        else:
+            raise ValueError("Unknown params type.")
+
+        self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
+        self.init_params = self.params
+        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
 
     def init_from_fit(self, y, γ = None):
         if γ == None:
@@ -370,7 +397,7 @@ class IntermittentGamma(IntermittentExponential):
         Z0 = gamma_fun(m) * (μ**m)
         Z1 = gamma_fun(k) * (λ**k)
         Z  =  Z0 + Z1
-        print(f"agam_cdf: Z0 = {Z0:.2g}, Z1 = {Z1:.2g}")        
+
         cdf = 0*y
         cdf[y<0]  = (1 -   gamma_dist.cdf(abs(y[y<0]), m, scale = μ)) * Z0/Z
         cdf[y>=0] = Z0/Z + gamma_dist.cdf(y[y>=0],     k, scale = λ) * Z1/Z
@@ -417,6 +444,16 @@ class IntermittentGamma(IntermittentExponential):
         return IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)        
 
     @staticmethod
+    def params_from_exp(exp_params):
+        λ = exp_params.λ
+        μ = exp_params.μ
+        k = 1
+        m = 1
+        σ = exp_params.σ
+        γ = exp_params.γ
+        return IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)        
+    
+    @staticmethod
     def neg_ll(p, fp, fn, ypm, ynm, lypm, lynm):
         λ, μ, k, m = p
         lZ   = np.log(gamma_fun(m) * (μ**m) + gamma_fun(k) * (λ**k))
@@ -451,7 +488,29 @@ class IntermittentGamma(IntermittentExponential):
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
-            
+
+    def cast_params(self, params):
+        γ = params.γ
+        σ = params.σ
+        if hasfield(params, "α"): # It's a GenInvGauss
+            INFO("Casting IntermittentGenInvGauss to IntermittentGamma.")
+            λ = 2 * params.λ / params.α
+            μ = 2 * params.μ / params.β
+            k = max(1e-6, params.k)
+            m = max(1e-6, params.m)
+        elif not hasfield(params, "k"): # It's an Exponential
+            INFO("Casting IntermittentExponential to IntermittentGamma.")
+            λ = params.λ
+            μ = params.μ
+            k = 1
+            m = 1
+        else:
+            raise ValueError("Casting from unknown params type.")
+
+        self.params      = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
+        self.init_params = self.params        
+        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
+        
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting {self.__class__.__name__} model {self.name}.")
         assert y is None, "y must be None"
@@ -604,10 +663,10 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             Z1 = IntermittentGeneralizedInverseGaussian.gig_Z(λ, k, α)
             pos_cdf = lambda y: geninvgauss.cdf(y, k, α, scale = λ)
 
-        Z = Z0 + Z1
-        cdf = 0*y
-        cdf[y<0] = neg_cdf(y[y<0]) * Z0/Z
-        cdf[y>=0]= Z0/Z + pos_cdf(y[y>=0]) * Z1/Z
+        Z         = Z0 + Z1
+        cdf       = 0*y
+        cdf[y<0]  = neg_cdf(y[y<0]) * Z0/Z
+        cdf[y>=0] = Z0/Z + pos_cdf(y[y>=0]) * Z1/Z
         return cdf
 
     def cdf(self, y, params = None):
@@ -688,6 +747,36 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+
+    def cast_params(self, params):
+        γ = params.γ
+        σ = params.σ
+        if hasfield(params, "k"): # It's a Gamma
+            INFO("Casting IntermittentGamma to IntermittentGeneralizedInversGaussian.")
+            # 2 λ α = 1e-6 # To make it gamma            
+            # 2 λ / α = scale
+            # scale * α**2 = 2 λ/α * α**2 = 2 λ α = 1e-6
+            α = np.sqrt(1e-6/params.λ)
+            β = np.sqrt(1e-6/params.μ)
+            λ = α * params.λ /2
+            μ = β * params.μ / 2
+            k = params.k
+            m = params.m
+        elif not hasfield(params, "k"): # It's an Exponential
+            INFO("Casting IntermittentExponential to IntermittentGeneralizedInversGaussian.")
+            α = np.sqrt(1e-6/params.λ)
+            β = np.sqrt(1e-6/params.μ)
+            λ = α * params.λ /2
+            μ = β * params.μ / 2
+            k = 1
+            m = 1
+        else:
+            raise ValueError("Casting from unknown params type.")
+
+        self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α = α, β = β)
+        self.init_params = self.params        
+        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
+
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
@@ -751,7 +840,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             
             sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old],
                            args   = (n_p/n, nn/n, ypm, ynm, iypm, iynm, lypm, lynm),
-                           bounds = [(1e-6, 10)]*4  + [(1e-6, 10)]*2,
+                           bounds = [(1e-6, 10)]*2 + [(-10,10)]*2 + [(1e-6, 10)]*2,
                            method = method)
             
             DEBUG(f"{sol.message} after {sol.nit} iterations.")
