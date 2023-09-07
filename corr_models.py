@@ -7,6 +7,7 @@ import logging
 
 from scipy.stats import    norm as norm_dist
 from scipy.stats import   gamma as gamma_dist
+from scipy.stats import   expon as expon_dist
 from scipy.stats import   geninvgauss
 from scipy.special import gamma as gamma_fun
 from scipy.special import digamma, kv
@@ -112,7 +113,7 @@ class Exponential(BaseEstimator):
         labs  = np.sign(y)
         return y, labs
 
-    def __init__(self, init_params, min_μ = 1e-6):
+    def __init__(self, init_params = None, min_μ = 1e-6):
         self.min_μ = min_μ
         self.init_params = init_params
         self.params      = init_params
@@ -122,6 +123,21 @@ class Exponential(BaseEstimator):
 
     def __str__(self):
         return f"{self.__class__.__name__}\n({params2str(self.params, self.Params._fields)})"
+
+    def init_from_fit(self, y):
+        INFO("Initializing from fit.")        
+        y = y.flatten()
+
+        INFO(f"Found {sum(y>=0):d} positive, {sum(y<0):d} negative values.")
+        λ = np.mean(y[y>=0])
+        INFO(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+        μ = np.mean(abs(y[y<0]))
+        INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
+
+        self.init_params = self.Params(λ=λ, μ=μ)
+        self.params      = self.init_params
+        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
@@ -130,6 +146,8 @@ class Exponential(BaseEstimator):
 
         # Initialize
         M     = len(y)
+        if self.init_params is None:
+            self.init_from_fit(y)
         λ_old, μ_old = self.init_params.λ, self.init_params.μ
     
         for i in range(max_iter):
@@ -200,7 +218,7 @@ class IntermittentExponential(Exponential):
         
         return y, labs
 
-    def __init__(self, init_params, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+    def __init__(self, init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
         self.init_params = init_params
@@ -212,6 +230,34 @@ class IntermittentExponential(Exponential):
             self.params       = self.params._replace(γ = 1)
             self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
 
+    def init_from_fit(self, y, γ = None):
+        if γ == None:
+            if self.params is None:
+                γ = self.hyper_params.γ_pr_mean
+            else:
+                γ = self.params.γ
+                
+        INFO(f"Initializing from fit using {γ=:g}.")
+        M = len(y)
+        ind_z = np.argsort(-abs(y))[:int(M * γ)]    
+        z  = 0*y
+        z[ind_z] = 1
+        z  =  z.astype(bool)
+        yp =  y[z & (y>0)]
+        yn = -y[z & (y<0)]
+
+        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
+        _, λ = expon_dist.fit(yp, floc=0)
+        INFO(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+        _, μ = expon_dist.fit(yn, floc=0)
+        INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
+
+        σ = max(np.std(y[~z]),1e-6)
+        self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
+        self.params      = self.init_params
+        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+            
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
         assert y is None, "y must be None"
@@ -219,10 +265,13 @@ class IntermittentExponential(Exponential):
         y = X.flatten()
 
         # Initialize
-        M     = len(y)
-        γ_old = self.hyper_params.γ_pr_mean
-        λ_old, μ_old, σ_old = self.init_params.λ, self.init_params.μ, self.init_params.σ
+        M = len(y)
 
+        if self.init_params is None:
+            self.init_from_fit(y)
+            
+        λ_old, μ_old, σ_old, γ_old = self.init_params.λ, self.init_params.μ, self.init_params.σ, self.init_params.γ
+        
         # Take the top M γ active values as those that active
         ind_z = np.argsort(-abs(y))[:int(M * γ_old)]    
         z = 0*y
@@ -359,7 +408,35 @@ class IntermittentGamma(IntermittentExponential):
         lpos = fp*(-(k-1)*lypm + ypm/λ)
         lneg = fn*(-(m-1)*lynm + ynm/μ)
         return (lZ + lpos + lneg)
-    
+
+    def init_from_fit(self, y, γ = None):
+        if γ == None:
+            if self.params is None:
+                γ = self.hyper_params.γ_pr_mean
+            else:
+                γ = self.params.γ
+
+        INFO(f"Initializing from fit using {γ=:g}.")
+        M = len(y)
+        ind_z = np.argsort(-abs(y))[:int(M * γ)]    
+        z  = 0*y
+        z[ind_z] = 1
+        z  =  z.astype(bool)
+        yp =  y[z & (y>0)]
+        yn = -y[z & (y<0)]
+        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
+        k, _, λ = gamma_dist.fit(yp, floc=0)
+        INFO(f"Fit gamma distribution to positive values, k={k:.3g}, λ={λ:.3g}.")
+        m, _, μ = gamma_dist.fit(yn, floc=0)
+        INFO(f"Fit gamma distribution to negative values, m={m:.3g}, μ={μ:.3g}.")
+
+        σ = max(np.std(y[~z]),1e-6)
+
+        self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
+        self.params      = self.init_params
+        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+            
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         assert y is None, "y must be None"
         y = X.flatten()
@@ -368,6 +445,9 @@ class IntermittentGamma(IntermittentExponential):
         M     = len(y)
 
         # Initialize the parameters from self.init_params
+        if self.init_params is None:
+            self.init_from_fit(y)
+            
         λ, μ, σ, γ, k, m = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm']]    
         λ_old, μ_old, σ_old, γ_old, k_old, m_old = λ, μ, σ, γ, k, m
     
@@ -432,7 +512,8 @@ class IntermittentGamma(IntermittentExponential):
                 sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old],
                            args   = (n_p/n, nn/n, ypm, ynm, lypm, lynm),
                            bounds = [(1e-6, 10)]*4,
-                           method = method)                
+                           method = method)
+                λ, μ, k, m = sol.x
                 
             # Print the values at the current iteration, including the iteration number
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
@@ -563,6 +644,36 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         # Call the parent constructor
         super().__init__(*args, **kwargs)
         self.gammaness_thresh = gammaness_thresh # How gamma-like the data must be to be considered gamma distributed.
+
+    def init_from_fit(self, y, γ = None):
+        if γ == None:
+            if self.params is None:
+                γ = self.hyper_params.γ_pr_mean
+            else:
+                γ = self.params.γ
+
+        INFO(f"Initializing from fit using {γ=:g}.")
+        M = len(y)
+        ind_z = np.argsort(-abs(y))[:int(M * γ)]    
+        z  = 0*y
+        z[ind_z] = 1
+        z  =  z.astype(bool)
+        yp =  y[z & (y>0)]
+        yn = -y[z & (y<0)]
+        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
+        k, α, _, λ = geninvgauss.fit(yp, floc=0)
+        INFO(f"Fit geninvgauss distribution to positive values, {λ=:.3g}, {k=:.3g}, {α=:.3g}.")
+        m, β, _, μ = geninvgauss.fit(yn, floc=0)
+        INFO(f"Fit geninvgauss distribution to negative values, {m=:.3g}, {μ=:.3g}, {β=:.3g}.")
+
+        σ = max(np.std(y[~z]),1e-6)
+
+        self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
+        self.params      = self.init_params
+        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        
+        
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         assert y is None, "y must be None"
@@ -571,7 +682,10 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         # Initialize
         M = len(y)
 
-        # Initialize the parameters from self.init_params
+        if self.params is None:
+            self.init_from_fit(y)
+            
+        # Initialize the parameters from self.init_params    
         λ, μ, σ, γ, k, m, α, β = [self.init_params._asdict()[k] for k in ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β']]    
         λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old = λ, μ, σ, γ, k, m, α, β
     
