@@ -57,7 +57,7 @@ def plot_data(y, labs, params = None, figsize=None):
         plt.title(params2str(params))
 
 def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.compute_r2_value, diffs = False):
-    cdf_true, xv = cdf_data(y)
+    cdf_true, xv = cdf_data(y, n = n)
     if not diffs:
         plt.plot(xv, cdf_true, "-",label="data" )
 
@@ -95,7 +95,7 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
     else:
         INFO(f"Converged to fixed point {x} in {i:>4d} iterations.")
         
-    return x_new, status       
+    return x_new, status
 
 class Exponential(BaseEstimator):
     Params = namedtuple('Params', ['λ', 'μ'])
@@ -287,8 +287,12 @@ class IntermittentExponential(Exponential):
         # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
         _, λ = expon_dist.fit(yp, floc=0)
         INFO(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
-        _, μ = expon_dist.fit(yn, floc=0)
-        INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
+        if len(yn) == 0:
+            μ = self.min_μ
+            INFO(f"No negative values, setting μ={μ:.3g}.")
+        else:
+            _, μ = expon_dist.fit(yn, floc=0)
+            INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
 
         σ = max(np.std(y[~z]),1e-6)
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
@@ -399,10 +403,20 @@ class IntermittentGamma(IntermittentExponential):
         μ = params.μ
         k = params.k
         m = params.m
-    
-        Z0 = gamma_fun(m) * (μ**m)
+
+        n_neg = sum(y<0)
+        n_pos = sum(y>=0)
+
+        if n_neg == 0:
+            DEBUG(f"agamma_cdf: n_neg = 0 so setting Z0 = 0")
+            Z0 = 0
+        else:
+            Z0 = gamma_fun(m) * (μ**m)
+
         Z1 = gamma_fun(k) * (λ**k)
+        DEBUG(f"agamma_cdf: Z0 = {Z0}, Z1 = {Z1}")
         Z  =  Z0 + Z1
+        
 
         cdf = 0*y
         cdf[y<0]  = (1 -   gamma_dist.cdf(abs(y[y<0]), m, scale = μ)) * Z0/Z
@@ -500,10 +514,12 @@ class IntermittentGamma(IntermittentExponential):
         σ = params.σ
         if hasfield(params, "α"): # It's a GenInvGauss
             INFO("Casting IntermittentGenInvGauss to IntermittentGamma.")
-            λ = 2 * params.λ / params.α
-            μ = 2 * params.μ / params.β
+            λ = max(1e-6, 2 * params.λ / params.α)
+            μ = max(1e-6, 2 * params.μ / params.β)
             k = max(1e-6, params.k)
             m = max(1e-6, params.m)
+            k, λ = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
+            m, μ = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
         elif hasfield(params, "k"): # It's a Gamma
             INFO("Casting IntermittentGamma to IntermittentGamma.")
             λ = params.λ
@@ -631,7 +647,63 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
     @staticmethod
     def gig_Z(η, p, θ):
         return 2 * η * kv(p, θ)
+
+    @staticmethod
+    def nearest_gamma(η, p, θ, x0 = None, method="TNC",  **kwargs):
+        """Project a GIG distribution to a Gamma distribution
+        by computing the M-projection. That is, minimizing
+        D(P||Q) where P is the GIG distribution and Q is the
+        Gamma distribution. Since
+        
+        D(P||Q) = E_P[log(P/Q)] = E_P[log(P)] - E_P[log(Q)]
+
+        we need only maximize E_P[log(Q)].
+
+        Q(x) = x^(k-1) exp(-x/θ) / Γ(k) θ^k, so
+        
+        log(Q(x)) = (k-1) log(x) - x/θ - log(Γ(k)) - k log(θ)
+
+        E_P[log(Q)] = (k-1) E_P[log(x)] - E_P[x]/θ - log(Γ(k)) - k log(θ)
+                    = (k-1) C_1 - C_0/θ - log(Γ(k)) - k log(θ)
+
+        d/dθ E_P[log(Q)] = C_0/θ^2 - k/θ
+                    = 0 => k = C_0/θ 
+
+        d/dk E_P[log(Q)] = (k-1) C_1 - Γ'(k)/Γ(k) - log(θ)
+                    = 0 => θ = Exp((k-1)C_1 - Γ'(k)/Γ(k))
+        """
+        INFO(f"Finding nearest Gamma distribution to GIG({η=}, {p=}, {θ=}).")
+        C0= η * kv(p+1, θ)/kv(p, θ) #E_P[x] = sqrt(b/a) K_{p+1}(sqrt(ab))/K_p(sqrt(ab))
+        C1= np.log(η) + kvv(p, θ)/kv(p,θ) # E_P(ln x) = ln(sqrt(b/a)) + d/dp ln K_p(sqrt(ab))
+        DEBUG(f"{C0=}, {C1=}")
+
+        if x0 is None:
+            x0 = np.clip(np.array([p, 2 * η / θ]), 1e-6, 10)
+        DEBUG(f"Initializing at {x0}.")            
+        
+        if method == "FP":
+            DEBUG("Solving using fixed point iteration.")
+            fkθ = lambda p: np.array([C0/p[1], np.exp((p[0]-1)*C1 - digamma(p[0])/gamma_fun(p[0]))])
+            sol, status = fixed_point_iterate(fkθ, x0, **kwargs)
+            DEBUG(f"Fixed point iteration terminated with {status=}.")
+            k, θ = sol
+        else:
+            DEBUG("Solving using scipy.optimize.minimize.")
+            neg_ElogQ = lambda p: -((p[0]-1)*C1 - C0/p[1] - np.log(gamma_fun(p[0])) - p[0]*np.log(p[1]))
+            sol = minimize(neg_ElogQ, x0,
+                           bounds = [(1e-6, 10), (1e-6, 10)],
+                           method=method, **kwargs)
+            k, θ = sol.x
+            DEBUG(f"Minimization terminated with {sol.message}.")
+            
+            
+        INFO(f"Mapped to {k=}, {θ=}.")
+        return k, θ
+
     
+        
+
+
     @staticmethod
     def agig_Z(params):        
         λ = params.λ
@@ -656,11 +728,18 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         α = params.α
         β = params.β
 
+        n_neg = sum(y<0)
+        n_pos = sum(y>=0)
+        
         gammaness = [IntermittentGeneralizedInverseGaussian.gammaness(p) for p in [μ, λ]]
         if gammaness[0] > gammaness_thresh:
             gamma_neg_scale = 2*μ/β            
             INFO(f"Using Gamma distribution with scale = {gamma_neg_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
-            Z0 = IntermittentGamma.gam_Z(gamma_neg_scale, m)
+            if n_neg > 0:
+                Z0 = IntermittentGamma.gam_Z(gamma_neg_scale, m)
+            else:
+                Z0 = 0
+                DEBUG("No negative values, so Z0 = 0.")
             neg_cdf = lambda y: (1 - gamma_dist.cdf(np.abs(y), m, scale=gamma_neg_scale))
         else:
             Z0 = IntermittentGeneralizedInverseGaussian.gig_Z(μ, m, β)
@@ -679,6 +758,11 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         cdf       = 0*y
         cdf[y<0]  = neg_cdf(y[y<0]) * Z0/Z
         cdf[y>=0] = Z0/Z + pos_cdf(y[y>=0]) * Z1/Z
+
+        out_of_range = (cdf < 0) | (cdf > 1)
+        if np.any(out_of_range):
+            WARN(f"cdf out of range for {np.sum(out_of_range)} of {len(out_of_range)} values.")
+            cdf[out_of_range] = np.nan
         return cdf
 
     def cdf(self, y, params = None):
