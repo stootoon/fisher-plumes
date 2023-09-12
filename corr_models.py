@@ -247,7 +247,7 @@ class IntermittentExponential(Exponential):
         
         INFO(f"Initialized self.init_params = {params2str(self.init_params, self.Params._fields) if self.init_params else self.init_params}")
         INFO(f"Initialized self.params      = {params2str(self.params, self.Params._fields) if self.params else self.params}")
-            
+        INFO(f"Initialized self.hyper_params= {params2str(self.hyper_params, self.HyperParams._fields)}")
     def cast_params(self, params):
         γ = params.γ
         σ = params.σ

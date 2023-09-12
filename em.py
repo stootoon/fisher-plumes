@@ -7,6 +7,14 @@ from scipy.special import digamma
 from scipy.special import gamma as gamma_fun
 from scipy.optimize import root_scalar, minimize_scalar
 import fisher_plumes_tools as fpt
+import utils
+
+logger = utils.create_logger("em")
+logger.setLevel(logging.DEBUG)
+INFO  = logger.info
+WARN  = logger.warning
+DEBUG = logger.debug
+
 
 from collections import namedtuple
 
@@ -28,7 +36,6 @@ def agamma_cdf(params, y):
     Z0 = gamma_fun(m) * (μ**m)
     Z1 = gamma_fun(k) * (λ**k)
     Z  =  Z0 + Z1
-    print(Z0, Z1, Z)    
     cdf = 0*y
     cdf[y<0]  = (1 - gamma_dist.cdf(abs(y[y<0]), m, scale = μ)) * Z0/Z
     cdf[y>=0] = Z0/Z + gamma_dist.cdf(y[y>=0], k, scale = λ) * Z1/Z
@@ -75,7 +82,6 @@ def gen_gamma_data(M, gamma_params, do_plot = False):
     i1= z
     n1= np.sum(z)
     pp= λ**k * gamma_fun(k)/(λ**k * gamma_fun(k) + μ**m * gamma_fun(m))
-    print(f"{pp=:.2f}")
     ip= rand(M)<pp
     # Set y at ip to be sampled from an exponential with mean λ
     y[ip] = np.random.gamma(k, λ, sum(ip))
@@ -128,15 +134,6 @@ def cdf_exp2(exp2_params, y):
     H = Hp*(y>=0) + Hn*(y<0)
     return γ*R + (1-γ)*H
 
-# def cdf_gamma(params, y):
-#     λ, μ, σ, γ, k, m = params
-#     # Compute the CDF
-#     R = fpt.alaplace_cdf(λ, μ, y)
-#     Hn = gamma_dist.cdf(y, m, scale = 1/μ)
-#     Hp = gamma_dist.cdf(y, k, scale = 1/λ)
-#     H = Hp*(y>=0) + Hn*(y<0)
-#     return γ*R + (1-γ)*H
-
 def run_em(y, β = 1, γ_init = 0.1, max_iter = 10, tol = 1e-6, beta_mean = 0, beta_strength = 0):
     # Initialize
     M     = len(y)
@@ -178,10 +175,10 @@ def run_em(y, β = 1, γ_init = 0.1, max_iter = 10, tol = 1e-6, beta_mean = 0, b
         μ   = max(2/n * (nn*ynm + sqrt(n_p * nn * ypm * ynm)),1e-6)        
 
         # Print the values at the current iteration, including the iteration number
-        print(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} λ={λ:>6.2g}, μ={μ:>6.2g}, σ={sqrt(σ2):>6.2g}, γ={γ:>6.2g}")        
+        INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} λ={λ:>6.2g}, μ={μ:>6.2g}, σ={sqrt(σ2):>6.2g}, γ={γ:>6.2g}")        
         # Check convergence
         if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ2 - σ2_old) < tol and abs(γ - γ_old) < tol:
-            print("Converged.")
+            INFO("Converged.")
             break
         λ_old = λ
         μ_old = μ
@@ -191,7 +188,7 @@ def run_em(y, β = 1, γ_init = 0.1, max_iter = 10, tol = 1e-6, beta_mean = 0, b
     labs = 0*z
     labs[z & (y>=0)] = 1
     labs[z & (y<0)]  = -1
-    return λ, μ, sqrt(σ2), γ, labs
+    return ExpParams(λ=λ, μ=μ, σ=sqrt(σ2), γ=γ), labs
 
 def run_em2(y, β = 1, γ_init = 0.1, max_iter = 10, tol = 1e-6):
     # Initialize
@@ -246,10 +243,10 @@ def run_em2(y, β = 1, γ_init = 0.1, max_iter = 10, tol = 1e-6):
         
 
         # Print the values at the current iteration, including the iteration number
-        print(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} λ={λ:>6.2g}, μ={μ:>6.2g}, σp={sqrt(σ2p):>6.2g}, σn={sqrt(σ2n):>6.2g}, γ={γ:>6.2g}")                
+        INFO(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} λ={λ:>6.2g}, μ={μ:>6.2g}, σp={sqrt(σ2p):>6.2g}, σn={sqrt(σ2n):>6.2g}, γ={γ:>6.2g}")                
         # Check convergence
         if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ2p - σ2p_old) < tol and abs(σ2n - σ2n_old) < tol  and abs(γ - γ_old) < tol:
-            print("Converged.")
+            INFO("Converged.")
             break
         λ_old = λ
         μ_old = μ
@@ -270,23 +267,27 @@ def iter_fun(x0, f, max_iter = 1000, tol = 1e-6, damping = 0.5, verbose = False)
         if np.linalg.norm(x_new - x) < tol:
             break
         x = (1 - damping)*x_new + damping*x
-        verbose and print(x)
         if any(np.isnan(x)):
             break
 
+    status = 0
     if any(np.isnan(x)):
-        print("Nans encountered.")
+        WARN("Nans encountered.")
+        status = 2
     elif i == max_iter - 1:
-        print("Not converged.")
+        WARN("Not converged.")
+        status = 1
     else:
-        verbose and print(f"Converged to {x} in {i:>4d} iterations.")
+        INFO(f"Converged to {x} in {i:>4d} iterations.")
         
-    return x_new
+    return x_new, status
 
 
 def run_gamma_em(y, params_init,
                  β = 1, max_iter = 10, tol = 1e-6, beta_mean = 0, beta_strength = 0,
-                 ga_max = 1
+                 ga_max = 1,
+                 damping = 0.5,
+                 max_fp_iter = 5000
                  ):
     # Initialize
     M     = len(y)
@@ -307,7 +308,7 @@ def run_gamma_em(y, params_init,
 
     λ_old, μ_old, σ2_old, γ_old, k_old, m_old = λ_init, μ_init, σ_init**2, γ_init, k_init, m_init
 
-    ZFUN = lambda λ, μ, k, m: gamma(m) * μ**m + gamma(k) * λ**k
+    ZFUN = lambda λ, μ, k, m: gamma_fun(m) * μ**m + gamma_fun(k) * λ**k
     for i in range(max_iter):
         Z = ZFUN(λ, μ, k, m)
 
@@ -339,20 +340,23 @@ def run_gamma_em(y, params_init,
         yns  = sum(abs(y[i_n])) if nn else 0
         lyns = sum(log(abs(y[i_n]))) if nn else 0
 
-        λ, k, μ, m = iter_fun(np.array([λ_old, k_old, μ_old, m_old]), lambda x: np.array(
+        (λ, k, μ, m), status = iter_fun(np.array([λ_old, k_old, μ_old, m_old]),
+                                        lambda x: np.array(
             [
-                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma(x[1])/x[1]*yps)**(1/(x[1]+1)),
+                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[1])/x[1]*yps)**(1/(x[1]+1)),
                 (log(x[0]) + digamma(x[1]))/x[0]*yps/lyps,
-                (ZFUN(x[0], x[2], x[1], x[3])/n/gamma(x[3])/x[3]*yns)**(1/(x[3]+1)),
-                (log(x[2]) + digamma(x[3]))/x[2]*yns/lyns
-                ]))
+                1e-6 if nn==0 else (ZFUN(x[0], x[2], x[1], x[3])/n/gamma_fun(x[3])/x[3]*yns)**(1/(x[3]+1)),
+                1 if nn==0 else (log(x[2]) + digamma(x[3]))/x[2]*yns/lyns
+                ]),
+                                        damping=damping,
+                                        max_iter= max_fp_iter,)
         
         # Print the values at the current iteration, including the iteration number
         params = GammaParams(λ=λ, μ=μ, σ=sqrt(σ2), γ=γ, k=k, m=m)
-        print(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params_str(params))
+        INFO(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params_str(params))
         # Check convergence
         if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ2 - σ2_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
-            print("Converged.")
+            INFO("Converged.")
             break
         λ_old = λ
         μ_old = μ
