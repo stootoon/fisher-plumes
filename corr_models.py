@@ -303,7 +303,7 @@ class IntermittentExponential(Exponential):
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
             
         
-    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, **kwargs):
         INFO(f"Fitting {self.__class__.__name__} model {self.name:s}.")
         assert y is None, "y must be None"
 
@@ -542,7 +542,7 @@ class IntermittentGamma(IntermittentExponential):
         self.init_params = self.params        
         INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
         
-    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
+    def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead", **kwargs):
         INFO(f"Fitting {self.__class__.__name__} model {self.name}.")
         assert y is None, "y must be None"
         y = X.flatten()
@@ -982,18 +982,48 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
 
 class CorrModel: # A wrapper over the correlation models that will aid model selection.
-    def __init__(self, *args, model = "gig", **kwargs):
+    def __init__(self, *args, model = "gig", init_mode = None, **kwargs):
+        self.init_args   = args
+        self.init_kwargs = kwargs
+        self.init_mode   = init_mode
+
         if model == "exp":
-            self.model = IntermittentExponential(*args, **kwargs)
+            self.Model = IntermittentExponential
         elif model == "gamma":
-            self.model = IntermittentGamma(*args, **kwargs)
+            self.Model = IntermittentGamma
         elif model == "gig":
-            self.model = IntermittentGeneralizedInverseGaussian(*args, **kwargs)
+            self.Model = IntermittentGeneralizedInverseGaussian
         else:
             raise Exception(f"Unknown model {model}")
 
+        self.models = []
+    
     def fit(self, *args, **kwargs):
+        if self.init_mode == "ancestral":
+            INFO("Using ancestral initialization.")
+
+            Models = []
+            if self.Model in [IntermittentGamma, IntermittentGeneralizedInverseGaussian]:
+                Models.append(IntermittentExponential)
+            if self.Model in [IntermittentGeneralizedInverseGaussian]:
+                Models.append(IntermittentGamma)
+
+            init_params = None
+            for i, Model in enumerate(Models):
+                init_kwargs = self.init_kwargs.copy()
+                if "name" in init_kwargs:
+                    init_kwargs["name"] = f"{self.init_kwargs['name']}_{i}"
+                model = Model(*self.init_args, **init_kwargs, init_params = init_params)
+                model.fit(*args, **kwargs)
+                init_params = model.params
+                self.models.append(model)
+
+            self.model = self.Model(*self.init_args, **self.init_kwargs, init_params = init_params)
+        else:
+            self.model = self.Model(*self.init_args, **self.init_kwargs)
+
         self.model.fit(*args, **kwargs)
+        self.models.append(self.model)
         return self
 
     def predict(self, *args, **kwargs):
