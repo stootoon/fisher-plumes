@@ -56,7 +56,7 @@ def plot_data(y, labs, params = None, figsize=None):
     if params:
         plt.title(params2str(params))
 
-def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.compute_r2_value, diffs = False):
+def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.compute_r2_value, diffs = False, legend_args = {}):
     cdf_true, xv = cdf_data(y, n = n)
     if not diffs:
         plt.plot(xv, cdf_true, "-",label="data" )
@@ -73,7 +73,7 @@ def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.com
 
     plt.xlabel("x")
     plt.ylabel("P(data<x)")
-    plt.legend()
+    plt.legend(**legend_args)
 
 def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbose = False):
     x = x0
@@ -198,7 +198,7 @@ class IntermittentExponential(Exponential):
         if params is None: params = self.params
         λ, μ, σ, γ = params.λ, params.μ, params.σ, params.γ
         R = fpt.alaplace_cdf(2*λ, 2*μ, x)
-        H = norm_dist.cdf(x, scale=σ)
+        H = norm_dist.cdf(x, scale=σ) if σ > 0 else 0 * R
         return γ*R + (1-γ)*H
 
     @staticmethod
@@ -225,7 +225,9 @@ class IntermittentExponential(Exponential):
         return y, labs
 
     def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
-        INFO(f"__init__ {self.__class__.__name__} {name} {id(self)=}")
+        INFO("\n")
+        INFO("*"*80)
+        INFO(f"Initializing model {self.__class__.__name__} named '{name}' {id(self)=}.")
         self.name  = name
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
@@ -238,8 +240,9 @@ class IntermittentExponential(Exponential):
             
         self.intermittent = intermittent
         if not self.intermittent:
-            self.init_params  = self.init_params._replace(γ = 1)
-            self.params       = self.params._replace(γ = 1)
+            if self.init_params is not None:
+                self.init_params  = self.init_params._replace(γ = 1)
+                self.params       = self.params._replace(γ = 1)
             self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
         
         INFO(f"Initialized self.init_params = {params2str(self.init_params, self.Params._fields) if self.init_params else self.init_params}")
@@ -427,7 +430,7 @@ class IntermittentGamma(IntermittentExponential):
         if params is None: params = self.params
         # Compute the CDF
         R = self.agamma_cdf(y, params)
-        H = norm_dist.cdf(y, scale = params.σ)
+        H = norm_dist.cdf(y, scale = params.σ) if self.intermittent else 0*R
         return params.γ*R + (1-params.γ)*H
     
     @staticmethod
@@ -518,8 +521,8 @@ class IntermittentGamma(IntermittentExponential):
             μ = max(1e-6, 2 * params.μ / params.β)
             k = max(1e-6, params.k)
             m = max(1e-6, params.m)
-            k, λ = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
-            m, μ = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
+            λ, k = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
+            μ, m = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
         elif hasfield(params, "k"): # It's a Gamma
             INFO("Casting IntermittentGamma to IntermittentGamma.")
             λ = params.λ
@@ -678,27 +681,29 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         DEBUG(f"{C0=}, {C1=}")
 
         if x0 is None:
-            x0 = np.clip(np.array([p, 2 * η / θ]), 1e-6, 10)
+            x0 = np.clip(np.array([2 * η / θ, p]), 1e-6, 10)
         DEBUG(f"Initializing at {x0}.")            
         
         if method == "FP":
             DEBUG("Solving using fixed point iteration.")
-            fkθ = lambda p: np.array([C0/p[1], np.exp((p[0]-1)*C1 - digamma(p[0])/gamma_fun(p[0]))])
+            fθk = lambda p: np.array([C0/p[0], np.exp((p[1]-1)*C1 - digamma(p[1])/gamma_fun(p[1]))])
             sol, status = fixed_point_iterate(fkθ, x0, **kwargs)
             DEBUG(f"Fixed point iteration terminated with {status=}.")
-            k, θ = sol
+            θ, k = sol
         else:
             DEBUG("Solving using scipy.optimize.minimize.")
-            neg_ElogQ = lambda p: -((p[0]-1)*C1 - C0/p[1] - np.log(gamma_fun(p[0])) - p[0]*np.log(p[1]))
+            neg_ElogQ = lambda p: -((p[1]-1)*C1 - C0/p[0] - np.log(gamma_fun(p[1])) - p[1]*np.log(p[0]))
+            DEBUG(f"Initial value of neg_ElogQ = {neg_ElogQ(x0)}.")
             sol = minimize(neg_ElogQ, x0,
                            bounds = [(1e-6, 10), (1e-6, 10)],
                            method=method, **kwargs)
-            k, θ = sol.x
+            θ, k = sol.x
             DEBUG(f"Minimization terminated with {sol.message}.")
+            DEBUG(f"Final value of neg_ElogQ = {neg_ElogQ(sol.x)}.")
             
             
-        INFO(f"Mapped to {k=}, {θ=}.")
-        return k, θ
+        INFO(f"Mapped to {θ=}, {k=}.")
+        return θ, k
 
     
         
@@ -769,7 +774,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         if params is None: params = self.params
         # Compute the CDF
         R = self.agig_cdf(y, params, self.gammaness_thresh)
-        H = norm_dist.cdf(y, scale = params.σ)
+        H = norm_dist.cdf(y, scale = params.σ) if self.intermittent else 0*R
         return params.γ*R + (1-params.γ)*H
     
     @staticmethod

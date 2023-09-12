@@ -157,7 +157,10 @@ alaplace_cdf = lambda la, mu, x: (mu/(la + mu))*np.exp(-2*np.abs(x)/mu)*(x<=0)+ 
 compute_ks_pvalue = lambda la, mu, x: kstest(x, lambda x: alaplace_cdf(la, mu, x)).pvalue
 
 # COMPUTE R2 VALUE COMPARING THE PREDICTED AND FIT CDFs
-def compute_r2_value(cdf_fun, x, n=None):
+r2fun = lambda x, y: 1 - np.nanmean((x - y)**2)/np.var(x)
+tvfun = lambda x, y: 1 - np.nanmax(np.abs(x - y))
+
+def compare_cdfs(cdf_fun, x, cmp_fun = r2fun, n=None):
     if n is None:
         # Use the data distribution
         x_vals   = np.sort(x)        
@@ -166,8 +169,13 @@ def compute_r2_value(cdf_fun, x, n=None):
         # Split the range of the data into n evenly spaced points
         x_vals   = np.linspace(np.min(x), np.max(x), n)
         cdf_vals = np.array([np.mean(x <= xj) for xj in x_vals])
-    return 1 - np.mean((cdf_vals -  cdf_fun(x_vals))**2)/np.var(cdf_vals)
+    return cmp_fun(cdf_vals, cdf_fun(x_vals))
+    
+def compute_r2_value(cdf_fun, x, n=None):
+    return compare_cdfs(cdf_fun, x, cmp_fun = r2fun, n=n)
 
+def compute_tv_value(cdf_fun, x, n=None):
+    return compare_cdfs(cdf_fun, x, cmp_fun = tvfun, n=n)
 
 gen_exp     = lambda d, a, s, k, b: (a - b) * np.exp(-np.abs(d/s)**k) + b
 fit_gen_exp = lambda d, la, bounds_dict = None: curve_fit(gen_exp, d, la,
