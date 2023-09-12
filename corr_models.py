@@ -56,9 +56,10 @@ def plot_data(y, labs, params = None, figsize=None):
     if params:
         plt.title(params2str(params))
 
-def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.compute_r2_value):
+def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.compute_r2_value, diffs = False):
     cdf_true, xv = cdf_data(y)
-    plt.plot(xv, cdf_true, "-",label="data" )
+    if not diffs:
+        plt.plot(xv, cdf_true, "-",label="data" )
 
     if len(labs) == 0:
         labs = [str(mdl).replace("(", "\n(") for mdl in mdls]
@@ -66,8 +67,9 @@ def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.com
     for mdl,lab in zip(mdls, labs):
         INFO(f"Plotting cdf for model: " + lab.replace("\n",""))        
         cdf_mdl = mdl.cdf(xv)
-        gof = gof_fun(mdl.predict, y, n = n)
-        plt.plot(xv, cdf_mdl, "-", label=f"{lab}: {gof:.3f}")
+        gof     = gof_fun(mdl.predict, y, n = n)
+        label   = f"{lab} - data" if diffs else lab
+        plt.plot(xv, cdf_mdl if not diffs else cdf_mdl - cdf_true, "-", label=f"{label}: {gof:.3f}")
 
     plt.xlabel("x")
     plt.ylabel("P(data<x)")
@@ -254,6 +256,10 @@ class IntermittentExponential(Exponential):
             INFO("Casting IntermittentGamma to IntermittentExponential.")
             λ = params.λ
             μ = params.μ
+        elif hasfield(params, "λ"): # It's an Exponential
+            INFO("Casting IntermittentExponential to IntermittentExponential.")
+            λ = params.λ
+            μ = params.μ        
         else:
             raise ValueError("Unknown params type.")
 
@@ -408,7 +414,7 @@ class IntermittentGamma(IntermittentExponential):
         # Compute the CDF
         R = self.agamma_cdf(y, params)
         H = norm_dist.cdf(y, scale = params.σ)
-        return R#params.γ*R + (1-params.γ)*H
+        return params.γ*R + (1-params.γ)*H
     
     @staticmethod
     def gen_data(M, params):
@@ -498,6 +504,12 @@ class IntermittentGamma(IntermittentExponential):
             μ = 2 * params.μ / params.β
             k = max(1e-6, params.k)
             m = max(1e-6, params.m)
+        elif hasfield(params, "k"): # It's a Gamma
+            INFO("Casting IntermittentGamma to IntermittentGamma.")
+            λ = params.λ
+            μ = params.μ
+            k = params.k
+            m = params.m
         elif not hasfield(params, "k"): # It's an Exponential
             INFO("Casting IntermittentExponential to IntermittentGamma.")
             λ = params.λ
@@ -674,7 +686,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         # Compute the CDF
         R = self.agig_cdf(y, params, self.gammaness_thresh)
         H = norm_dist.cdf(y, scale = params.σ)
-        return R #params.γ*R + (1-params.γ)*H
+        return params.γ*R + (1-params.γ)*H
     
     @staticmethod
     def gen_data(M, params):
@@ -751,7 +763,15 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
     def cast_params(self, params):
         γ = params.γ
         σ = params.σ
-        if hasfield(params, "k"): # It's a Gamma
+        if hasfield(params, "α"): # It's an IGIG
+            INFO("Casting IntermittentGeneralizedInversGaussian to IntermittentGeneralizedInversGaussian.")
+            α = params.α
+            β = params.β
+            λ = params.λ
+            μ = params.μ
+            k = params.k
+            m = params.m
+        elif hasfield(params, "k"): # It's a Gamma
             INFO("Casting IntermittentGamma to IntermittentGeneralizedInversGaussian.")
             # 2 λ α = 1e-6 # To make it gamma            
             # 2 λ / α = scale
