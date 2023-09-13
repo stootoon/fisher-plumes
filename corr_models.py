@@ -164,8 +164,8 @@ class Exponential: #(BaseEstimator):
             n   = n_p + nn
             ypm = np.mean(y[ip]) if n_p else 0
             ynm = np.mean(abs(y[i_n])) if nn else 0
-            λ   = 1/n * (n_p*ypm + np.sqrt(n_p * nn * ypm * ynm))
-            μ   = max(1/n * (nn*ynm + np.sqrt(n_p * nn * ypm * ynm)), self.min_μ)        
+            λ   = 1/(n+1e-8) * (n_p*ypm + np.sqrt(n_p * nn * ypm * ynm))
+            μ   = max(1/(n + 1e-8) * (nn*ynm + np.sqrt(n_p * nn * ypm * ynm)), self.min_μ)        
 
             self.params = self.Params(λ=λ, μ=μ)
             # Print the values at the current iteration, including the iteration number
@@ -326,8 +326,8 @@ class IntermittentExponential(Exponential):
             if i > 0:
                 if self.intermittent:
                     lrho = 0 * y
-                    lrho[y>=0] = -np.log(λ + μ)-abs(y[y>=0])/λ
-                    lrho[y<0]  = -np.log(λ + μ)-abs(y[y< 0])/μ
+                    lrho[y>=0] = -np.log(λ + μ)-abs(y[y>=0])/(λ+1e-8)
+                    lrho[y<0]  = -np.log(λ + μ)-abs(y[y< 0])/(μ+1e-8)
                     leta       = -y**2/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
                     z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
                 else:
@@ -358,8 +358,8 @@ class IntermittentExponential(Exponential):
             n   = n_p + nn
             ypm = np.mean(y[ip]) if n_p else 0
             ynm = np.mean(abs(y[i_n])) if nn else 0
-            λ   = 1/n * (n_p*ypm + np.sqrt(n_p * nn * ypm * ynm))
-            μ   = max(1/n * (nn*ynm + np.sqrt(n_p * nn * ypm * ynm)), self.min_μ)        
+            λ   = 1/(n+1e-8) * (n_p*ypm + np.sqrt(n_p * nn * ypm * ynm))
+            μ   = max(1/(n+1e-8) * (nn*ynm + np.sqrt(n_p * nn * ypm * ynm)), self.min_μ)        
 
             self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
             # Print the values at the current iteration, including the iteration number
@@ -563,8 +563,8 @@ class IntermittentGamma(IntermittentExponential):
             # E-step
             if self.intermittent:
                 lrho       = 0 * y
-                lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/λ
-                lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/μ
+                lrho[y>=0] = -np.log(Z) + (k - 1)*np.log(y[y>=0]) - y[y>=0]/(λ+1e-8)
+                lrho[y<0]  = -np.log(Z) + (m - 1)*np.log(-y[y<0]) - abs(y[y<0])/(μ+1e-8)
                 leta       = -(y**2)/2/σ**2 - np.log(np.sqrt(2*np.pi*σ**2))
                 z          = (lrho - leta) > np.log((1-min(γ,1-1e-8))/γ)
             else:
@@ -613,10 +613,13 @@ class IntermittentGamma(IntermittentExponential):
                                                            fixed_point_init,
                                                            damping  = damping,
                                                            max_iter = max_fp_iter,)
-            else:            
-                sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old],
-                           args   = (n_p/n, nn/n, ypm, ynm, lypm, lynm),
-                           bounds = [(1e-6, 10)]*4,
+            else:
+                bnds = [(1e-6, 10)]*4
+                x0 = np.array([λ_old, μ_old, k_old, m_old])
+                x0 = np.array([np.clip(x0[i], bnds[i][0], bnds[i][1]) for i in range(len(x0))])
+                sol = minimize(self.neg_ll, x0,
+                           args   = (n_p/(n+1e-8), nn/(n+1e-8), ypm, ynm, lypm, lynm),
+                            bounds = bnds,
                            method = method)
                 λ, μ, k, m = sol.x
                 
@@ -952,7 +955,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             
             DEBUG(f"Starting optimization with x0 = " + ", ".join([f"{x0[i]:.3g}" for i in range(len(x0))]))
             sol = minimize(self.neg_ll, x0,
-                           args   = (n_p/n, nn/n, ypm, ynm, iypm, iynm, lypm, lynm),
+                           args   = (n_p/(n+1e-8), nn/(n+1e-8), ypm, ynm, iypm, iynm, lypm, lynm),
                            bounds = bnds,
                            method = method)
             
@@ -986,7 +989,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
 
 class CorrModel(BaseEstimator): # A wrapper over the correlation models that will aid model selection.
-    def __init__(self, name = "Model", scoring="r2", model = "gig", init_mode = None, intermittent = True, γ_pr_mean = 0.5, γ_pr_strength = 1, σ_penalty = 0):
+    def __init__(self, name = "Model", scoring="r2", model = "gig", init_params=None, init_mode = None, intermittent = True, γ_pr_mean = 0.5, γ_pr_strength = 1, σ_penalty = 0):
         self.name = name
         self.model = model
         self.init_mode = init_mode
@@ -996,11 +999,12 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
         self.σ_penalty = σ_penalty
         assert scoring in ["r2", "tv"]
         self.scoring = scoring
+        self.init_params = init_params
         
         self.models = []
     
     def fit(self, *args, **kwargs):
-        init_params = None
+        init_params = self.init_params
 
         self.init_kwargs = {
             "intermittent":self.intermittent,
