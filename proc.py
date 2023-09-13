@@ -18,6 +18,7 @@ import itertools
 import random
 import hashlib
 import shutil
+import glob, re
 
 import corr_models
 corr_models.logger.setLevel("INFO")
@@ -165,11 +166,11 @@ if __name__ == "__main__":
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
-    parser.add_argument("--fit_corrs",   help="Spec of a fit to correlations to perform.", type=check_file_exists)
-    
+    parser.add_argument("--fit_corrs",    help="Spec of a fit to correlations to perform.", type=check_file_exists)
+    parser.add_argument("--collect_fits", help="Directory containing correlation fits to combine.", type=check_file_exists)
     args = parser.parse_args()
 
-    if any([args.fit_corrs, args.fp_data]):
+    if any([args.fit_corrs, args.fp_data, args.collect_fits]):
         # Fitting correlation data
         if args.fp_data:
             assert args.search_spec, "Must specify a search spec file with --search_spec."
@@ -209,8 +210,12 @@ if __name__ == "__main__":
                 job_dir = os.path.join(os.path.dirname(fp_file), "fit_corrs", search_spec_file)
                 # Remove the directory if it already exists.
                 if os.path.exists(job_dir):
-                    INFO(f"Removing existing directory {job_dir}.")
-                    shutil.rmtree(job_dir)
+                    INFO(f"Removing any job files in {job_dir}.")
+                    # Job files have the same name as fp_file, but with .p removed and the job number and .yaml appended.
+                    cmd = f"rm -f {os.path.join(job_dir, f'{os.path.splitext(os.path.basename(fp_file))[0]}.*.yaml')}"
+                    INFO(cmd)
+                    os.system(cmd)
+                    
                 os.makedirs(job_dir, exist_ok=True)
                 INFO(f"Created directory {job_dir}.")
                 # Now, for each job, create a spec file.
@@ -226,31 +231,85 @@ if __name__ == "__main__":
         elif args.fit_corrs:
             # If we're fitting correlations, then we need to load the spec file.
             spec = yaml.load(open(args.fit_corrs, "r"), Loader=yaml.FullLoader)
-            # Get the corr_data and search_spec from the spec file.
-            fp_file = spec["fp_file"]
-            search_spec = spec["search_spec"]
-            # Get the probe_idist_ifreq from the spec file.
+            fp_file          = spec["fp_file"]
+            search_spec      = spec["search_spec"]
             probe_dist_ifreq = spec["probe_dist_ifreq"]
+
             # Load the correlations
-            fp_data  =  pickle.load(open(fp_file, "rb"))["results"] 
+            fp_data   =  pickle.load(open(fp_file, "rb"))["results"] 
             rho       = fp_data["rho"]
             freqs     = fp_data["freqs"]            
-            # Get the distances from the results.
+
             dists = list(rho[0].keys())
-            # Get the probe id, distance, and frequency from the probe_idist_ifreq.            
+
+            results = {}
             for i, (probe_id, dist, ifreq) in enumerate(probe_dist_ifreq):
                 # Get the correlation data for this probe, distance, and frequency.
                 rhoi = rho[probe_id][dist][0, ifreq] # 0 is for the full data, not the bootstrapped data.
-                # The output file will be the same as the input file, but with yaml replaced with p.
-                output_file = os.path.splitext(args.fit_corrs)[0] + ".p"
                 # Fit the correlation data.
                 INFO(f"Fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} using {search_spec}.")
-                results = corr_models.fit_corrs(rhoi, search_spec, output_file)
+                resultsi = corr_models.fit_corrs(rhoi, search_spec)
                 # Report the best model params and score from the results["search"] grid search CV object.
-                INFO(f"Best model params: {results['search'].best_params_}")
-                INFO(f"Best model score: {results['search'].best_score_}")
+                INFO(f"Best model params: {resultsi['search'].best_params_}")
+                INFO(f"Best model score:  {resultsi['search'].best_score_}")
                 INFO(f"Done fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} to {search_spec}.")
+                # Append the results to the results list.
+                results[(probe_id, dist, ifreq)] = resultsi
+
+            # The output file will be the same as the input file, but with yaml replaced with p.
+            output_file = os.path.splitext(args.fit_corrs)[0] + ".p"
+            # Write the results to a pickle file.            
+            pickle.dump({"results": results,
+                         "search_spec": search_spec,
+                         "probe_dist_ifreq": probe_dist_ifreq,
+                         "fp_file": fp_file},
+                        open(output_file, "wb"))
+            INFO(f"Wrote results to {output_file}.")
+        elif args.collect_fits:
+            # The files in the directory have names XYZ.1.p, XYZ.2.p, etc.
+            # We want to collect all of the results into a single file XYZ.p.
+            # First, find all the pickle files in the directory that are named XYZ.*.p.
+            to_combine = {}
+            for file_name in glob.glob(os.path.join(args.collect_fits, "*.p")):
+                # Check if the file name matches the pattern XYZ.[number].p.
+                match = re.match(r"(.*)\.(\d+)\.p", os.path.basename(file_name))
+                if match:
+                    # Split the file name into the base name and the job number.
+                    base_name, job_num = match.groups()
+                    # Add the file name to the list of files to combine.
+                    if base_name not in to_combine:
+                        to_combine[base_name] = [file_name]
+                    else:
+                        to_combine[base_name].append(file_name)
+
+            # Now, for each base name, combine the data in the files
+            # by merging the results dictionaries and the probe_dist_ifreq lists.
+            for base_name, file_names in to_combine.items():
+                # Load the first file.
+                results = pickle.load(open(file_names[0], "rb"))
+                # For each subsequent file, load the results and append the probe_dist_ifreq list.
+                for file_name in file_names[1:]:
+                    resultsi = pickle.load(open(file_name, "rb"))
+                    # Check that there are results for each probe_dist_ifreq in the first file.
+                    expected_keys = sorted([tuple(t) for t in resultsi["probe_dist_ifreq"]])
+                    actual_keys   = sorted(resultsi["results"].keys())
+                    assert expected_keys == actual_keys, f"expected_keys {expected_keys} != actual_keys {actual_keys} in {file_name}"                    
+                    # Check that the fp_file and search_spec are the same in this file as in the first file.
+                    assert results["fp_file"]     == resultsi["fp_file"],     f"fp_file {results['fp_file']} != {resultsi['fp_file']} for {file_name}"
+                    assert results["search_spec"] == resultsi["search_spec"], f"search_spec {results['search_spec']} != {resultsi['search_spec']} for {file_name}"
+                    results["probe_dist_ifreq"].extend(resultsi["probe_dist_ifreq"])
+                    results["results"].update(resultsi["results"])
+                # The output file will be the same as the input file, but with yaml replaced with p.
+                output_file = os.path.join(args.collect_fits, os.path.splitext(base_name)[0] + ".p")
+                # Write the results to a pickle file.            
+                pickle.dump(results, open(output_file, "wb"))
+                INFO(f"Collect fits results to {output_file}.")
             
+            
+            
+            
+            
+                
 
                 
 
