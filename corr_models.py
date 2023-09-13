@@ -1067,7 +1067,7 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
         return repr(self.models[-1])
     
 
-def fit_corrs(y, search_spec, output_file):
+def fit_corrs(y, search_spec):
     s = np.std(y)
     y_= y/s
 
@@ -1089,11 +1089,5 @@ def fit_corrs(y, search_spec, output_file):
     ]
     INFO("\n"+filtered_results.sort_values(by='mean_test_score', ascending=False).to_string(index=False))
 
-    results = {"search":search, "scale":s}
-
-    # Save the results to a pickle file
-    with open(output_file, "wb") as f:
-        pickle.dump(results, f)
-    INFO(f"Saved results to {output_file=}")
-    return results
+    return {"search":search, "scale":s}
 
