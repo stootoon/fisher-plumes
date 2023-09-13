@@ -97,7 +97,7 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
         
     return x_new, status
 
-class Exponential(BaseEstimator):
+class Exponential: #(BaseEstimator):
     Params = namedtuple('Params', ['λ', 'μ'])
     
     def cdf(self, x, params = None):
@@ -172,7 +172,7 @@ class Exponential(BaseEstimator):
             DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol:
-                INFO("Converged.")
+                INFO(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
                 break
             λ_old = λ
             μ_old = μ
@@ -225,7 +225,6 @@ class IntermittentExponential(Exponential):
         return y, labs
 
     def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
-        INFO("\n")
         INFO("*"*80)
         INFO(f"Initializing model {self.__class__.__name__} named '{name}' {id(self)=}.")
         self.name  = name
@@ -367,7 +366,7 @@ class IntermittentExponential(Exponential):
             DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol:
-                INFO("Converged.")
+                INFO(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
                 break
             λ_old = λ
             μ_old = μ
@@ -626,7 +625,7 @@ class IntermittentGamma(IntermittentExponential):
             DEBUG(f"Iter {i:>4d}: n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol and abs(m - m_old) < tol and abs(k - k_old) < tol:
-                INFO("Converged.")
+                DEBUG(f"Converged in {i:>4d} iterations to n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
                 break
             λ_old = λ
             μ_old = μ
@@ -966,7 +965,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
             # Check convergence
             if np.allclose([λ, μ, σ, γ, k, m, α, β], [λ_old, μ_old, σ_old, γ_old, k_old, m_old, α_old, β_old], atol=1e-6, rtol=0):
-                INFO("Converged.")
+                DEBUG(f"Converged in {i:>4d} iterations to n+={n_p:>4d}, n-={nn:>4d} n0={len(ip) -nn - n_p:>4d} " + params2str(self.params, self.Params._fields))
                 break
             
             λ_old = λ
@@ -986,66 +985,69 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
         return self
 
 
-class CorrModel: # A wrapper over the correlation models that will aid model selection.
-    def __init__(self, *args, model = "gig", init_mode = None, **kwargs):
-        self.init_args   = args
-        self.init_kwargs = kwargs
-        self.init_mode   = init_mode
-
-        if model == "exp":
-            self.Model = IntermittentExponential
-        elif model == "gamma":
-            self.Model = IntermittentGamma
-        elif model == "gig":
-            self.Model = IntermittentGeneralizedInverseGaussian
-        else:
-            raise Exception(f"Unknown model {model}")
-
+class CorrModel(BaseEstimator): # A wrapper over the correlation models that will aid model selection.
+    def __init__(self, name = "Model", scoring="r2", model = "gig", init_mode = None, intermittent = True, γ_pr_mean = 0.5, γ_pr_strength = 1, σ_penalty = 0):
+        self.name = name
+        self.model = model
+        self.init_mode = init_mode
+        self.intermittent = intermittent
+        self.γ_pr_mean = γ_pr_mean
+        self.γ_pr_strength = γ_pr_strength
+        self.σ_penalty = σ_penalty
+        assert scoring in ["r2", "tv"]
+        self.scoring = scoring
+        
         self.models = []
     
     def fit(self, *args, **kwargs):
+        init_params = None
+
+        self.init_kwargs = {
+            "intermittent":self.intermittent,
+            "γ_pr_mean":self.γ_pr_mean,
+            "γ_pr_strength":self.γ_pr_strength,
+            "σ_penalty":self.σ_penalty}
+        
         if self.init_mode == "ancestral":
-            INFO("Using ancestral initialization.")
-
+            INFO("")
+            INFO(f"Using ancestral initialization for {self.model=}.")
             Models = []
-            if self.Model in [IntermittentGamma, IntermittentGeneralizedInverseGaussian]:
+            if self.model in ["gig", "gamma"]:
+                INFO("Model is one of Gamma or GIG, so adding exponential as an ancestral model.")
                 Models.append(IntermittentExponential)
-            if self.Model in [IntermittentGeneralizedInverseGaussian]:
+            if self.model in ["gig"]:
+                INFO("Model is GIG, so adding Gamma as an ancestral model.")
                 Models.append(IntermittentGamma)
-
-            init_params = None
+                
             for i, Model in enumerate(Models):
                 init_kwargs = self.init_kwargs.copy()
-                if "name" in init_kwargs:
-                    init_kwargs["name"] = f"{self.init_kwargs['name']}_{i}"
-                model = Model(*self.init_args, **init_kwargs, init_params = init_params)
+                init_kwargs["name"] = f"{self.name}_{i}"
+                model = Model(**init_kwargs, init_params = init_params)
                 model.fit(*args, **kwargs)
                 init_params = model.params
                 self.models.append(model)
 
-            self.model = self.Model(*self.init_args, **self.init_kwargs, init_params = init_params)
-        else:
-            self.model = self.Model(*self.init_args, **self.init_kwargs)
+        model = {"exp":IntermittentExponential,
+                 "gamma":IntermittentGamma,
+                 "gig":IntermittentGeneralizedInverseGaussian}[self.model](**self.init_kwargs, init_params = init_params)
 
-        self.model.fit(*args, **kwargs)
-        self.models.append(self.model)
+        model.fit(*args, **kwargs)
+        self.models.append(model)
         return self
 
     def predict(self, *args, **kwargs):
-        return self.model.predict(*args, **kwargs)
+        return self.models[-1].predict(*args, **kwargs)
 
     def score(self, *args, **kwargs):
-        return self.model.score(*args, **kwargs)
+        cmp_fun = {"r2":fpt.r2fun, "tv":fpt.tvfun}[self.scoring]
+        return self.models[-1].score(*args, cmp_fun=cmp_fun, **kwargs)
     
     def cdf(self, *args, **kwargs):
-        return self.model.cdf(*args, **kwargs)
+        return self.models[-1].cdf(*args, **kwargs)
 
     def __str__(self):
-        return str(self.model)
+        return str(self.models[-1])
 
     def __repr__(self):
-        return repr(self.model)
+        return repr(self.models[-1])
     
-    @property
-    def params(self):
-        return self.model.params
