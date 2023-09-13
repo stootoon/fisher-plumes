@@ -695,7 +695,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             neg_ElogQ = lambda p: -((p[1]-1)*C1 - C0/p[0] - np.log(gamma_fun(p[1])) - p[1]*np.log(p[0]))
             DEBUG(f"Initial value of neg_ElogQ = {neg_ElogQ(x0)}.")
             sol = minimize(neg_ElogQ, x0,
-                           bounds = [(1e-6, 10), (1e-6, 10)],
+                           bounds = [(1e-6, 100), (1e-6, 100)],
                            method=method, **kwargs)
             θ, k = sol.x
             DEBUG(f"Minimization terminated with {sol.message}.")
@@ -946,10 +946,15 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             lynm = np.mean(np.log(-y[i_n])) if nn  else 0
             iypm = np.mean(1/y[ip])         if n_p else 0
             iynm = np.mean(-1/y[i_n])       if nn  else 0
+
+            x0  = np.array([λ_old, μ_old, k_old, m_old, α_old, β_old])
+            bnds= [(1e-6, 10)]*2 + [(-10,10)]*2 + [(1e-6, 10)]*2
+            x0 = np.array([np.clip(x0[i], bnds[i][0], bnds[i][1]) for i in range(len(x0))])
             
-            sol = minimize(self.neg_ll, [λ_old, μ_old, k_old, m_old, α_old, β_old],
+            DEBUG(f"Starting optimization with x0 = " + ", ".join([f"{x0[i]:.3g}" for i in range(len(x0))]))
+            sol = minimize(self.neg_ll, x0,
                            args   = (n_p/n, nn/n, ypm, ynm, iypm, iynm, lypm, lynm),
-                           bounds = [(1e-6, 10)]*2 + [(-10,10)]*2 + [(1e-6, 10)]*2,
+                           bounds = bnds,
                            method = method)
             
             DEBUG(f"{sol.message} after {sol.nit} iterations.")
