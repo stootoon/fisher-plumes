@@ -151,7 +151,7 @@ def compute_sin_cos_stft(data, istart, wnd, ov, x_only = False, force_nonnegativ
     return s.T, c.T, times.astype(int)
 
 # CDF of the asymmetric laplacian
-alaplace_cdf = lambda la, mu, x: (mu/(la + mu))*np.exp(-2*np.abs(x)/mu)*(x<=0)+ ((mu + la*(1 - np.exp(-2*np.abs(x)/la)))/(mu+la))*(x>0)
+alaplace_cdf = lambda la, mu, x: (mu/(la + mu + 1e-12))*np.exp(-2*np.abs(x)/(mu+1e-12))*(x<=0)+ ((mu + la*(1 - np.exp(-2*np.abs(x)/(la+1e-12))))/(mu+la+1e-12))*(x>0)
 
 # COMPUTE P VALUE FOR THE KOLMOGOROV SMIRNOV TEST
 compute_ks_pvalue = lambda la, mu, x: kstest(x, lambda x: alaplace_cdf(la, mu, x)).pvalue

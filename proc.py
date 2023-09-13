@@ -11,10 +11,16 @@ import numpy as np
 import yaml
 from importlib import reload
 from builtins import sum as bsum
+import argparse
 from argparse import ArgumentParser
 from utils import eval_fields, deepcopy_data_fields, create_logger
 import itertools
+import random
 import hashlib
+import shutil
+
+import corr_models
+corr_models.logger.setLevel("INFO")
 
 import units; UNITS = units.UNITS
 HZ = UNITS.Hz
@@ -130,6 +136,21 @@ def load_spec(spec_file, verbose = False):
     
     return spec, compute_list
 
+def fit_corrs(corrs, search_spec, output_file):
+    pass
+
+def check_file_exists(file_path):
+    """ Check if a file exists. """
+    if os.path.exists(file_path):
+        return file_path
+    raise argparse.ArgumentTypeError(f"{file_path} does not exist.")
+
+def check_positive(n):
+    """ Check if a number is positive. """
+    n = int(n)
+    if n > 0:
+        return n
+    raise argparse.ArgumentTypeError(f"{n} is not positive.")
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
@@ -140,8 +161,101 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", help="Overwrite existing runs, if they exist.", action="store_true")
     parser.add_argument("--rebuild",   help="Whether to rebuild the registry from scratch. The directory of the --registry flag will be used.", action="store_true")
     parser.add_argument("--set", help="Field (e.g. 'compute.window_length') and value (e.g. '[1*SEC,2*SEC]') to set in spec file.", nargs=2, action="append", default=None)
+
+    parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
+    parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
+    parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
+    parser.add_argument("--fit_corrs",   help="Spec of a fit to correlations to perform.", type=check_file_exists)
+    
     args = parser.parse_args()
 
+    if any([args.fit_corrs, args.fp_data]):
+        # Fitting correlation data
+        if args.fp_data:
+            assert args.search_spec, "Must specify a search spec file with --search_spec."
+            # Get the search spec filename without the extension
+            search_spec_file = os.path.splitext(args.search_spec)[0]
+                        
+            if os.path.isdir(args.fp_data):
+                # If the fp_data is a directory, then we need to find all the files in it.
+                fp_files = [os.path.join(args.fp_data, f) for f in os.listdir(args.fp_data) if f.endswith(".p")]
+            else:
+                # Otherwise, it's a single file.
+                fp_files = [args.fp_data]
+
+            # Now, for each file, we need to split it into jobs.
+            for fp_file in fp_files:
+                INFO(f"Splitting {fp_file} into {args.gen_jobs} jobs.")
+                # Load the file and figure out how many probes, frequencies, and distances there are.
+                fp_data = pickle.load(open(fp_file, "rb"))
+                assert "results" in fp_data, f"Correlation data {fp_file} does not contain 'results' key."
+                assert "rho" in fp_data["results"], f"Correlation data {fp_file} does not contain 'rho' key."
+                rho = fp_data["results"]["rho"]
+                n_probes  = len(rho)
+                dists     = [d for d in list(rho[0].keys()) if d>=0]
+                n_dists   = len(dists)
+                n_freqs   = rho[0][dists[0]].shape[1]
+                INFO(f"Found {n_probes} probes, {n_dists} distances, and {n_freqs} frequencies.")                
+                # Compute all possible combinations of probes, distances, and frequencies.
+                combos = list(itertools.product(range(n_probes), dists, range(n_freqs)))
+                INFO(f"There {len(combos)} combinations of probes, distances, and frequencies.")
+                # Randomly shuffle the combinations.
+                random.shuffle(combos)
+                # Split the combinations into jobs.
+                jobs = np.array_split(combos, args.gen_jobs)
+                INFO(f"Split into {len(jobs)} jobs.")
+                # Now, create a directory for the jobs.
+                # The directory will be that of the file, with /fit_corrs/search_spec_file/ appended.
+                job_dir = os.path.join(os.path.dirname(fp_file), "fit_corrs", search_spec_file)
+                # Remove the directory if it already exists.
+                if os.path.exists(job_dir):
+                    INFO(f"Removing existing directory {job_dir}.")
+                    shutil.rmtree(job_dir)
+                os.makedirs(job_dir, exist_ok=True)
+                INFO(f"Created directory {job_dir}.")
+                # Now, for each job, create a spec file.
+                for i, job in enumerate(jobs):
+                    # Create a spec file for this job.
+                    # The name of the spec file will be fp_file with .p removed and the job number appended.
+                    spec_file = os.path.join(job_dir, f"{os.path.splitext(os.path.basename(fp_file))[0]}.{i}.yaml")
+                    # The spec file will contain the fp_file, the search_spec, and the job.
+                    spec = {"fp_file": fp_file, "search_spec": args.search_spec, "probe_dist_ifreq": job.tolist()}
+                    # Write the spec file to a human-readable yaml file.
+                    yaml.dump(spec, open(spec_file, "w"), default_flow_style=True)
+                    INFO(f"Wrote spec file {spec_file}.")
+        elif args.fit_corrs:
+            # If we're fitting correlations, then we need to load the spec file.
+            spec = yaml.load(open(args.fit_corrs, "r"), Loader=yaml.FullLoader)
+            # Get the corr_data and search_spec from the spec file.
+            fp_file = spec["fp_file"]
+            search_spec = spec["search_spec"]
+            # Get the probe_idist_ifreq from the spec file.
+            probe_dist_ifreq = spec["probe_dist_ifreq"]
+            # Load the correlations
+            fp_data  =  pickle.load(open(fp_file, "rb"))["results"] 
+            rho       = fp_data["rho"]
+            freqs     = fp_data["freqs"]            
+            # Get the distances from the results.
+            dists = list(rho[0].keys())
+            # Get the probe id, distance, and frequency from the probe_idist_ifreq.            
+            for i, (probe_id, dist, ifreq) in enumerate(probe_dist_ifreq):
+                # Get the correlation data for this probe, distance, and frequency.
+                rhoi = rho[probe_id][dist][0, ifreq] # 0 is for the full data, not the bootstrapped data.
+                # The output file will be the same as the input file, but with yaml replaced with p.
+                output_file = os.path.splitext(args.fit_corrs)[0] + ".p"
+                # Fit the correlation data.
+                INFO(f"Fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} using {search_spec}.")
+                results = corr_models.fit_corrs(rhoi, search_spec, output_file)
+                # Report the best model params and score from the results["search"] grid search CV object.
+                INFO(f"Best model params: {results['search'].best_params_}")
+                INFO(f"Best model score: {results['search'].best_score_}")
+                INFO(f"Done fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} to {search_spec}.")
+            
+
+                
+
+        exit(0)
+    
     if args.set is not None:
         if args.run_spec is None:
             print("No run specification file given. Exiting.")

@@ -3,7 +3,11 @@ import numpy as np
 from matplotlib import pylab as plt
 from collections import namedtuple
 from sklearn.base import BaseEstimator
+from sklearn.model_selection import GridSearchCV, ShuffleSplit
 import logging
+import yaml
+import pickle
+import pandas as pd
 
 from scipy.stats import    norm as norm_dist
 from scipy.stats import   gamma as gamma_dist
@@ -99,6 +103,7 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
 
 class Exponential: #(BaseEstimator):
     Params = namedtuple('Params', ['λ', 'μ'])
+    Params.__qualname__ = "Exponential.Params" # This is needed for pickle to work.
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
@@ -192,7 +197,9 @@ class Exponential: #(BaseEstimator):
     
 class IntermittentExponential(Exponential):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ'])
+    Params.__qualname__ = "IntermittentExponential.Params" # This is needed for pickle to work.
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    HyperParams.__qualname__ = "IntermittentExponential.HyperParams" # This is needed for pickle to work.
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
@@ -380,7 +387,9 @@ class IntermittentExponential(Exponential):
         
 class IntermittentGamma(IntermittentExponential):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm'])
+    Params.__qualname__ = 'IntermittentGamma.Params'
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    HyperParams.__qualname__ = 'IntermittentGamma.HyperParams'
 
     @staticmethod
     def gam_Z(λ, k):
@@ -647,7 +656,9 @@ class IntermittentGamma(IntermittentExponential):
 
 class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
+    Params.__qualname__ = 'IntermittentGeneralizedInverseGaussian.Params'
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    HyperParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.HyperParams'
 
     @staticmethod
     def gig_Z(η, p, θ):
@@ -1055,3 +1066,34 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
     def __repr__(self):
         return repr(self.models[-1])
     
+
+def fit_corrs(y, search_spec, output_file):
+    s = np.std(y)
+    y_= y/s
+
+    # Load the yaml file search_spec
+    with open(search_spec, "r") as f:
+        search_spec = yaml.load(f, Loader=yaml.FullLoader)
+    INFO(f"Loaded search_spec from {search_spec=}")
+    # Create a GridSearchCV object with the CorrModel as the estimator
+    search = GridSearchCV(estimator = CorrModel(**search_spec["estimator"]),
+                            param_grid = search_spec["param_grid"],
+                            cv = ShuffleSplit(**search_spec["cv"]),
+                            **search_spec["gridsearch"])
+
+    # Fit the GridSearchCV object
+    search.fit(X=y_, y=None)
+    results_df = pd.DataFrame(search.cv_results_)
+    filtered_results = results_df[
+        ['param_model', 'param_intermittent', 'param_γ_pr_mean', 'mean_test_score', 'std_test_score']
+    ]
+    INFO("\n"+filtered_results.sort_values(by='mean_test_score', ascending=False).to_string(index=False))
+
+    results = {"search":search, "scale":s}
+
+    # Save the results to a pickle file
+    with open(output_file, "wb") as f:
+        pickle.dump(results, f)
+    INFO(f"Saved results to {output_file=}")
+    return results
+
