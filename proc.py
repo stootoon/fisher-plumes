@@ -87,7 +87,7 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     return matches
 
 
-def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False):
+def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None):
     """ Load data from the file in the registry that matches the given init and compute filters. """
     if registry is None: registry = get_registry(data_dir)
 
@@ -104,7 +104,23 @@ def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None,
         data_file = match["file"]
         INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}")
         sys.stdout.flush()
-        results.append(pickle.load(open(match["file"], "rb"))["results"])
+        resi = pickle.load(open(data_file, "rb"))["results"]
+        if fit_corrs is not None:
+            for fc in fit_corrs:
+                # Look for a folder in the same directory as the data file called "fit_corrs/{fit_corrs}/basename.p"
+                # If it exists, load it and add it to the results.
+                fit_file = os.path.join(os.path.dirname(data_file), f"fit_corrs/{fc}/{os.path.basename(data_file)}")
+                if os.path.exists(fit_file):
+                    INFO(f"Loading {fit_file}.")
+                    sys.stdout.flush()
+                    if "fit_corrs" not in resi:
+                        resi["fit_corrs"] = {}
+                    resi["fit_corrs"][fc] = pickle.load(open(fit_file, "rb"))
+                else:
+                    INFO(f"{fit_file} does not exist.")
+                    sys.stdout.flush()
+                
+        results.append(resi)
 
     INFO(f"Returning {len(results)} results.")
     return results if not return_matches else (results, matches)
