@@ -266,8 +266,8 @@ if __name__ == "__main__":
                 INFO(f"Fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} using {search_spec}.")
                 resultsi = corr_models.fit_corrs(rhoi, search_spec)
                 # Report the best model params and score from the results["search"] grid search CV object.
-                INFO(f"Best model params: {resultsi['search'].best_params_}")
-                INFO(f"Best model score:  {resultsi['search'].best_score_}")
+                INFO(f"Best model params: {resultsi['search'].grid_search.best_params_}")
+                INFO(f"Best model score:  {resultsi['search'].grid_search.best_score_}")
                 INFO(f"Done fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} to {search_spec}.")
                 # Append the results to the results list.
                 results[(probe_id, dist, ifreq)] = resultsi
