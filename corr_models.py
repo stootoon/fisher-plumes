@@ -1076,10 +1076,10 @@ def fit_corrs(y, search_spec):
         search_spec = yaml.load(f, Loader=yaml.FullLoader)
     INFO(f"Loaded search_spec from {search_spec=}")
     # Create a GridSearchCV object with the CorrModel as the estimator
-    search = GridSearchCV(estimator = CorrModel(**search_spec["estimator"]),
+    search = GridSearchCVKeepModels(GridSearchCV(estimator = CorrModel(**search_spec["estimator"]),
                             param_grid = search_spec["param_grid"],
                             cv = ShuffleSplit(**search_spec["cv"]),
-                            **search_spec["gridsearch"])
+                            **search_spec["gridsearch"]))
 
     # Fit the GridSearchCV object
     search.fit(X=y_, y=None)
@@ -1113,6 +1113,12 @@ class GridSearchCVKeepModels:
         self.cv_results_ = self.grid_search.cv_results_
         return self
 
+class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this without having to re-run the above
+    def __init__(self, obj):
+        self.grid_search   = obj.grid_search
+        self.fitted_models = obj.fitted_models
+        self.cv_results_   = obj.grid_search.cv_results_
+        
     def _get_indices_by_rank(self, rank):
         max_rank      = max(self.cv_results_['rank_test_score'])
         adjusted_rank = (rank % max_rank) + 1
@@ -1121,7 +1127,7 @@ class GridSearchCVKeepModels:
     def _get_indices_by_hyperparams(self, **hyperparams):
         return [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and p[k] == v for k, v in hyperparams.items())]
 
-    def _get_fitted_model_by_hyperparams(self, **hyperparams):
+    def _get_fitted_models_by_hyperparams(self, **hyperparams):
         fitted_model_key_dicts = {k:eval(k) for k in self.fitted_models.keys()}
         models = [fm for k,fm in self.fitted_models.items() if all(hk in fitted_model_key_dicts[k] and fitted_model_key_dicts[k][hk] == v for hk, v in hyperparams.items())]
         assert len(models) == 1, f"Found {len(models)} models with hyperparams {hyperparams}"
@@ -1135,7 +1141,7 @@ class GridSearchCVKeepModels:
         
         scores      = [self.cv_results_[score_type][i] for i in indices]
         hyperparams = [self.cv_results_['params'][i]   for i in indices]
-        return {str(hp):s for hp, s in zip(hyperparams, scores)}
+        return scores, hyperparams
 
     def mean_test_score(self, rank=None, **hyperparams):
         return self._get_scores('mean_test_score', rank, **hyperparams)
@@ -1147,14 +1153,15 @@ class GridSearchCVKeepModels:
         indices      = self._get_indices_by_rank(rank) if rank is not None else self._get_indices_by_hyperparams(**hyperparams)        
         split_scores = [[self.cv_results_[f'split{j}_test_score'][i] for j in range(self.grid_search.cv.get_n_splits())] for i in indices]
         hyperparams   = [self.cv_results_['params'][i] for i in indices]
-        return {str(hp):ss for hp, ss in zip(hyperparams, split_scores)}
+        return split_scores, hyperparams
      
-    def hyperparams(self, rank, **hp):
-        indices = self._get_indices_by_rank(rank, **hp)
+    def hyperparams(self, rank=None, **hp):
+        indices = self._get_indices_by_rank(rank) if rank is not None else self._get_indices_by_hyperparams(**hp)
         return [self.cv_results_['params'][i] for i in indices]
     
-    def models(self, rank, **hp):
+    def models(self, rank=None, **hp):
         hp_list = self.hyperparams(rank, **hp)
-        return {str(hp):self._get_fitted_model_by_hyperparams(**hp) for hp in hp_list}
+        models  = [self._get_fitted_models_by_hyperparams(**hp) for hp in hp_list]
+        return models, hp_list
 
         
