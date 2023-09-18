@@ -1061,10 +1061,10 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
         return self.models[-1].cdf(*args, **kwargs)
 
     def __str__(self):
-        return str(self.models[-1])
+       return str(self.models[-1]) if len(self.models) else super().__str__()
 
     def __repr__(self):
-        return repr(self.models[-1])
+       return repr(self.models[-1]) if len(self.models) else super().__repr__()
     
 
 def fit_corrs(y, search_spec):
@@ -1091,3 +1091,70 @@ def fit_corrs(y, search_spec):
 
     return {"search":search, "scale":s}
 
+class GridSearchCVKeepModels:
+    def __init__(self, grid_search_cv):
+        self.grid_search = grid_search_cv
+        self.fitted_models = {}
+        
+    def custom_scorer(self, estimator, X, y = None):
+        score = estimator.score(X, y)
+        params_str = str(estimator.get_params())
+        if params_str not in self.fitted_models:
+            self.fitted_models[params_str] = []
+        self.fitted_models[params_str].append(estimator)
+        return score
+    
+    def fit(self, X, y = None):
+        if 'scoring' in self.grid_search.get_params():
+            if self.grid_search.get_params()['scoring'] is not None:
+                raise ValueError("scoring should not be set in the GridSearchCV object.")
+        self.grid_search.set_params(scoring=self.custom_scorer)
+        self.grid_search.fit(X, y)
+        self.cv_results_ = self.grid_search.cv_results_
+        return self
+
+    def _get_indices_by_rank(self, rank):
+        max_rank      = max(self.cv_results_['rank_test_score'])
+        adjusted_rank = (rank % max_rank) + 1
+        return [i for i, r in enumerate(self.cv_results_['rank_test_score']) if r == adjusted_rank]
+        
+    def _get_indices_by_hyperparams(self, **hyperparams):
+        return [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and p[k] == v for k, v in hyperparams.items())]
+
+    def _get_fitted_model_by_hyperparams(self, **hyperparams):
+        fitted_model_key_dicts = {k:eval(k) for k in self.fitted_models.keys()}
+        models = [fm for k,fm in self.fitted_models.items() if all(hk in fitted_model_key_dicts[k] and fitted_model_key_dicts[k][hk] == v for hk, v in hyperparams.items())]
+        assert len(models) == 1, f"Found {len(models)} models with hyperparams {hyperparams}"
+        return models[0]
+
+    def _get_scores(self, score_type, rank=None, **hyperparams):
+        if rank is not None:
+            indices = self._get_indices_by_rank(rank)
+        else:
+            indices = self._get_indices_by_hyperparams(**hyperparams)
+        
+        scores      = [self.cv_results_[score_type][i] for i in indices]
+        hyperparams = [self.cv_results_['params'][i]   for i in indices]
+        return {str(hp):s for hp, s in zip(hyperparams, scores)}
+
+    def mean_test_score(self, rank=None, **hyperparams):
+        return self._get_scores('mean_test_score', rank, **hyperparams)
+
+    def std_test_score(self, rank=None, **hyperparams):
+        return self._get_scores('std_test_score', rank, **hyperparams)
+
+    def split_test_score(self, rank=None, **hyperparams):
+        indices      = self._get_indices_by_rank(rank) if rank is not None else self._get_indices_by_hyperparams(**hyperparams)        
+        split_scores = [[self.cv_results_[f'split{j}_test_score'][i] for j in range(self.grid_search.cv.get_n_splits())] for i in indices]
+        hyperparams   = [self.cv_results_['params'][i] for i in indices]
+        return {str(hp):ss for hp, ss in zip(hyperparams, split_scores)}
+     
+    def hyperparams(self, rank, **hp):
+        indices = self._get_indices_by_rank(rank, **hp)
+        return [self.cv_results_['params'][i] for i in indices]
+    
+    def models(self, rank, **hp):
+        hp_list = self.hyperparams(rank, **hp)
+        return {str(hp):self._get_fitted_model_by_hyperparams(**hp) for hp in hp_list}
+
+        
