@@ -1118,14 +1118,31 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
         self.grid_search   = obj.grid_search
         self.fitted_models = obj.fitted_models
         self.cv_results_   = obj.grid_search.cv_results_
-        
+
+    def _get_indices(self, rank = None, **hyperparams):
+        # If hyperparams are provided, use them to get the indices
+        if len(hyperparams):
+            inds = self._get_indices_by_hyperparams(**hyperparams)
+            # The indices are sorted by rank.
+            # If rank is provided, use it as th index into the sorted indices.
+            if rank is not None:
+                assert rank < len(inds), f"rank={rank} is too large for the number of indices matching the hyperparameters ({len(inds)})."
+                inds = [inds[rank]]
+        else:
+            inds = self._get_indices_by_rank(rank)
+
+        return inds
+            
     def _get_indices_by_rank(self, rank):
         max_rank      = max(self.cv_results_['rank_test_score'])
         adjusted_rank = (rank % max_rank) + 1
         return [i for i, r in enumerate(self.cv_results_['rank_test_score']) if r == adjusted_rank]
         
     def _get_indices_by_hyperparams(self, **hyperparams):
-        return [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and p[k] == v for k, v in hyperparams.items())]
+        # Get the indices matching the hyperparams
+        inds = [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and p[k] == v for k, v in hyperparams.items())]
+        # Return them sorted by rank
+        return sorted(inds, key = lambda i: self.cv_results_['rank_test_score'][i])
 
     def _get_fitted_models_by_hyperparams(self, **hyperparams):
         fitted_model_key_dicts = {k:eval(k) for k in self.fitted_models.keys()}
@@ -1134,15 +1151,15 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
         return models[0]
 
     def _get_scores(self, score_type, rank=None, **hyperparams):
-        if rank is not None:
-            indices = self._get_indices_by_rank(rank)
-        else:
-            indices = self._get_indices_by_hyperparams(**hyperparams)
-        
+        indices     = self._get_indices(rank, **hyperparams)        
         scores      = [self.cv_results_[score_type][i] for i in indices]
         hyperparams = [self.cv_results_['params'][i]   for i in indices]
         return scores, hyperparams
 
+    def best_test_score(self, **hyperparams):
+        # Returns the best test score for the given hyperparameters
+        return self._get_scores('mean_test_score', rank=0, **hyperparams)
+    
     def mean_test_score(self, rank=None, **hyperparams):
         return self._get_scores('mean_test_score', rank, **hyperparams)
 
@@ -1150,13 +1167,13 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
         return self._get_scores('std_test_score', rank, **hyperparams)
 
     def split_test_score(self, rank=None, **hyperparams):
-        indices      = self._get_indices_by_rank(rank) if rank is not None else self._get_indices_by_hyperparams(**hyperparams)        
+        indices      = self._get_indices(rank, **hyperparams)        
         split_scores = [[self.cv_results_[f'split{j}_test_score'][i] for j in range(self.grid_search.cv.get_n_splits())] for i in indices]
         hyperparams   = [self.cv_results_['params'][i] for i in indices]
         return split_scores, hyperparams
      
     def hyperparams(self, rank=None, **hp):
-        indices = self._get_indices_by_rank(rank) if rank is not None else self._get_indices_by_hyperparams(**hp)
+        indices = self._get_indices(rank, **hp)
         return [self.cv_results_['params'][i] for i in indices]
     
     def models(self, rank=None, **hp):
