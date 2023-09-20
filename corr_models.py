@@ -231,7 +231,7 @@ class IntermittentExponential(Exponential):
         
         return y, labs
 
-    def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0):
+    def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0, **kwargs):
         INFO("*"*80)
         INFO(f"Initializing model {self.__class__.__name__} named '{name}' {id(self)=}.")
         self.name  = name
@@ -492,6 +492,12 @@ class IntermittentGamma(IntermittentExponential):
         lneg = fn*(-(m-1)*lynm + ynm/μ)
         return (lZ + lpos + lneg)
 
+    def __init__(self, *args, k_min = 1e-6, k_max = 10, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.k_min = k_min
+        self.k_max = k_max        
+        INFO(f"Set k_max={k_max:.3g}, k_min={k_min:.3g}.")
+    
     def init_from_fit(self, y, γ = None):
         if γ == None:
             if self.params is None:
@@ -623,7 +629,7 @@ class IntermittentGamma(IntermittentExponential):
                                                            damping  = damping,
                                                            max_iter = max_fp_iter,)
             else:
-                bnds = [(1e-6, 10)]*4
+                bnds = [(1e-6, 10)]*2 + [(self.k_min, self.k_max)]*2
                 x0 = np.array([λ_old, μ_old, k_old, m_old])
                 x0 = np.array([np.clip(x0[i], bnds[i][0], bnds[i][1]) for i in range(len(x0))])
                 sol = minimize(self.neg_ll, x0,
@@ -654,7 +660,7 @@ class IntermittentGamma(IntermittentExponential):
         return self
 
 
-class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
+class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
     Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
     Params.__qualname__ = 'IntermittentGeneralizedInverseGaussian.Params'
     HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
@@ -961,7 +967,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
             iynm = np.mean(-1/y[i_n])       if nn  else 0
 
             x0  = np.array([λ_old, μ_old, k_old, m_old, α_old, β_old])
-            bnds= [(1e-6, 10)]*2 + [(-10,10)]*2 + [(1e-6, 10)]*2
+            bnds= [(1e-6, 10)]*2 + [(self.k_min, self.k_max)]*2 + [(1e-6, 10)]*2
             x0 = np.array([np.clip(x0[i], bnds[i][0], bnds[i][1]) for i in range(len(x0))])
             
             DEBUG(f"Starting optimization with x0 = " + ", ".join([f"{x0[i]:.3g}" for i in range(len(x0))]))
@@ -1000,7 +1006,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentExponential):
 
 
 class CorrModel(BaseEstimator): # A wrapper over the correlation models that will aid model selection.
-    def __init__(self, name = "Model", scoring="r2", model = "gig", init_params=None, init_mode = None, intermittent = True, γ_pr_mean = 0.5, γ_pr_strength = 1, σ_penalty = 0):
+    def __init__(self, name = "Model", scoring="r2", model = "gig", init_params=None, init_mode = None, intermittent = True, γ_pr_mean = 0.5, γ_pr_strength = 1, σ_penalty = 0, k_min = 1e-6, k_max = 10):
         self.name = name
         self.model = model
         self.init_mode = init_mode
@@ -1011,6 +1017,8 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
         assert scoring in ["r2", "tv"]
         self.scoring = scoring
         self.init_params = init_params
+        self.k_min = k_min
+        self.k_max = k_max
         
         self.models = []
     
@@ -1021,7 +1029,10 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
             "intermittent":self.intermittent,
             "γ_pr_mean":self.γ_pr_mean,
             "γ_pr_strength":self.γ_pr_strength,
-            "σ_penalty":self.σ_penalty}
+            "σ_penalty":self.σ_penalty,
+            "k_min":self.k_min,
+            "k_max":self.k_max,
+        }
         
         if self.init_mode == "ancestral":
             INFO("")
