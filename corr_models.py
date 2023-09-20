@@ -1085,7 +1085,7 @@ def fit_corrs(y, search_spec):
     search.fit(X=y_, y=None)
     results_df = pd.DataFrame(search.cv_results_)
     filtered_results = results_df[
-        ['param_model', 'param_intermittent', 'param_γ_pr_mean', 'mean_test_score', 'std_test_score']
+        [p for p in ['param_model', 'param_intermittent' + 'param_γ_pr_mean', 'mean_test_score', 'std_test_score'] if p in results_df.columns]
     ]
     INFO("\n"+filtered_results.sort_values(by='mean_test_score', ascending=False).to_string(index=False))
 
