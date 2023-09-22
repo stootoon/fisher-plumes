@@ -32,7 +32,7 @@ randn= np.random.randn
 def params2str(params, flds = None, name = None):
     if name is None:
         name = params.__class__.__name__
-        if name is "Params":
+        if name == "Params":
             if "α" in params._fields:
                 name = "IntermittentGeneralizedInverseGaussian?"
             elif "k" in params._fields:
@@ -662,10 +662,10 @@ class IntermittentGamma(IntermittentExponential):
 
 
 class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
-    IntermittentGeneralizedInverseGaussianParams      = namedtuple('IntermittentGeneralizedInverseGaussianParams',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
-    IntermittentGeneralizedInverseGaussianParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.Params'
-    IntermittentGeneralizedInverseGaussianHyperParams = namedtuple('IntermittentGeneralizedInverseGaussianHyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
-    IntermittentGeneralizedInverseGaussianHyperParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.HyperParams'
+    IntermittentGeneralizedInverseGaussianParams                    = namedtuple('IntermittentGeneralizedInverseGaussianParams',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
+    IntermittentGeneralizedInverseGaussianParams.__qualname__       = 'IntermittentGeneralizedInverseGaussian.Params'
+    IntermittentGeneralizedInverseGaussianHyperParams               = namedtuple('IntermittentGeneralizedInverseGaussianHyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    IntermittentGeneralizedInverseGaussianHyperParams.__qualname__  = 'IntermittentGeneralizedInverseGaussian.HyperParams'
     Params = IntermittentGeneralizedInverseGaussianParams
     HyperParams = IntermittentGeneralizedInverseGaussianHyperParams
 
@@ -702,8 +702,11 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         C1= np.log(η) + kvv(p, θ)/kv(p,θ) # E_P(ln x) = ln(sqrt(b/a)) + d/dp ln K_p(sqrt(ab))
         DEBUG(f"{C0=}, {C1=}")
 
+        bounds = [(1e-6, 100), (1e-6, 100)]        
         if x0 is None:
-            x0 = np.clip(np.array([2 * η / θ, p]), 1e-6, 10)
+            x0 = np.array([2 * η / θ, p])
+            
+        x0 = np.array([np.clip(x0[i], bounds[i][0], bounds[i][1]) for i in range(len(x0))])        
         DEBUG(f"Initializing at {x0}.")            
         
         if method == "FP":
@@ -717,7 +720,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             neg_ElogQ = lambda p: -((p[1]-1)*C1 - C0/p[0] - np.log(gamma_fun(p[1])) - p[1]*np.log(p[0]))
             DEBUG(f"Initial value of neg_ElogQ = {neg_ElogQ(x0)}.")
             sol = minimize(neg_ElogQ, x0,
-                           bounds = [(1e-6, 100), (1e-6, 100)],
+                           
                            method=method, **kwargs)
             θ, k = sol.x
             DEBUG(f"Minimization terminated with {sol.message}.")
@@ -898,7 +901,8 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             raise ValueError("Casting from unknown params type.")
 
         casted_params = IntermittentGeneralizedInverseGaussian.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
-        DEBUG(f"Cast {params2str(params)} -> {params2str(casted_params)}")        
+        DEBUG(f"Cast {params2str(params)} -> {params2str(casted_params)}")
+        return casted_params
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
@@ -1204,6 +1208,7 @@ def summarize_params(params_list, summary_fun = np.mean, preproc_fun = None):
     if preproc_fun is not None:
         params_list = [preproc_fun(params) for params in params_list]
     which_keys = set.intersection(*[set(p._asdict().keys()) for p in params_list])
+    assert len(which_keys) > 0, "No keys in common between the params."
     res = {k:[] for k in which_keys}
     for params in params_list:
         for k in which_keys:
