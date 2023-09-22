@@ -29,7 +29,20 @@ DEBUG = logger.debug
 rand = np.random.rand
 randn= np.random.randn
 
-params2str  = lambda params, flds = None: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items() if (p in (params._fields if flds is None else flds))])
+def params2str(params, flds = None, name = None):
+    if name is None:
+        name = params.__class__.__name__
+        if name is "Params":
+            if "α" in params._fields:
+                name = "IntermittentGeneralizedInverseGaussian?"
+            elif "k" in params._fields:
+                name = "IntermittentGamma?"
+            elif "λ" in params._fields:
+                name = "IntermittentExponential?"
+        elif "Params" in name:
+            name = name.replace("Params", "")
+    body = ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items() if (p in (params._fields if flds is None else flds))])
+    return f"{name}({body})"
 
 params_all_close = lambda p1, p2: np.allclose([p1.__getattribute__(p) for p in p1._fields], 
                                               [p2.__getattribute__(p) for p in p1._fields],
@@ -102,8 +115,9 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
     return x_new, status
 
 class Exponential: #(BaseEstimator):
-    Params = namedtuple('Params', ['λ', 'μ'])
-    Params.__qualname__ = "Exponential.Params" # This is needed for pickle to work.
+    ExponentialParams = namedtuple('ExponentialParams', ['λ', 'μ'])
+    ExponentialParams.__qualname__ = "Exponential.Params" # This is needed for pickle to work.
+    Params = ExponentialParams
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
@@ -129,10 +143,10 @@ class Exponential: #(BaseEstimator):
         self.params      = init_params
 
     def __repr__(self):
-        return f"{self.name}, {self.__class__.__name__}(Params({params2str(self.params)}))"
+        return f"{self.name}, {params2str(self.params)}"
 
     def __str__(self):
-        return f"{self.name}, {self.__class__.__name__}({params2str(self.params)})"
+        return f"{self.name}, {params2str(self.params)}"
 
     def init_from_fit(self, y):
         INFO("Initializing from fit.")        
@@ -196,10 +210,12 @@ class Exponential: #(BaseEstimator):
         return fpt.compare_cdfs(self.predict, y, cmp_fun = cmp_fun, n = n)
     
 class IntermittentExponential(Exponential):
-    Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ'])
-    Params.__qualname__ = "IntermittentExponential.Params" # This is needed for pickle to work.
-    HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
-    HyperParams.__qualname__ = "IntermittentExponential.HyperParams" # This is needed for pickle to work.
+    IntermittentExponentialParams                   = namedtuple('IntermittentExponentialParams',      ['λ', 'μ', 'σ', 'γ'])
+    IntermittentExponentialParams.__qualname__      = "IntermittentExponential.Params" # This is needed for pickle to work.
+    IntermittentExponentialHyperParams              = namedtuple('IntermittentExponentialHyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    IntermittentExponentialHyperParams.__qualname__ = "IntermittentExponential.HyperParams" # This is needed for pickle to work.
+    Params      = IntermittentExponentialParams
+    HyperParams = IntermittentExponentialHyperParams
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
@@ -251,31 +267,29 @@ class IntermittentExponential(Exponential):
                 self.params       = self.params._replace(γ = 1)
             self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
         
-        INFO(f"Initialized self.init_params = {params2str(self.init_params, self.Params._fields) if self.init_params else self.init_params}")
-        INFO(f"Initialized self.params      = {params2str(self.params, self.Params._fields) if self.params else self.params}")
-        INFO(f"Initialized self.hyper_params= {params2str(self.hyper_params, self.HyperParams._fields)}")
+        INFO(f"Initialized self.init_params  = {params2str(self.init_params) if self.init_params else self.init_params}")
+        INFO(f"Initialized self.params       = {params2str(self.params) if self.params else self.params}")
+        INFO(f"Initialized self.hyper_params = {params2str(self.hyper_params)}")
 
     @staticmethod
     def _cast_params(params):
         γ = params.γ
         σ = params.σ
+
         if hasfield(params, "α"): # It's a GenInvGauss
-            DEBUG("Casting IntermittentGenInvGauss to IntermittentExponential.")
             λ = 2 * params.λ / params.α
             μ = 2 * params.μ / params.β
         elif hasfield(params, "k"): # It's a Gamma
-            DEBUG("Casting IntermittentGamma to IntermittentExponential.")
             λ = params.λ
             μ = params.μ
         elif hasfield(params, "λ"): # It's an Exponential
-            DEBUG("Casting IntermittentExponential to IntermittentExponential.")
             λ = params.λ
             μ = params.μ        
         else:
             raise ValueError("Unknown params type.")
 
         casted_params = IntermittentExponential.Params(λ=λ, μ=μ, σ=σ, γ=γ)
-        DEBUG(f"Cast params: {params2str(params, params._fields)} -> {params2str(casted_params, casted_params._fields)}")
+        DEBUG(f"Cast {params2str(params)} -> {params2str(casted_params)}.")
         return casted_params
         
     def cast_params(self, params):
@@ -392,10 +406,12 @@ class IntermittentExponential(Exponential):
         self.labs = labs
         
 class IntermittentGamma(IntermittentExponential):
-    Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm'])
-    Params.__qualname__ = 'IntermittentGamma.Params'
-    HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
-    HyperParams.__qualname__ = 'IntermittentGamma.HyperParams'
+    IntermittentGammaParams      = namedtuple('IntermittentGammaParams',      ['λ', 'μ', 'σ', 'γ', 'k', 'm'])
+    IntermittentGammaParams.__qualname__ = 'IntermittentGamma.Params'
+    IntermittentGammaHyperParams = namedtuple('IntermittentGammaHyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    IntermittentGammaHyperParams.__qualname__ = 'IntermittentGamma.HyperParams'
+    Params      = IntermittentGammaParams
+    HyperParams = IntermittentGammaHyperParams
 
     @staticmethod
     def gam_Z(λ, k):
@@ -482,8 +498,8 @@ class IntermittentGamma(IntermittentExponential):
     def _cast_params(params):
         γ = params.γ
         σ = params.σ
+
         if hasfield(params, "α"): # It's a GenInvGauss
-            DEBUG("Casting IntermittentGenInvGauss to IntermittentGamma.")
             λ = max(1e-6, 2 * params.λ / params.α)
             μ = max(1e-6, 2 * params.μ / params.β)
             k = max(1e-6, params.k)
@@ -491,13 +507,11 @@ class IntermittentGamma(IntermittentExponential):
             λ, k = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
             μ, m = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
         elif hasfield(params, "k"): # It's a Gamma
-            DEBUG("Casting IntermittentGamma to IntermittentGamma.")
             λ = params.λ
             μ = params.μ
             k = params.k
             m = params.m
         elif not hasfield(params, "k"): # It's an Exponential
-            DEBUG("Casting IntermittentExponential to IntermittentGamma.")
             λ = params.λ
             μ = params.μ
             k = 1
@@ -506,7 +520,7 @@ class IntermittentGamma(IntermittentExponential):
             raise ValueError("Casting from unknown params type.")
 
         casted_params = IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
-        DEBUG(f"Cast params: {params2str(params)} -> {params2str(casted_params)}")
+        DEBUG(f"Cast {params2str(params)} -> {params2str(casted_params)}")
         return casted_params        
                     
     def __init__(self, *args, k_min = 1e-6, k_max = 10, **kwargs):
@@ -648,10 +662,12 @@ class IntermittentGamma(IntermittentExponential):
 
 
 class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
-    Params      = namedtuple('Params',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
-    Params.__qualname__ = 'IntermittentGeneralizedInverseGaussian.Params'
-    HyperParams = namedtuple('HyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
-    HyperParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.HyperParams'
+    IntermittentGeneralizedInverseGaussianParams      = namedtuple('IntermittentGeneralizedInverseGaussianParams',      ['λ', 'μ', 'σ', 'γ', 'k', 'm', 'α', 'β'])
+    IntermittentGeneralizedInverseGaussianParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.Params'
+    IntermittentGeneralizedInverseGaussianHyperParams = namedtuple('IntermittentGeneralizedInverseGaussianHyperParams', ['σ_penalty', 'γ_pr_mean', 'γ_pr_strength'])
+    IntermittentGeneralizedInverseGaussianHyperParams.__qualname__ = 'IntermittentGeneralizedInverseGaussian.HyperParams'
+    Params = IntermittentGeneralizedInverseGaussianParams
+    HyperParams = IntermittentGeneralizedInverseGaussianHyperParams
 
     @staticmethod
     def gig_Z(η, p, θ):
@@ -849,13 +865,12 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
 
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
         self.params      = self.init_params
-        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        INFO(f"Parameters initialized to {params2str(self.params)}.")
 
     def _cast_params(params):
         γ = params.γ
         σ = params.σ
         if hasfield(params, "α"): # It's an IGIG
-            DEBUG("Casting IntermittentGeneralizedInversGaussian to IntermittentGeneralizedInversGaussian.")
             α = params.α
             β = params.β
             λ = params.λ
@@ -863,7 +878,6 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             k = params.k
             m = params.m
         elif hasfield(params, "k"): # It's a Gamma
-            DEBUG("Casting IntermittentGamma to IntermittentGeneralizedInversGaussian.")
             # 2 λ α = 1e-6 # To make it gamma            
             # 2 λ / α = scale
             # scale * α**2 = 2 λ/α * α**2 = 2 λ α = 1e-6
@@ -874,7 +888,6 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             k = params.k
             m = params.m
         elif not hasfield(params, "k"): # It's an Exponential
-            DEBUG("Casting IntermittentExponential to IntermittentGeneralizedInversGaussian.")
             α = np.sqrt(1e-6/params.λ)
             β = np.sqrt(1e-6/params.μ)
             λ = α * params.λ /2
@@ -885,7 +898,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             raise ValueError("Casting from unknown params type.")
 
         casted_params = IntermittentGeneralizedInverseGaussian.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
-        DEBUG(f"Cast params: {params2str(params)} -> {params2str(casted_params)}")        
+        DEBUG(f"Cast {params2str(params)} -> {params2str(casted_params)}")        
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
