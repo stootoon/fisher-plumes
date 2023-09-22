@@ -29,7 +29,7 @@ DEBUG = logger.debug
 rand = np.random.rand
 randn= np.random.randn
 
-params2str  = lambda params, flds: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items() if p in flds])
+params2str  = lambda params, flds = None: ", ".join([f"{p}={v:<.2g}" for p,v in params._asdict().items() if (p in (params._fields if flds is None else flds))])
 
 params_all_close = lambda p1, p2: np.allclose([p1.__getattribute__(p) for p in p1._fields], 
                                               [p2.__getattribute__(p) for p in p1._fields],
@@ -129,10 +129,10 @@ class Exponential: #(BaseEstimator):
         self.params      = init_params
 
     def __repr__(self):
-        return f"{self.name}, {self.__class__.__name__}(Params({params2str(self.params, self.Params._fields)}))"
+        return f"{self.name}, {self.__class__.__name__}(Params({params2str(self.params)}))"
 
     def __str__(self):
-        return f"{self.name}, {self.__class__.__name__}({params2str(self.params, self.Params._fields)})"
+        return f"{self.name}, {self.__class__.__name__}({params2str(self.params)})"
 
     def init_from_fit(self, y):
         INFO("Initializing from fit.")        
@@ -254,27 +254,33 @@ class IntermittentExponential(Exponential):
         INFO(f"Initialized self.init_params = {params2str(self.init_params, self.Params._fields) if self.init_params else self.init_params}")
         INFO(f"Initialized self.params      = {params2str(self.params, self.Params._fields) if self.params else self.params}")
         INFO(f"Initialized self.hyper_params= {params2str(self.hyper_params, self.HyperParams._fields)}")
-    def cast_params(self, params):
+
+    @staticmethod
+    def _cast_params(params):
         γ = params.γ
         σ = params.σ
         if hasfield(params, "α"): # It's a GenInvGauss
-            INFO("Casting IntermittentGenInvGauss to IntermittentExponential.")
+            DEBUG("Casting IntermittentGenInvGauss to IntermittentExponential.")
             λ = 2 * params.λ / params.α
             μ = 2 * params.μ / params.β
         elif hasfield(params, "k"): # It's a Gamma
-            INFO("Casting IntermittentGamma to IntermittentExponential.")
+            DEBUG("Casting IntermittentGamma to IntermittentExponential.")
             λ = params.λ
             μ = params.μ
         elif hasfield(params, "λ"): # It's an Exponential
-            INFO("Casting IntermittentExponential to IntermittentExponential.")
+            DEBUG("Casting IntermittentExponential to IntermittentExponential.")
             λ = params.λ
             μ = params.μ        
         else:
             raise ValueError("Unknown params type.")
 
-        self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
-        self.init_params = self.params
-        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
+        casted_params = IntermittentExponential.Params(λ=λ, μ=μ, σ=σ, γ=γ)
+        DEBUG(f"Cast params: {params2str(params, params._fields)} -> {params2str(casted_params, casted_params._fields)}")
+        return casted_params
+        
+    def cast_params(self, params):
+        self.params = self._cast_params(params)
+        self.init_params = self.params        
 
     def init_from_fit(self, y, γ = None):
         if γ == None:
@@ -463,26 +469,6 @@ class IntermittentGamma(IntermittentExponential):
         labs[z & (y<0)]  = -1
 
         return y, labs
-
-    @staticmethod
-    def params_from_gig(gig_params):
-        λ = 2*gig_params.λ / gig_params.α
-        μ = 2*gig_params.μ / gig_params.β
-        k = gig_params.k
-        m = gig_params.m
-        σ = gig_params.σ
-        γ = gig_params.γ
-        return IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)        
-
-    @staticmethod
-    def params_from_exp(exp_params):
-        λ = exp_params.λ
-        μ = exp_params.μ
-        k = 1
-        m = 1
-        σ = exp_params.σ
-        γ = exp_params.γ
-        return IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)        
     
     @staticmethod
     def neg_ll(p, fp, fn, ypm, ynm, lypm, lynm):
@@ -492,6 +478,37 @@ class IntermittentGamma(IntermittentExponential):
         lneg = fn*(-(m-1)*lynm + ynm/μ)
         return (lZ + lpos + lneg)
 
+    @staticmethod
+    def _cast_params(params):
+        γ = params.γ
+        σ = params.σ
+        if hasfield(params, "α"): # It's a GenInvGauss
+            DEBUG("Casting IntermittentGenInvGauss to IntermittentGamma.")
+            λ = max(1e-6, 2 * params.λ / params.α)
+            μ = max(1e-6, 2 * params.μ / params.β)
+            k = max(1e-6, params.k)
+            m = max(1e-6, params.m)
+            λ, k = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
+            μ, m = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
+        elif hasfield(params, "k"): # It's a Gamma
+            DEBUG("Casting IntermittentGamma to IntermittentGamma.")
+            λ = params.λ
+            μ = params.μ
+            k = params.k
+            m = params.m
+        elif not hasfield(params, "k"): # It's an Exponential
+            DEBUG("Casting IntermittentExponential to IntermittentGamma.")
+            λ = params.λ
+            μ = params.μ
+            k = 1
+            m = 1
+        else:
+            raise ValueError("Casting from unknown params type.")
+
+        casted_params = IntermittentGamma.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
+        DEBUG(f"Cast params: {params2str(params)} -> {params2str(casted_params)}")
+        return casted_params        
+                    
     def __init__(self, *args, k_min = 1e-6, k_max = 10, **kwargs):
         super().__init__(*args, **kwargs)
         self.k_min = k_min
@@ -526,36 +543,6 @@ class IntermittentGamma(IntermittentExponential):
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
 
-    def cast_params(self, params):
-        γ = params.γ
-        σ = params.σ
-        if hasfield(params, "α"): # It's a GenInvGauss
-            INFO("Casting IntermittentGenInvGauss to IntermittentGamma.")
-            λ = max(1e-6, 2 * params.λ / params.α)
-            μ = max(1e-6, 2 * params.μ / params.β)
-            k = max(1e-6, params.k)
-            m = max(1e-6, params.m)
-            λ, k = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.λ, params.k, params.α, x0 = np.array([λ, k]))
-            μ, m = IntermittentGeneralizedInverseGaussian.nearest_gamma(params.μ, params.m, params.β, x0 = np.array([μ, m]))            
-        elif hasfield(params, "k"): # It's a Gamma
-            INFO("Casting IntermittentGamma to IntermittentGamma.")
-            λ = params.λ
-            μ = params.μ
-            k = params.k
-            m = params.m
-        elif not hasfield(params, "k"): # It's an Exponential
-            INFO("Casting IntermittentExponential to IntermittentGamma.")
-            λ = params.λ
-            μ = params.μ
-            k = 1
-            m = 1
-        else:
-            raise ValueError("Casting from unknown params type.")
-
-        self.params      = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
-        self.init_params = self.params        
-        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
-        
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead", **kwargs):
         INFO(f"Fitting {self.__class__.__name__} model {self.name}.")
         assert y is None, "y must be None"
@@ -724,10 +711,6 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         INFO(f"Mapped to {θ=}, {k=}.")
         return θ, k
 
-    
-        
-
-
     @staticmethod
     def agig_Z(params):        
         λ = params.λ
@@ -868,11 +851,11 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
 
-    def cast_params(self, params):
+    def _cast_params(params):
         γ = params.γ
         σ = params.σ
         if hasfield(params, "α"): # It's an IGIG
-            INFO("Casting IntermittentGeneralizedInversGaussian to IntermittentGeneralizedInversGaussian.")
+            DEBUG("Casting IntermittentGeneralizedInversGaussian to IntermittentGeneralizedInversGaussian.")
             α = params.α
             β = params.β
             λ = params.λ
@@ -880,7 +863,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             k = params.k
             m = params.m
         elif hasfield(params, "k"): # It's a Gamma
-            INFO("Casting IntermittentGamma to IntermittentGeneralizedInversGaussian.")
+            DEBUG("Casting IntermittentGamma to IntermittentGeneralizedInversGaussian.")
             # 2 λ α = 1e-6 # To make it gamma            
             # 2 λ / α = scale
             # scale * α**2 = 2 λ/α * α**2 = 2 λ α = 1e-6
@@ -891,7 +874,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             k = params.k
             m = params.m
         elif not hasfield(params, "k"): # It's an Exponential
-            INFO("Casting IntermittentExponential to IntermittentGeneralizedInversGaussian.")
+            DEBUG("Casting IntermittentExponential to IntermittentGeneralizedInversGaussian.")
             α = np.sqrt(1e-6/params.λ)
             β = np.sqrt(1e-6/params.μ)
             λ = α * params.λ /2
@@ -901,10 +884,8 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         else:
             raise ValueError("Casting from unknown params type.")
 
-        self.params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α = α, β = β)
-        self.init_params = self.params        
-        INFO(f"Cast params: {params2str(params, params._fields)} -> {params2str(self.params, self.Params._fields)}")
-
+        casted_params = IntermittentGeneralizedInverseGaussian.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
+        DEBUG(f"Cast params: {params2str(params)} -> {params2str(casted_params)}")        
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
         INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
@@ -1151,7 +1132,7 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
         
     def _get_indices_by_hyperparams(self, **hyperparams):
         # Get the indices matching the hyperparams
-        inds = [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and p[k] == v for k, v in hyperparams.items())]
+        inds = [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and ((p[k] in v) if type(v) is list else (p[k] == v)) for k, v in hyperparams.items())]
         # Return them sorted by rank
         return sorted(inds, key = lambda i: self.cv_results_['rank_test_score'][i])
 
@@ -1186,6 +1167,15 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
     def hyperparams(self, rank=None, **hp):
         indices = self._get_indices(rank, **hp)
         return [self.cv_results_['params'][i] for i in indices]
+
+    def params(self, rank=None, which_params = None, **hp):
+        models, hp_list = self.models(rank, **hp)
+        pp, hh = [], []
+        for ms, hp in zip(models, hp_list):
+            for m in ms:
+                hh.append(hp)
+                pp.append(m.models[-1].params)
+        return pp, hh        
     
     def models(self, rank=None, **hp):
         hp_list = self.hyperparams(rank, **hp)
@@ -1193,3 +1183,25 @@ class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this wit
         return models, hp_list
 
         
+def summarize_params(params_list, summary_fun = np.mean, preproc_fun = None):
+    # Create a new dictionary with the sum of the values for each key
+    # Where the keys correspond to fields present in all of the params named tuples.
+    # and the values are the summary of the values for that field.
+    # If a key is not present in all of the params, it is not included in the result.
+    if preproc_fun is not None:
+        params_list = [preproc_fun(params) for params in params_list]
+    which_keys = set.intersection(*[set(p._asdict().keys()) for p in params_list])
+    res = {k:[] for k in which_keys}
+    for params in params_list:
+        for k in which_keys:
+            res[k].append(params._asdict()[k])
+
+    # Apply the summary function to each value
+    for k in which_keys:
+        res[k] = summary_fun(res[k])
+
+    Params = namedtuple('Params', which_keys)
+    return Params(**res)
+
+
+
