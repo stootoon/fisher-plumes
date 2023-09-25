@@ -44,6 +44,9 @@ def get_registry(registry_loc, build=False, write=False):
         # Create a new registry.
         registry = []
         for dirpath, dirnames, filenames in os.walk(registry_loc):
+            if "fit_corrs" in dirpath:
+                INFO(f"Skipping {dirpath}.")
+                continue
             for filename in filenames:
                 if filename.endswith(".p"):
                     file_path = os.path.join(dirpath, filename)
