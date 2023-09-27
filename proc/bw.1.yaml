@@ -8,8 +8,8 @@ init:
   n_bootstraps: 50
   random_seed: 0
 compute:
-  window_shape: "['boxcar', 'hann', ('kaiser',9), ('kaiser',16)]"
-  window_length: "[1*SEC, 2*SEC, 4*SEC, 5*SEC, 10*SEC]"
+  window_shape: "['boxcar', 'hann']"
+  window_length: "[1*SEC]"
   istart: 0
   fit_k: "[True,False]"
   integral_length_scale_locs_absolute__: '[(0,0) * M, (0.45,0) * M]' # Trailing __ means don't expand this field.

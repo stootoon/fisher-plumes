@@ -1,0 +1,15 @@
+init:
+  sim_name: "surr_all_equal"
+  freq_max: '20 * HZ'
+  which_coords: '[(1.0,0.) * M]'
+  n_sources: 16
+  pairs_mode: "unsigned"
+  n_bootstraps: 50
+  random_seed: 16
+  surrogate_k: 0
+  method: 1
+compute:
+  window_shape: "['boxcar', 'hann']"
+  window_length: "[1*SEC]"
+  istart: 0
+  fit_k: "[True, False]"
