@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script is used to run the FisherPlumes model for a variety of different parameter sets.
 It takes as input a YAML file specifying the parameters to use for each run.
@@ -6,7 +7,7 @@ It will also save a registry of all the runs that have been performed, so that i
 determined which runs have already been performed, and which have not.
 """
 
-import os,sys,pickle
+import os,sys,pickle,datetime
 import yaml
 from importlib import reload
 from builtins import sum as bsum
@@ -14,6 +15,7 @@ from argparse import ArgumentParser
 from utils import eval_fields, deepcopy_data_fields, create_logger
 import itertools
 import hashlib
+
 
 import units
 
@@ -90,14 +92,27 @@ def load_data(init_filter, compute_filter, registry = None, return_matches = Fal
     results = []
     for match in matches:
         data_file = match["file"]
-        INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}")
+        
+        INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}, last modified {get_last_mod_timestr(data_file)}.")
         sys.stdout.flush()
         results.append(pickle.load(open(match["file"], "rb"))["results"])
 
     INFO(f"Returning {len(results)} results.")
     return results if not return_matches else (results, matches)
         
+def get_last_mod_timestr(file_path):
+    """ Get the last modification time of the given file as a string. """
+    return datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
 
+def hash_init_compute(init, compute, length=16):
+    """Stringify the init and compute dictionaries, concatenate them, and hash that using shake_128."""
+    init_str = str(init)
+    compute_str = str(compute)
+    combined = init_str + compute_str        
+    hashed =  hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)
+    print(f"Hashed {combined} to {hashed}.")
+    return hashed
+        
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
     parser.add_argument("--run_spec", help="YAML file specifying the runs to perform.", type=str)    
@@ -129,7 +144,7 @@ if __name__ == "__main__":
         print(f"Registry file {args.registry} does not exist. Creating registry.")
         registry = []
     else:
-        print(f"Registry file {args.registry} exists. Loading registry.")
+        print(f"Registry file {args.registry} exists.\nLast modified at {get_last_mod_timestr(args.registry)}.\nLoading registry.")
         registry = pickle.load(open(args.registry, "rb"))
         print(f"Registry loaded. Found {len(registry)} items.")
         
@@ -173,13 +188,6 @@ if __name__ == "__main__":
         print(f"Creating output directory {output_dir}.")
         os.mkdir(output_dir)
     
-    def hash_init_compute(init, compute, length=16):
-        """Stringify the init and compute dictionaries, concatenate them, and hash that using shake_128."""
-        init_str = str(init)
-        compute_str = str(compute)
-        combined = init_str + compute_str
-        return hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)        
-        
     for item_id, compute_item in enumerate(compute_list):
         print(f"Processing {compute_item=}.")
         # Check the registry to see if this item has already been computed.
