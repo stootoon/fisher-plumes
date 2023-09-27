@@ -75,20 +75,25 @@ class SurrogateSimulationData:
         self.dimensions = [self.x[-1] - self.x[0], self.y[-1] - self.y[0]]# * self.units
         self.fields     = [f"S{i}" for i in range(n_sources)]
         self.fs         = fs
-        self.surr_data_args = {"type":name, "n_samples":n_samples, "n_sources":n_sources, "fs":fs}
+        self.surr_data_args = {"type":name, "n_samples":n_samples, "n_sources":n_sources, "fs":fs, "method":-1}
         self.surr_data_args.update(kwargs)
-        
+        self.seed = 0 if "random_seed" not in kwargs else kwargs["random_seed"]        
         INFO(self)
 
-    def generate_surrogate_data(self, seed=0):
+    def generate_surrogate_data(self, seed=None):
+        if seed is None:
+            seed = self.seed
+            
+        INFO(f"Generating surrogate data for {self.name} with seed {seed}")
         self.data = {}
-
+        
         fs = self.fs.to(UNITS.Hz).magnitude
 
         one_over_f = lambda f,k,fc: 1/(max(f/fc,1)**k)
 
         n_freq      = self.surr_data_args["n_samples"]//2
         surrogate_k = self.surr_data_args["surrogate_k"] if "surrogate_k" in self.surr_data_args else 4.
+        method      = self.surr_data_args["method"] if "method" in self.surr_data_args else -1
 
         self.nt = 2 * n_freq + 1        
         if self.name == "no_info":
@@ -116,27 +121,75 @@ class SurrogateSimulationData:
             raise NotImplementedError(f"Surrogate data of type {self.name} not implemented.")
 
         n_src  = len(self.fields)
-        K = np.zeros((n_src * n_freq, n_src * n_freq))
-        for n in range(n_freq):
-            for i in range(n_src):
-                for j in range(n_src):
-                    K[n_src * n + i, n_src * n + j] = kernel(i,j,n)
+        np.random.seed(seed)        
+        if method == 0:
+            INFO(f"Generating surrogate data using method {method}.")
+            K = np.zeros((n_src * n_freq, n_src * n_freq))
+            for n in range(n_freq):
+                for i in range(n_src):
+                    for j in range(n_src):
+                        K[n_src * n + i, n_src * n + j] = kernel(i,j,n)
+    
+            L = np.linalg.cholesky(K)
+    
+            c, s = np.random.randn(2, n_src*n_freq) @ L.T
+            
+#            t = np.arange(0,2*n_freq+1)
+#            f = 2*np.pi*np.arange(1,n_freq+1)/(2*n_freq)
+#            C = np.cos(np.outer(t, f))
+#            S = np.sin(np.outer(t, f))
+            # x = [C @ c[i::n_src] + S @ s[i::n_src] for i in range(n_src)]
+            #X = np.array(x)
+            self.c = np.reshape(c, (-1, n_src))
+            self.s = np.reshape(s, (-1, n_src))
+        elif method == 1:
+            INFO(f"Generating surrogate data using method {method}.")
+            phi = 0
+            c, s = [],[]
+            for n in range(n_freq):
+                Kin    = np.zeros((n_src, n_src))
+                Kout   = np.zeros((n_src, n_src))
+                for i in range(n_src):
+                    for j in range(n_src):
+                        Kin[i, j]  = kernel(i,j,n)
+                        # Kin looks like
+                        # [1,  β cos(ϕ)]
+                        # [β cos(ϕ),  1]
+                                            
+                        # We want Kout to look like like
+                        # [0,  -β sin(ϕ)]
+                        # [β sin(ϕ),  0]
+                        Kout[i, j]  = np.sign(i-j) * kernel(i,j,n) * np.tan(phi)
+                        # sign(i-j) makes the Kout kernel anti-symmetric.
+                        # tan(phi) converts β cos(ϕ) of the in-phase component
+                        # to β sin(ϕ) of the quadrature component.
+                        
+                K  = np.block([[Kin, Kout], [Kout.T, Kin]])
+                ev = sorted(np.linalg.eigvalsh(K))
+                # Try to compute the Cholesky decomposition of K
+                # If it fails, try print out the eigenvalues of K
+                try:
+                    L  = np.linalg.cholesky(K)
+                except:
+                    INFO(f"Failed performing Cholesky decomposition. Eigenvalues of K range from {ev[0]} to {ev[-1]}.")
+                    raise
+                    
+                cs = L @ np.random.randn(2*n_src)
+                c.append(cs[:n_src])
+                s.append(cs[n_src:])
+    
+            self.c = np.array(c)
+            self.s = np.array(s)
 
-        L = np.linalg.cholesky(K)
+        else:
+            raise NotImplementedError(f"Method {method} not implemented.")                           
 
-        np.random.seed(seed)
-        # Xr, Xc = np.random.randn(2, n_src*n_freq) @ L.T
-        # c = (Xr + Xc)/2
-        # s = (Xr - Xc)/2
-        c, s = np.random.randn(2, n_src*n_freq) @ L.T
-        
         t = np.arange(0,2*n_freq+1)
         f = 2*np.pi*np.arange(1,n_freq+1)/(2*n_freq)
         C = np.cos(np.outer(t, f))
         S = np.sin(np.outer(t, f))
-        x = [C @ c[i::n_src] + S @ s[i::n_src] for i in range(n_src)]
-        X = np.array(x)
-
+        X = np.array(C @ self.c + S @ self.s).T
+        
         for fld, Xi in zip(self.fields, X):
             self.data[fld] = [Xi]
 
