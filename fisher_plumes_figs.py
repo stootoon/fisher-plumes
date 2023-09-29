@@ -1027,12 +1027,12 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
                                        
 def plot_information_regression(data, which_ds, iprb,
                                 which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [1e-1, 4e-1, 7e-1]]}),
-                                mean_normalize = True,
-                                same_plot      = True,
+                                mean_normalize  = True,
+                                same_plot       = True,
                                 coef_plot_width = 2,
-                                names  = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"}),
-                                cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                
-                                figsize = None,
+                                names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"}),
+                                cols     = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                
+                                figsize  = None,
                                 plot_ils = False,
 ):
     n_rows = min(2, len(which_ds))
@@ -1112,11 +1112,11 @@ def plot_information_regression(data, which_ds, iprb,
         [ax_coef.spines[w].set_visible(False) for w in ["right", "top"]]
     ax_coef.grid(True, linestyle=":")
     ax_coef.legend(frameon=False, labelspacing =0, loc="lower left")
-    plt.tight_layout(pad=0,w_pad=0)
+    plt.tight_layout() #pad=0,w_pad=0)
     
     for i, axi in enumerate(ax):
         for j, axij in enumerate(axi):
-            trans = mtrans.Affine2D().translate(-0.06*j,0).scale(sx=1.25,sy=1)
+            trans = mtrans.Affine2D().translate(-0.05*j,0).scale(sx=1.25,sy=1)
             bbox  = axij.get_position()
             axij.set_position(mtrans.TransformedBbox(bbox, trans))
 
