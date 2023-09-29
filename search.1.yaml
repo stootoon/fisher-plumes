@@ -1,0 +1,21 @@
+gridsearch:
+  verbose: 1
+  n_jobs: 1  
+estimator:
+  scoring: "tv"
+  init_mode: "ancestral"
+cv:
+  n_splits: 3
+  test_size: 0.5
+  random_state: 0
+param_grid:
+  - model: ["exp", "gamma", "gig"]
+    intermittent: [false]
+    k_min: [0]
+    k_max: [10]    
+  - model: ["exp", "gamma", "gig"]
+    intermittent: [true]
+    γ_pr_mean: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]
+    γ_pr_strength: [1]
+    k_min: [0]
+    k_max: [10]
