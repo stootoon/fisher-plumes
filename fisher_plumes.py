@@ -94,6 +94,7 @@ class FisherPlumes:
                                                                pairs_mode = pairs_mode,
                                                                units = UNITS.m,
                                                                pitch_units = UNITS(self.pitch_string),
+                                                               random_seed = random_seed,
                                                                **kwargs)
                 INFO(f"{list(self.sims.keys())=}")
             else:
