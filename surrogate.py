@@ -77,10 +77,14 @@ class SurrogateSimulationData:
         self.fs         = fs
         self.surr_data_args = {"type":name, "n_samples":n_samples, "n_sources":n_sources, "fs":fs}
         self.surr_data_args.update(kwargs)
-        
+        self.seed = 0 if "random_seed" not in kwargs else kwargs["random_seed"]                
         INFO(self)
 
-    def generate_surrogate_data(self, seed=0):
+    def generate_surrogate_data(self, seed=None):
+        if seed is None:
+            seed = self.seed
+            
+        INFO(f"Generating surrogate data for {self.name} with seed {seed}")        
         self.data = {}
 
         fs = self.fs.to(UNITS.Hz).magnitude
@@ -178,8 +182,6 @@ class SurrogateSimulationData:
         t = self.t
         INFO(f"Generated surrogated data for {n_src} sources.")
         INFO(f"t-range: {t[0]:.3f}, {t[1]:.3f} ... {t[-1]:.3f} ({self.nt} points)")
-
-        self.K = K
         
     def __str__(self):
         s = [f"\n{self.name} {self.__class__}"]
