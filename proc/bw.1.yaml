@@ -1,15 +1,16 @@
-init:
-  sim_name: "boulder16"
-  freq_max: '20 * HZ'
-  which_coords: '[(0.45,0.5) * M]'
-  pairs_mode: "signed"
-  py_mode: "relative"
-  suffix: "manuscript"
-  n_bootstraps: 50
-  random_seed: 0
 compute:
-  window_shape: "['boxcar', 'hann', ('kaiser',9), ('kaiser',16)]"
-  window_length: "[1*SEC, 2*SEC, 4*SEC, 5*SEC, 10*SEC]"
+  fit_b: '[True,False]'
+  fit_k: '[True,False]'
+  integral_length_scale_locs_absolute__: '[(0,0) * M, (0.45,0) * M]'
   istart: 0
-  fit_k: "[True,False]"
-  integral_length_scale_locs_absolute__: '[(0,0) * M, (0.45,0) * M]' # Trailing __ means don't expand this field.
+  window_length: '[1*SEC,2*SEC]'
+  window_shape: '[''boxcar'',''hann'']'
+init:
+  freq_max: 20 * HZ
+  n_bootstraps: 50
+  pairs_mode: signed
+  py_mode: relative
+  random_seed: 0
+  sim_name: boulder16
+  suffix: manuscript
+  which_coords: '[(0.45,0.5) * M]'
