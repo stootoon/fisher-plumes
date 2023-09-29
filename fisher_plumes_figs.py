@@ -718,6 +718,8 @@ def plot_fisher_information_heatmap(F, which_probe,
                                     heatmap_range = [None, None],
                                     heatmap_cm    = cm.Spectral_r,
                                     do_colorbar = True,
+                                    normalize_index = None,
+                                    transform = np.log10,
                                     
 ):
     d_scale = F.pitch.to(UNITS.um).magnitude    
@@ -728,7 +730,11 @@ def plot_fisher_information_heatmap(F, which_probe,
     if freq_max is not None: ind_use &= fI <= freq_max
     used_freqs_hz = fI[ind_use].to(UNITS.Hz).magnitude
     if ax is None: ax = plt.gca()
-    im = ax.matshow(np.log10(I[ind_use]),
+    I = I[ind_use]
+    if normalize_index is not None:
+        I = I/I[normalize_index]
+        
+    im = ax.matshow(transform(I),
                     origin='upper',
                     cmap=heatmap_cm,
                     aspect="auto",
@@ -758,17 +764,18 @@ def plot_fisher_information_heatmap(F, which_probe,
         cb = plt.colorbar(im, cax=cax)
         yt = cb.ax.get_yticks()
         yl = cb.ax.get_ylim()
-        labels = []
-        for lab in [f"{10**yti:.1g}" for yti in yt]:
-            if "e+" in lab:
-                head, tail = lab.split("e+")
-                labels.append(f"{int(head) * 10**int(tail)}")
-            else:
-                labels.append(lab)
-
-        cb.ax.set_yticks(yt, labels)
-        cb.ax.set_ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
-        cb.ax.set_ylim(yl)
+        if transform == np.log10:
+            labels = []
+            for lab in [f"{10**yti:.1g}" for yti in yt]:
+                if "e+" in lab:
+                    head, tail = lab.split("e+")
+                    labels.append(f"{int(head) * 10**int(tail)}")
+                else:
+                    labels.append(lab)
+    
+            cb.ax.set_yticks(yt, labels)
+            cb.ax.set_ylabel(f"Fisher Information ({pitch_sym}" + "$^{-2}$)")
+            cb.ax.set_ylim(yl)
     else:
         cb = None
 
@@ -865,7 +872,10 @@ def plot_information_regression(data, which_ds, iprb,
 ):
     n_rows = min(2, len(which_ds))
     gs = GridSpec(n_rows, len(which_log10_dists[which_ds[0]])+coef_plot_width)
-    plt.figure(figsize=(8,2.5 * n_rows) if figsize is None else figsize)
+    if figsize is None:
+        figsize = (2*(len(which_log10_dists[which_ds[0]])+coef_plot_width),2.5 * n_rows)
+    print(figsize)
+    plt.figure(figsize=figsize)
     ax = []
     for i, ds in enumerate(which_ds):
         ax.append([])
