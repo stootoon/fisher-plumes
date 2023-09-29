@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 This script is used to run the FisherPlumes model for a variety of different parameter sets.
 It takes as input a YAML file specifying the parameters to use for each run.
@@ -182,7 +183,7 @@ def hash_init_compute(init, compute, length=16):
     compute_str = str(compute)
     combined = init_str + compute_str        
     hashed =  hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)
-    print(f"Hashed {combined} to {hashed}.")
+    DEBUG(f"Hashed {combined} to {hashed}.")
     return hashed        
 
 if __name__ == "__main__":
