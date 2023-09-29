@@ -6,7 +6,7 @@ It will also save a registry of all the runs that have been performed, so that i
 determined which runs have already been performed, and which have not.
 """
 
-import os,sys,pickle
+import os,sys,pickle,datetime
 import numpy as np
 import yaml
 from importlib import reload
@@ -105,7 +105,7 @@ def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None,
     results = []
     for match in matches:
         data_file = match["file"]
-        INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}")
+        INFO(f"Loading {init_filter=} {compute_filter=} from {data_file}, last modified {get_last_mod_timestr(data_file)}.")
         sys.stdout.flush()
         resi = pickle.load(open(data_file, "rb"))["results"]
         if fit_corrs is not None:
@@ -171,6 +171,19 @@ def check_positive(n):
     if n > 0:
         return n
     raise argparse.ArgumentTypeError(f"{n} is not positive.")
+        
+def get_last_mod_timestr(file_path):
+    """ Get the last modification time of the given file as a string. """
+    return datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
+
+def hash_init_compute(init, compute, length=16):
+    """Stringify the init and compute dictionaries, concatenate them, and hash that using shake_128."""
+    init_str = str(init)
+    compute_str = str(compute)
+    combined = init_str + compute_str        
+    hashed =  hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)
+    print(f"Hashed {combined} to {hashed}.")
+    return hashed        
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="Run the FisherPlumes model for a variety of different parameter sets. Or, rebuild the registry of runs.")
@@ -389,13 +402,6 @@ if __name__ == "__main__":
         print(f"Creating output directory {output_dir}.")
         os.mkdir(output_dir)
     
-    def hash_init_compute(init, compute, length=16):
-        """Stringify the init and compute dictionaries, concatenate them, and hash that using shake_128."""
-        init_str = str(init)
-        compute_str = str(compute)
-        combined = init_str + compute_str
-        return hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)        
-        
     for item_id, compute_item in enumerate(compute_list):
         print(f"Processing {compute_item=}.")
         # Check the registry to see if this item has already been computed.
