@@ -368,9 +368,10 @@ def plot_alaplace_fits(F, which_dists_um,
                        expansion = 1.2,
                        cdf_mode = "even",
                        plot_dvals = False,
-                       plot_pvals = False,
+                       fit_color = "cornflowerblue", # Color for the fitted correlations                       
                        fit_corrs = None, # Set non-None to also plot the explictly fitted correlations
                        ):
+
     if cdf_mode not in ["even", "data"]:
         raise ValueError(f"cdf_mode must be 'even' or 'data', not {cdf_mode}")
 
@@ -381,14 +382,16 @@ def plot_alaplace_fits(F, which_dists_um,
         raise ValueError(f"Key {fit_corrs} not found in F.fit_corrs.")
 
     fit_corrs_results = None if fit_corrs is None else F.fit_corrs[fit_corrs]["results"]
-    fit_color = "cornflowerblue" 
+    
     
     if figsize is not None:
         plt.figure(figsize=figsize)
 
     d_scale = F.pitch
     
-    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists_um)+2)
+    gs   = GridSpec(2 if plot_dvals else 1, len(which_dists_um)+2,
+                    width_ratios = [1.2]*len(which_dists_um) + [1.5, 0.1])
+    gs.update(wspace=0.5, hspace=0.25)
     dmax = -1
     yld  = []
     ax_dcdf= []    
@@ -471,20 +474,38 @@ def plot_alaplace_fits(F, which_dists_um,
 
     freq_res = F.fs/F.wnd
     ax_hm = []
-    for i,vals in enumerate([F.pvals[which_probe], F.r2vals[which_probe]]):
-        if not plot_pvals and i == 0: continue
 
-        ax_hm.append(plt.subplot(gs[i,-2:] if plot_pvals else gs[:,-2:]))
+    if fit_corrs_results is not None:
+        fit_tvvals = {}
+        max_ifreq = 0
+        for (iprb, d, ifreq),r in fit_corrs_results.items():
+            if iprb == which_probe:
+                if d not in fit_tvvals:
+                    fit_tvvals[d] = {}
+                fit_tvvals[d][ifreq] = r["search"].grid_search.best_score_
+                if ifreq > max_ifreq:
+                    max_ifreq = ifreq
+
+        for d in fit_tvvals:
+            fit_tvvals[d] = [
+                np.array([[np.nan if ifreq not in fit_tvvals[d] else fit_tvvals[d][ifreq] for ifreq in range(max_ifreq)]]*2).T
+            ] # To allow us to access the same index as F.tvvals
+                                    
+    
+    for i in range(2):
+        if i == 0:
+            vals = F.tvvals[which_probe]
+        else:
+            vals = fit_tvvals
+
+        ax_hm.append(plt.subplot(gs[i,3] if fit_tvvals else gs[:,3]))
 
         dists_um = np.array([d for d in sorted(vals) if d >= 0])
         n_dists = len(dists_um)
         dd = np.mean(np.diff(dists_um))
         print("val shape: ", vals[0][0].shape)
-        if i == 0: # pvals
-            v = np.array([vals[d][0] for d in dists_um]).T
-        else: # r2vals
-            v = np.array([vals[d][0][:,int(cdf_mode=="even")].flatten() for d in dists_um]).T
-            print(v.shape)
+        v = np.array([vals[d][0][:,int(cdf_mode=="even")].flatten() for d in dists_um]).T
+        print(v.shape)
         if len(ifreq_lim)==0:
             ifreq_lim = [0, v.shape[0]]
 
@@ -493,23 +514,25 @@ def plot_alaplace_fits(F, which_dists_um,
         # The distances are non-uniform, so just have one tick each and label them according to the actual distance
         extent = [-0.5, n_dists-0.5, (F.freqs[ifreq_lim[0]]-freq_res/2).magnitude, (F.freqs[ifreq_lim[1]]-freq_res/2).magnitude]
         print(f"Setting extent to {extent}.")
-        plt.matshow(-np.log10(v) if i==0 else v, #+np.min(p[p>0])/10),
-                extent = extent,
+        hm = plt.matshow(v, 
+                    extent = extent,
                     vmin=0 if vmin is None else vmin[i], vmax=None if vmax is None else vmax[i],fignum=False,
-                    cmap=cm.RdYlBu_r if i == 0 else cm.RdYlBu,origin="lower");
+                    cmap=cm.RdYlBu,origin="lower");
         
         [plt.plot(list(dists_um).index(d), F.freqs[which_ifreq], ".", color=dist2col(d)) for d in which_dists_um]
         plt.xticks(np.arange(n_dists), labels=[f"{(di * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g}" for di in dists_um],
                    fontsize=6, rotation=90)
         plt.gca().xaxis.set_ticks_position("bottom")
-        plt.xlabel(f"Distance ({pitch_sym})",labelpad=0)
+        i>0 and plt.xlabel(f"Distance ({pitch_sym})",labelpad=0)
         #(i == 0) and plt.gca().set_xticklabels([])
         plt.ylabel("Frequency (Hz)", labelpad=-1)
-        plt.title("Mismatch (p-value)" if i==0 else "Match ($R^2$)",pad=-2)
+        (i == 0) and plt.title("Match (T.V.)",pad=-2)
         plt.axis("auto")
-        plt.colorbar()
+        cax = plt.subplot(gs[:,-1])
+        plt.colorbar(hm, cax = cax, orientation="vertical")
+        cax.set_position([0.85,0.1,0.015,0.8])
     
-    plt.tight_layout(h_pad = 0, w_pad=0.2) #, w_pad = 0)
+    #plt.tight_layout(h_pad = 0, w_pad=0.5) #, w_pad = 0)
 
     return ax_cdf, ax_dcdf, ax_hm
         

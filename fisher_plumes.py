@@ -357,19 +357,20 @@ class FisherPlumes:
                 [np.nan if ((ibs>0) and skip_bootstrap) else fpt.compute_ks_pvalue(lad_bs_f[0], mud_bs_f[0], rhod_bs_f) for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
                 for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
         
-    def compute_r2values(self, skip_bootstrap = True):
-        INFO("Computing R^2-values.")
-        if skip_bootstrap:
-            INFO("(Skipping R^2-value computation for bootstraps.)")
-        self.r2vals = [
-            {d:np.array([
-                # [:,0] is to get the in-phase data
-            [[np.nan, np.nan] if ((ibs>0) and skip_bootstrap) else [
-                fpt.compute_r2_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = None), # Using the data distribution
-                fpt.compute_r2_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = 1001)] # Using evenly spaced points
-             for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
-                for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
-        
+    def compute_fit_metrics(self, skip_bootstrap = True, metrics = {"r2vals":(fpt.compute_r2_value, "R^2"), "tvvals":(fpt.compute_tv_value, "TV")}):
+        for k, (compute_value, name) in metrics.items():
+            INFO(f"Computing {name}-values.")
+            if skip_bootstrap:
+                INFO(f"(Skipping {name}-value computation for bootstraps.)")
+            self.__dict__[k] = [
+                {d:np.array([
+                    # [:,0] is to get the in-phase data
+                [[np.nan, np.nan] if ((ibs>0) and skip_bootstrap) else [
+                    compute_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = None), # Using the data distribution
+                    compute_value(lambda x: fpt.alaplace_cdf(lad_bs_f[0], mud_bs_f[0], x), rhod_bs_f, n = 1001)] # Using evenly spaced points
+                 for (lad_bs_f, mud_bs_f, rhod_bs_f) in zip(lad_bs, mud_bs, rhod_bs)]
+                    for ibs, (lad_bs, mud_bs, rhod_bs) in enumerate(zip(la[d], mu[d], rho[d]))]) for d in rho} for la,mu,rho in zip(self.la, self.mu, self.rho)]
+            
     def compute_la_gen_fit_to_distance(self, dmax_um=100000, fit_k = True, fit_b = True):
         """
         Computes a generalized exponential fit to the decay of correlations with distance.
@@ -524,7 +525,7 @@ class FisherPlumes:
         self.compute_lambdas()
         self.compute_phi()
         self.compute_pvalues()
-        self.compute_r2values()
+        self.compute_fit_metrics()
         self.compute_la_gen_fit_to_distance(dmax_um=dmax_um, fit_k = fit_k, fit_b = fit_b)
         self.regress_length_constants_on_frequency(freq_min = 2 * UNITS.Hz)
         self.compute_fisher_information()
