@@ -15,6 +15,7 @@ import colorsys
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
+import corr_models as corrm
 from boulder import concs2rgb
 
 import utils
@@ -367,9 +368,20 @@ def plot_alaplace_fits(F, which_dists_um,
                        expansion = 1.2,
                        cdf_mode = "even",
                        plot_dvals = False,
-                       plot_pvals = False):
+                       plot_pvals = False,
+                       fit_corrs = None, # Set non-None to also plot the explictly fitted correlations
+                       ):
     if cdf_mode not in ["even", "data"]:
         raise ValueError(f"cdf_mode must be 'even' or 'data', not {cdf_mode}")
+
+    if fit_corrs is not None and not hasattr(F, "fit_corrs"):
+        raise ValueError("F does not have a fit_corrs field.")
+
+    if fit_corrs is not None and fit_corrs not in F.fit_corrs:
+        raise ValueError(f"Key {fit_corrs} not found in F.fit_corrs.")
+
+    fit_corrs_results = None if fit_corrs is None else F.fit_corrs[fit_corrs]["results"]
+    fit_color = "cornflowerblue" 
     
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -388,16 +400,33 @@ def plot_alaplace_fits(F, which_dists_um,
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],expansion)
         xvals = np.linspace(xl[0],xl[-1],1001)
 
+        h_data = fpft.cdfplot(rr,color=dist2col(d), linewidth=2, label='F$_{data}$($x$)')        
+
         la_   = F.la[which_probe][d][0][which_ifreq][0] # 0 to get the in-phase valuea
         mu_   = F.mu[which_probe][d][0][which_ifreq][0]
-        ypred = fpt.alaplace_cdf(la_, mu_, xvals)
+        y_alap = fpt.alaplace_cdf(la_, mu_, xvals)
 
-        hdata = fpft.cdfplot(rr,color=dist2col(d), linewidth=1, label='F$_{data}$($x$)')
-        hfit  = plt.plot(xvals, ypred,
+        h_alap  = plt.plot(xvals, y_alap,
                 color=fpft.set_alpha(dist2col(d),0.4),
-                label='F$_{fit}$($x$)',
+                label='F$_{alap}$($x$)',
                 linewidth=1)
-        fpft.vline(0, ":", color = "lightgray")
+
+        if fit_corrs_results is not None:
+            k = (which_probe, d, which_ifreq)
+            if k not in fit_corrs_results:
+                raise ValueError(f"Key {k} not found in fit_corr_results.")
+            w = corrm.GridSearchCVKeepModelsWrapper(fit_corrs_results[k]["search"])
+            w_sc = fit_corrs_results[k]["scale"]
+            mdl = w.models(0)[0][0][0].models[-1]
+            y_fit = mdl.cdf(xvals/w_sc)
+            h_fit = plt.plot(xvals, y_fit,
+                             color=fit_color,
+                             label='F$_{fit}$($x$)',
+                             linewidth=1)
+                                         
+            
+                    
+        fpft.vline(0, ":", linewidth=0.5, color = "lightgray")
         
         fpft.spines_off(plt.gca())    
         plt.xlabel("x",labelpad=-2)
@@ -418,11 +447,16 @@ def plot_alaplace_fits(F, which_dists_um,
             dvals = np.abs(ex - cx)
             axdi = plt.subplot(gs[-1, di])#, sharey = axd[0] if len(axd) else None)
             plt.plot(rx, dvals, color=dist2col(d), linewidth=1)
+            if fit_corrs_results is not None:
+                fx = mdl.cdf(rx/w_sc)
+                dvals = np.abs(ex - fx)
+                plt.plot(rx, dvals, color=fit_color, linewidth=1)
+                
             if np.max(dvals) > dmax:
                 dmax = np.max(dvals)
                 yld = plt.ylim()
             fpft.spines_off(plt.gca())
-            fpft.vline(0, ":", color = "lightgray")            
+            fpft.vline(0, ":", linewidth=0.5, color = "lightgray")            
             plt.xlim(xl)
             ax_dcdf.append(axdi)
             plt.grid(True, axis='y', linestyle=":")
