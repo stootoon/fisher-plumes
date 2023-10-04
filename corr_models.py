@@ -870,6 +870,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         self.params      = self.init_params
         INFO(f"Parameters initialized to {params2str(self.params)}.")
 
+    @staticmethod
     def _cast_params(params):
         γ = params.γ
         σ = params.σ
