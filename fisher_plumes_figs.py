@@ -403,7 +403,7 @@ def plot_alaplace_fits(F, which_dists_um,
         xl    = fpft.expand_lims([np.min(rr), np.max(rr)],expansion)
         xvals = np.linspace(xl[0],xl[-1],1001)
 
-        h_data = fpft.cdfplot(rr,color=dist2col(d), linewidth=2, label='F$_{data}$($x$)')        
+        h_data = fpft.cdfplot(rr,color=dist2col(d), linewidth=2, label='F$_{data}$')        
 
         la_   = F.la[which_probe][d][0][which_ifreq][0] # 0 to get the in-phase valuea
         mu_   = F.mu[which_probe][d][0][which_ifreq][0]
@@ -411,7 +411,7 @@ def plot_alaplace_fits(F, which_dists_um,
 
         h_alap  = plt.plot(xvals, y_alap,
                 color=fpft.set_alpha(dist2col(d),0.4),
-                label='F$_{alap}$($x$)',
+                label='F$_{alap}$',
                 linewidth=1)
 
         if fit_corrs_results is not None:
@@ -420,12 +420,15 @@ def plot_alaplace_fits(F, which_dists_um,
                 raise ValueError(f"Key {k} not found in fit_corr_results.")
             w = corrm.GridSearchCVKeepModelsWrapper(fit_corrs_results[k]["search"])
             w_sc = fit_corrs_results[k]["scale"]
-            mdl = w.models(0)[0][0][0].models[-1]
-            y_fit = mdl.cdf(xvals/w_sc)
-            h_fit = plt.plot(xvals, y_fit,
-                             color=fit_color,
-                             label='F$_{fit}$($x$)',
-                             linewidth=1)
+            mdls = [("F$_{int}$", w.models(0, model="exp", intermittent=True), "cornflowerblue"),
+                  ("F$_{best}$", w.models(0), "navy")]
+            for label, mdl, color in mdls:
+                mdl = mdl[0][0][0].models[-1]
+                y_fit = mdl.cdf(xvals/w_sc)
+                h_fit = plt.plot(xvals, y_fit,
+                                 color=color,
+                                 label=label,
+                                 linewidth=1)
                                          
             
                     
@@ -437,7 +440,7 @@ def plot_alaplace_fits(F, which_dists_um,
         plt.gca().set_yticks(np.arange(0,1.1,0.2))
         plt.xlim(xl)
 
-        plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
+        di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
         plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
 
         ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
@@ -447,13 +450,15 @@ def plot_alaplace_fits(F, which_dists_um,
             rx = np.array(sorted(rr))
             ex = np.arange(1, len(rr)+1)/len(rr)
             cx = fpt.alaplace_cdf(la_, mu_, rx)
-            dvals = np.abs(ex - cx)
+            dvals = ex - cx
             axdi = plt.subplot(gs[-1, di])#, sharey = axd[0] if len(axd) else None)
-            plt.plot(rx, dvals, color=dist2col(d), linewidth=1)
+            plt.plot(rx, dvals, color=dist2col(d), linewidth=1, label = "F$_{data}$ - F$_{alap}$")
             if fit_corrs_results is not None:
-                fx = mdl.cdf(rx/w_sc)
-                dvals = np.abs(ex - fx)
-                plt.plot(rx, dvals, color=fit_color, linewidth=1)
+                for label, mdl, fit_color in mdls:
+                    mdl = mdl[0][0][0].models[-1]
+                    fx = mdl.cdf(rx/w_sc)
+                    dvals = ex - fx
+                    plt.plot(rx, dvals, color=fit_color, linewidth=1, label="F$_{data}$ - " + f"{label}")
                 
             if np.max(dvals) > dmax:
                 dmax = np.max(dvals)
@@ -465,9 +470,11 @@ def plot_alaplace_fits(F, which_dists_um,
             plt.grid(True, axis='y', linestyle=":")
             #(di != 0 ) and axdi.set_yticklabels([])
             plt.xlabel("x",labelpad=-2)
-            (di == 0) and plt.ylabel("|F$_{data}$($x$) - F$_{fit}$($x$)|")
+            (di == 0) and plt.ylabel("F$_{data}$($x$) - F($x$)")
             axdi.xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
-            axdi.yaxis.set_major_formatter(lambda x, pos: f"{x:g}")                    
+            axdi.yaxis.set_major_formatter(lambda x, pos: f"{x:g}")
+
+            di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='upper right')
 
     if plot_dvals:
         [axdi.set_ylim(yld) for axdi in ax_dcdf]
