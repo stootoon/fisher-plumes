@@ -20,6 +20,7 @@ import random
 import hashlib
 import shutil
 import glob, re
+import warnings
 
 import corr_models
 corr_models.logger.setLevel("INFO")
@@ -201,11 +202,15 @@ if __name__ == "__main__":
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
     parser.add_argument("--fit_corrs",    help="Spec of a fit to correlations to perform.", type=check_file_exists)
     parser.add_argument("--collect_fits", help="Directory containing correlation fits to combine.", type=check_file_exists)
+    parser.add_argument("--nowarn", action="store_true", help="Turn off warnings.")
     args = parser.parse_args()
 
+    if args.nowarn:
+        warnings.filterwarnings("ignore")
+        
     if any([args.fit_corrs, args.fp_data, args.collect_fits]):
         # Fitting correlation data
-        if args.fp_data:
+        if args.fp_data: # Generate yaml files to fit correlations for the fisher plumes data in this file.
             assert args.search_spec, "Must specify a search spec file with --search_spec."
             # Get the search spec filename without the extension
             search_spec_file = os.path.splitext(args.search_spec)[0]
@@ -266,7 +271,7 @@ if __name__ == "__main__":
             spec = yaml.load(open(args.fit_corrs, "r"), Loader=yaml.FullLoader)
             fp_file          = spec["fp_file"]
             search_spec      = spec["search_spec"]
-            probe_dist_ifreq = spec["probe_dist_ifreq"]
+            probe_dist_ifreq = spec["probe_dist_ifreq"] # List of (probe_id, dist, ifreq) tuples to fit.
 
             # Load the correlations
             fp_data   =  pickle.load(open(fp_file, "rb"))["results"] 
@@ -281,13 +286,14 @@ if __name__ == "__main__":
                 rhoi = rho[probe_id][dist][0, ifreq] # 0 is for the full data, not the bootstrapped data.
                 # Fit the correlation data.
                 INFO(f"Fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} using {search_spec}.")
-                resultsi = corr_models.fit_corrs(rhoi, search_spec)
+                FC = corr_models.FitCorrelations(search_spec).fit(rhoi)
                 # Report the best model params and score from the results["search"] grid search CV object.
-                INFO(f"Best model params: {resultsi['search'].grid_search.best_params_}")
-                INFO(f"Best model score:  {resultsi['search'].grid_search.best_score_}")
+                INFO(f"Best hyperparams:  {FC.hyperparams(0)[0]}")
+                INFO(f"Example params:    {FC.params(0)[0][0][0]}")
+                INFO(f"Best model score:  {FC.mean_test_score(0)[0][0]}")
                 INFO(f"Done fitting correlation data for probe {probe_id}, distance {dist:g}, frequency {freqs[ifreq]:g} to {search_spec}.")
                 # Append the results to the results list.
-                results[(probe_id, dist, ifreq)] = resultsi
+                results[(probe_id, dist, ifreq)] = FC
 
             # The output file will be the same as the input file, but with yaml replaced with p.
             output_file = os.path.splitext(args.fit_corrs)[0] + ".p"
