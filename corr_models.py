@@ -1,3 +1,4 @@
+
 # This file contains the various models that can be fit to the data.
 import numpy as np
 from matplotlib import pylab as plt
@@ -82,7 +83,7 @@ def plot_cdfs(y, mdls = [], labs = [], figsize=None, n = 1001, gof_fun = fpt.com
         labs = [str(mdl).replace("(", "\n(") for mdl in mdls]
         
     for mdl,lab in zip(mdls, labs):
-        INFO(f"Plotting cdf for model: " + lab.replace("\n",""))        
+        DEBUG(f"Plotting cdf for model: " + lab.replace("\n",""))        
         cdf_mdl = mdl.cdf(xv)
         gof     = gof_fun(mdl.predict, y, n = n)
         label   = f"{lab} - data" if diffs else lab
@@ -110,7 +111,7 @@ def fixed_point_iterate(f, x0, max_iter = 1000, tol = 1e-6, damping = 0.5, verbo
         WARN("Not converged.")
         status = 1
     else:
-        INFO(f"Converged to fixed point {x} in {i:>4d} iterations.")
+        DEBUG(f"Converged to fixed point {x} in {i:>4d} iterations.")
         
     return x_new, status
 
@@ -121,6 +122,10 @@ class Exponential: #(BaseEstimator):
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
+
+        assert hasattr(self, "scale"), "Scale not set."
+        x /= self.scale
+        
         return fpt.alaplace_cdf(2*params.λ, 2*params.μ, x)
 
     @staticmethod
@@ -149,26 +154,29 @@ class Exponential: #(BaseEstimator):
         return f"{self.name}, {params2str(self.params)}"
 
     def init_from_fit(self, y):
-        INFO("Initializing from fit.")        
+        DEBUG("Initializing from fit.")        
         y = y.flatten()
 
-        INFO(f"Found {sum(y>=0):d} positive, {sum(y<0):d} negative values.")
+        DEBUG(f"Found {sum(y>=0):d} positive, {sum(y<0):d} negative values.")
         λ = np.mean(y[y>=0])
-        INFO(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+        DEBUG(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
         μ = np.mean(abs(y[y<0]))
-        INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
+        DEBUG(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
 
         self.init_params = self.Params(λ=λ, μ=μ)
         self.params      = self.init_params
-        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        DEBUG(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
         
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6):
-        INFO(f"Fitting exponential model {self.name}.")
+        DEBUG(f"Fitting exponential model {self.name}.")
         assert y is None, "y must be None"
 
         y = X.flatten()
-
+        self.scale = 1 #np.std(y)
+        DEBUG(f"Scaling data by {self.scale:.3g}.")
+        y = y/self.scale
+            
         # Initialize
         M     = len(y)
         if self.init_params is None:
@@ -191,7 +199,7 @@ class Exponential: #(BaseEstimator):
             DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol:
-                INFO(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
+                DEBUG(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} " + params2str(self.params, self.Params._fields))
                 break
             λ_old = λ
             μ_old = μ
@@ -219,6 +227,10 @@ class IntermittentExponential(Exponential):
     
     def cdf(self, x, params = None):
         if params is None: params = self.params
+
+        assert hasattr(self, "scale"), "Scale not set."
+        x /= self.scale
+        
         λ, μ, σ, γ = params.λ, params.μ, params.σ, params.γ
         R = fpt.alaplace_cdf(2*λ, 2*μ, x)
         H = norm_dist.cdf(x, scale=σ) if σ > 0 else 0 * R
@@ -248,8 +260,8 @@ class IntermittentExponential(Exponential):
         return y, labs
 
     def __init__(self, name = "Model", init_params = None, intermittent = True, min_μ = 1e-6, σ_penalty=0, γ_pr_mean=0.5, γ_pr_strength=0, **kwargs):
-        INFO("*"*80)
-        INFO(f"Initializing model {self.__class__.__name__} named '{name}' {id(self)=}.")
+        DEBUG("*"*80)
+        DEBUG(f"Initializing model {self.__class__.__name__} named '{name}' {id(self)=}.")
         self.name  = name
         self.min_μ = min_μ
         self.hyper_params= self.HyperParams(σ_penalty=σ_penalty, γ_pr_mean=γ_pr_mean, γ_pr_strength=γ_pr_strength)
@@ -267,9 +279,9 @@ class IntermittentExponential(Exponential):
                 self.params       = self.params._replace(γ = 1)
             self.hyper_params = self.hyper_params._replace(γ_pr_mean = 1, γ_pr_strength = np.inf)
         
-        INFO(f"Initialized self.init_params  = {params2str(self.init_params) if self.init_params else self.init_params}")
-        INFO(f"Initialized self.params       = {params2str(self.params) if self.params else self.params}")
-        INFO(f"Initialized self.hyper_params = {params2str(self.hyper_params)}")
+        DEBUG(f"Initialized self.init_params  = {params2str(self.init_params) if self.init_params else self.init_params}")
+        DEBUG(f"Initialized self.params       = {params2str(self.params) if self.params else self.params}")
+        DEBUG(f"Initialized self.hyper_params = {params2str(self.hyper_params)}")
 
     @staticmethod
     def _cast_params(params):
@@ -303,7 +315,7 @@ class IntermittentExponential(Exponential):
             else:
                 γ = self.params.γ
                 
-        INFO(f"Initializing from fit using {γ=:g}.")
+        DEBUG(f"Initializing from fit using {γ=:g}.")
         M = len(y)
         ind_z = np.argsort(-abs(y))[:int(M * γ)]    
         z  = 0*y
@@ -312,28 +324,31 @@ class IntermittentExponential(Exponential):
         yp =  y[z & (y>0)]
         yn = -y[z & (y<0)]
 
-        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        DEBUG(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
         # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
         _, λ = expon_dist.fit(yp, floc=0)
-        INFO(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+        DEBUG(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
         if len(yn) == 0:
             μ = self.min_μ
-            INFO(f"No negative values, setting μ={μ:.3g}.")
+            DEBUG(f"No negative values, setting μ={μ:.3g}.")
         else:
             _, μ = expon_dist.fit(yn, floc=0)
-            INFO(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
+            DEBUG(f"Fit exponential distribution to negative values, μ={μ:.3g}.")
 
         σ = max(np.std(y[~z]),1e-6)
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ)
         self.params      = self.init_params
-        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        DEBUG(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
             
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, **kwargs):
-        INFO(f"Fitting {self.__class__.__name__} model {self.name:s}.")
+        DEBUG(f"Fitting {self.__class__.__name__} model {self.name:s}.")
         assert y is None, "y must be None"
 
         y = X.flatten()
+        self.scale = 1 # np.std(y)
+        DEBUG(f"Scaling data by {self.scale:.3g}.")        
+        y = y / self.scale
 
         # Initialize
         M = len(y)
@@ -393,7 +408,7 @@ class IntermittentExponential(Exponential):
             DEBUG(f"Iter {i:>4d}: n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
             # Check convergence
             if abs(λ - λ_old) < tol and abs(μ - μ_old) < tol and abs(σ - σ_old) < tol and abs(γ - γ_old) < tol:
-                INFO(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
+                DEBUG(f"Converged in {i:>4d} iterations to n+={sum(ip):>4d}, n-={sum(i_n):>4d} n0={n0:>4d} " + params2str(self.params, self.Params._fields))
                 break
             λ_old = λ
             μ_old = μ
@@ -458,6 +473,7 @@ class IntermittentGamma(IntermittentExponential):
 
     def cdf(self, y, params = None):
         if params is None: params = self.params
+        y /= self.scale
         # Compute the CDF
         R = self.agamma_cdf(y, params)
         H = norm_dist.cdf(y, scale = params.σ) if self.intermittent else 0*R
@@ -527,7 +543,7 @@ class IntermittentGamma(IntermittentExponential):
         super().__init__(*args, **kwargs)
         self.k_min = k_min
         self.k_max = k_max        
-        INFO(f"Set k_max={k_max:.3g}, k_min={k_min:.3g}.")
+        DEBUG(f"Set k_max={k_max:.3g}, k_min={k_min:.3g}.")
     
     def init_from_fit(self, y, γ = None):
         if γ == None:
@@ -536,7 +552,7 @@ class IntermittentGamma(IntermittentExponential):
             else:
                 γ = self.params.γ
 
-        INFO(f"Initializing from fit using {γ=:g}.")
+        DEBUG(f"Initializing from fit using {γ=:g}.")
         M = len(y)
         ind_z = np.argsort(-abs(y))[:int(M * γ)]    
         z  = 0*y
@@ -544,23 +560,27 @@ class IntermittentGamma(IntermittentExponential):
         z  =  z.astype(bool)
         yp =  y[z & (y>0)]
         yn = -y[z & (y<0)]
-        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        DEBUG(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
         # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
         k, _, λ = gamma_dist.fit(yp, floc=0)
-        INFO(f"Fit gamma distribution to positive values, k={k:.3g}, λ={λ:.3g}.")
+        DEBUG(f"Fit gamma distribution to positive values, k={k:.3g}, λ={λ:.3g}.")
         m, _, μ = gamma_dist.fit(yn, floc=0)
-        INFO(f"Fit gamma distribution to negative values, m={m:.3g}, μ={μ:.3g}.")
+        DEBUG(f"Fit gamma distribution to negative values, m={m:.3g}, μ={μ:.3g}.")
 
         σ = max(np.std(y[~z]),1e-6)
 
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m)
         self.params      = self.init_params
-        INFO(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
+        DEBUG(f"Parameters initialized to {params2str(self.params, self.Params._fields)}.")
 
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead", **kwargs):
-        INFO(f"Fitting {self.__class__.__name__} model {self.name}.")
+        DEBUG(f"Fitting {self.__class__.__name__} model {self.name}.")
         assert y is None, "y must be None"
+
         y = X.flatten()
+        self.scale = 1 # np.std(y)
+        DEBUG(f"Scaling data by {self.scale:.3g}.")        
+        y = y / self.scale        
 
         # Initialize
         M     = len(y)
@@ -697,7 +717,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         d/dk E_P[log(Q)] = (k-1) C_1 - Γ'(k)/Γ(k) - log(θ)
                     = 0 => θ = Exp((k-1)C_1 - Γ'(k)/Γ(k))
         """
-        INFO(f"Finding nearest Gamma distribution to GIG({η=}, {p=}, {θ=}).")
+        DEBUG(f"Finding nearest Gamma distribution to GIG({η=}, {p=}, {θ=}).")
         C0= η * kv(p+1, θ)/kv(p, θ) #E_P[x] = sqrt(b/a) K_{p+1}(sqrt(ab))/K_p(sqrt(ab))
         C1= np.log(η) + kvv(p, θ)/kv(p,θ) # E_P(ln x) = ln(sqrt(b/a)) + d/dp ln K_p(sqrt(ab))
         DEBUG(f"{C0=}, {C1=}")
@@ -727,7 +747,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             DEBUG(f"Final value of neg_ElogQ = {neg_ElogQ(sol.x)}.")
             
             
-        INFO(f"Mapped to {θ=}, {k=}.")
+        DEBUG(f"Mapped to {θ=}, {k=}.")
         return θ, k
 
     @staticmethod
@@ -760,7 +780,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         gammaness = [IntermittentGeneralizedInverseGaussian.gammaness(p) for p in [μ, λ]]
         if gammaness[0] > gammaness_thresh:
             gamma_neg_scale = 2*μ/β            
-            INFO(f"Using Gamma distribution with scale = {gamma_neg_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
+            DEBUG(f"Using Gamma distribution with scale = {gamma_neg_scale:.2g} for negative values, since gammaness {gammaness[0]:.1e} > {gammaness_thresh:.1e}.")
             if n_neg > 0:
                 Z0 = IntermittentGamma.gam_Z(gamma_neg_scale, m)
             else:
@@ -773,7 +793,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
 
         if gammaness[1] > gammaness_thresh:
             gamma_pos_scale = 2*λ/α                      
-            INFO(f"Using Gamma distribution with scale = {gamma_pos_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
+            DEBUG(f"Using Gamma distribution with scale = {gamma_pos_scale:.2g} for positive values, since gammaness {gammaness[1]:.1e} > {gammaness_thresh:.1e}.")
             Z1 = IntermittentGamma.gam_Z(gamma_pos_scale, k)
             pos_cdf = lambda y: gamma_dist.cdf(y, k, scale=gamma_pos_scale)
         else:
@@ -793,6 +813,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
 
     def cdf(self, y, params = None):
         if params is None: params = self.params
+        y /= self.scale
         # Compute the CDF
         R = self.agig_cdf(y, params, self.gammaness_thresh)
         H = norm_dist.cdf(y, scale = params.σ) if self.intermittent else 0*R
@@ -849,7 +870,7 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
             else:
                 γ = self.params.γ
 
-        INFO(f"Initializing from fit using {γ=:g}.")
+        DEBUG(f"Initializing from fit using {γ=:g}.")
         M = len(y)
         ind_z = np.argsort(-abs(y))[:int(M * γ)]    
         z  = 0*y
@@ -857,18 +878,18 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         z  =  z.astype(bool)
         yp =  y[z & (y>0)]
         yn = -y[z & (y<0)]
-        INFO(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
+        DEBUG(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
         # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
         k, α, _, λ = geninvgauss.fit(yp, floc=0)
-        INFO(f"Fit geninvgauss distribution to positive values, {λ=:.3g}, {k=:.3g}, {α=:.3g}.")
+        DEBUG(f"Fit geninvgauss distribution to positive values, {λ=:.3g}, {k=:.3g}, {α=:.3g}.")
         m, β, _, μ = geninvgauss.fit(yn, floc=0)
-        INFO(f"Fit geninvgauss distribution to negative values, {m=:.3g}, {μ=:.3g}, {β=:.3g}.")
+        DEBUG(f"Fit geninvgauss distribution to negative values, {m=:.3g}, {μ=:.3g}, {β=:.3g}.")
 
         σ = max(np.std(y[~z]),1e-6)
 
         self.init_params = self.Params(λ=λ, μ=μ, σ=σ, γ=γ, k=k, m=m, α=α, β=β)
         self.params      = self.init_params
-        INFO(f"Parameters initialized to {params2str(self.params)}.")
+        DEBUG(f"Parameters initialized to {params2str(self.params)}.")
 
     @staticmethod
     def _cast_params(params):
@@ -906,9 +927,13 @@ class IntermittentGeneralizedInverseGaussian(IntermittentGamma):
         return casted_params
         
     def fit(self, X, y=None, max_iter = 1001, tol = 1e-6, damping = 0.5, max_fp_iter=1000, method = "Nelder-Mead"):
-        INFO(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
+        DEBUG(f"Fitting IntermittentGeneralizedInverseGaussian model {self.name}.")
         assert y is None, "y must be None"
+
         y = X.flatten()
+        self.scale = 1 # np.std(y)
+        DEBUG(f"Scaling data by {self.scale:.3g}.")        
+        y = y / self.scale        
 
         # Initialize
         M = len(y)
@@ -1034,14 +1059,14 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
         }
         
         if self.init_mode == "ancestral":
-            INFO("")
-            INFO(f"Using ancestral initialization for {self.model=}.")
+            DEBUG("")
+            DEBUG(f"Using ancestral initialization for {self.model=}.")
             Models = []
             if self.model in ["gig", "gamma"]:
-                INFO("Model is one of Gamma or GIG, so adding exponential as an ancestral model.")
+                DEBUG("Model is one of Gamma or GIG, so adding exponential as an ancestral model.")
                 Models.append(IntermittentExponential)
             if self.model in ["gig"]:
-                INFO("Model is GIG, so adding Gamma as an ancestral model.")
+                DEBUG("Model is GIG, so adding Gamma as an ancestral model.")
                 Models.append(IntermittentGamma)
                 
             for i, Model in enumerate(Models):
@@ -1077,30 +1102,6 @@ class CorrModel(BaseEstimator): # A wrapper over the correlation models that wil
        return repr(self.models[-1]) if len(self.models) else super().__repr__()
     
 
-def fit_corrs(y, search_spec):
-    s = np.std(y)
-    y_= y/s
-
-    # Load the yaml file search_spec
-    with open(search_spec, "r") as f:
-        search_spec = yaml.load(f, Loader=yaml.FullLoader)
-    INFO(f"Loaded search_spec from {search_spec=}")
-    # Create a GridSearchCV object with the CorrModel as the estimator
-    search = GridSearchCVKeepModels(GridSearchCV(estimator = CorrModel(**search_spec["estimator"]),
-                            param_grid = search_spec["param_grid"],
-                            cv = ShuffleSplit(**search_spec["cv"]),
-                            **search_spec["gridsearch"]))
-
-    # Fit the GridSearchCV object
-    search.fit(X=y_, y=None)
-    results_df = pd.DataFrame(search.cv_results_)
-    filtered_results = results_df[
-        [p for p in ['param_model', 'param_intermittent' + 'param_γ_pr_mean', 'mean_test_score', 'std_test_score'] if p in results_df.columns]
-    ]
-    INFO("\n"+filtered_results.sort_values(by='mean_test_score', ascending=False).to_string(index=False))
-
-    return {"search":search, "scale":s}
-
 class GridSearchCVKeepModels:
     def __init__(self, grid_search_cv):
         self.grid_search = grid_search_cv
@@ -1123,12 +1124,47 @@ class GridSearchCVKeepModels:
         self.cv_results_ = self.grid_search.cv_results_
         return self
 
-class GridSearchCVKeepModelsWrapper: # Separate them out so we can edit this without having to re-run the above
-    def __init__(self, obj):
-        self.grid_search   = obj.grid_search
-        self.fitted_models = obj.fitted_models
-        self.cv_results_   = obj.grid_search.cv_results_
+class FitCorrelations: # Separate them out so we can edit this without having to re-run the above
+    def __init__(self, search_spec):
+        # Load the yaml file search_spec
+        with open(search_spec, "r") as f:
+            self.search_spec = yaml.load(f, Loader=yaml.FullLoader)
+        INFO(f"Loaded search_spec from {search_spec=}")
+            
+    def fit(self, X, y = None):
+        assert y is None, "y should be None."
+        y = X
 
+        ss_outer = ShuffleSplit(**self.search_spec["cv"])
+        self.ranks_ = []
+        self.perfs_ = []
+        self.search_ = []
+        for i, (train_index, test_index) in enumerate(ss_outer.split(y)):
+            INFO(f"Outer CV iteration {i}.")
+            # Create a GridSearchCV object with the CorrModel as the estimator
+            search = GridSearchCVKeepModels(
+                GridSearchCV(estimator = CorrModel(**self.search_spec["estimator"]),
+                             param_grid = self.search_spec["param_grid"],
+                             cv = ShuffleSplit(**self.search_spec["cv"]),
+                             **self.search_spec["gridsearch"]))
+            # Fit the GridSearchCV object
+            search.fit(X=y[train_index], y=None)
+
+            # Get the ranks for each hyperparam setting
+            cv_res = search.cv_results_
+            # Get the ranks based on performance on the validation set.
+            self.ranks_.append({str(p):r-1 for p, r in zip(cv_res["params"], cv_res["rank_test_score"])})
+            # Compute the performance of each hyperparamter by trainong on full training set, and testing on test set.
+            hparams = cv_res["params"]
+            self.perfs_.append({str(hp):CorrModel(**self.search_spec["estimator"], **hp).fit(X=y[train_index], y=None).score(y[test_index]) for hp in hparams})
+            self.search_.append(search)
+        
+        self.rank   = {k:np.mean([r_[k] for r_ in self.ranks_]) for k in self.ranks_[0]}
+        self.ranked = sorted(self.rank.keys(), key = lambda k: self.rank[k])
+        self.perf   = {k:np.mean([p_[k] for p_ in self.perfs_]) for k in self.perfs_[0]}
+
+        return self
+        
     def _get_indices(self, rank = None, **hyperparams):
         # If hyperparams are provided, use them to get the indices
         if len(hyperparams):
