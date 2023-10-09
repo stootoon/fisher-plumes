@@ -1136,9 +1136,9 @@ class FitCorrelations: # Separate them out so we can edit this without having to
         y = X
 
         ss_outer = ShuffleSplit(**self.search_spec["cv"])
-        self.ranks_ = []
-        self.perfs_ = []
-        self.search_ = []
+        self.ranks_  = []
+        self.perfs_  = []
+        self.fitted_models = {}
         for i, (train_index, test_index) in enumerate(ss_outer.split(y)):
             INFO(f"Outer CV iteration {i}.")
             # Create a GridSearchCV object with the CorrModel as the estimator
@@ -1149,46 +1149,53 @@ class FitCorrelations: # Separate them out so we can edit this without having to
                              **self.search_spec["gridsearch"]))
             # Fit the GridSearchCV object
             search.fit(X=y[train_index], y=None)
-
+            # Add the fitted models to the list of fitted models
+            for k, m in search.fitted_models.items():
+                if k not in self.fitted_models:
+                    self.fitted_models[k] = [m]
+                else:
+                    self.fitted_models[k].append(m)
             # Get the ranks for each hyperparam setting
             cv_res = search.cv_results_
             # Get the ranks based on performance on the validation set.
             self.ranks_.append({str(p):r-1 for p, r in zip(cv_res["params"], cv_res["rank_test_score"])})
-            # Compute the performance of each hyperparamter by trainong on full training set, and testing on test set.
+            # Compute the performance of each hyperparamter by training on full training set, and testing on test set.
             hparams = cv_res["params"]
             self.perfs_.append({str(hp):CorrModel(**self.search_spec["estimator"], **hp).fit(X=y[train_index], y=None).score(y[test_index]) for hp in hparams})
-            self.search_.append(search)
-        
-        self.rank   = {k:np.mean([r_[k] for r_ in self.ranks_]) for k in self.ranks_[0]}
-        self.ranked = sorted(self.rank.keys(), key = lambda k: self.rank[k])
-        self.perf   = {k:np.mean([p_[k] for p_ in self.perfs_]) for k in self.perfs_[0]}
+
+        noise = np.random.randn(len(self.ranks_[0]))*1e-8 # To break any ties
+        self.mean_rank         = {k:np.mean([r_[k] for r_ in self.ranks_])+n for k,n in zip(self.ranks_[0], noise)}
+        self.ranked_params     = sorted(self.mean_rank.keys(), key = lambda k: self.mean_rank[k])
+        self.test_scores       = {k:[p_[k] for p_ in self.perfs_] for k in self.perfs_[0]}
+        self.mean_test_scores  = {k:np.mean(ts) for k,ts in self.test_scores.items()}
 
         return self
         
-    def _get_indices(self, rank = None, **hyperparams):
+    def _get_keys(self, rank = None, **hyperparams):
         # If hyperparams are provided, use them to get the indices
         if len(hyperparams):
-            inds = self._get_indices_by_hyperparams(**hyperparams)
+            keys = self._get_keys_by_hyperparams(**hyperparams)
             # The indices are sorted by rank.
             # If rank is provided, use it as th index into the sorted indices.
             if rank is not None:
-                assert rank < len(inds), f"rank={rank} is too large for the number of indices matching the hyperparameters ({len(inds)})."
-                inds = [inds[rank]]
+                assert rank < len(keys), f"rank={rank} is too large for the number of indices matching the hyperparameters ({len(keys)})."
+                keys = [keys[rank]]
         else:
-            inds = self._get_indices_by_rank(rank)
+            keys = [self._get_key_by_rank(rank)]
 
-        return inds
+        return keys
             
-    def _get_indices_by_rank(self, rank):
-        max_rank      = max(self.cv_results_['rank_test_score'])
-        adjusted_rank = (rank % max_rank) + 1
-        return [i for i, r in enumerate(self.cv_results_['rank_test_score']) if r == adjusted_rank]
+    def _get_key_by_rank(self, rank):
+        max_rank      = len(self.ranked_params)
+        adjusted_rank = (rank % max_rank)
+        return self.ranked_params[adjusted_rank]
         
-    def _get_indices_by_hyperparams(self, **hyperparams):
+    def _get_keys_by_hyperparams(self, **hyperparams):
         # Get the indices matching the hyperparams
-        inds = [i for i, p in enumerate(self.cv_results_['params']) if all(k in p and ((p[k] in v) if type(v) is list else (p[k] == v)) for k, v in hyperparams.items())]
+        ehp  = [eval(hp) for hp in self.ranked_params]
+        keys = [hp for p,hp in zip(ehp, self.ranked_params) if all(k in p and ((p[k] in v) if type(v) is list else (p[k] == v)) for k, v in hyperparams.items())]
         # Return them sorted by rank
-        return sorted(inds, key = lambda i: self.cv_results_['rank_test_score'][i])
+        return keys
 
     def _get_fitted_models_by_hyperparams(self, **hyperparams):
         fitted_model_key_dicts = {k:eval(k) for k in self.fitted_models.keys()}
@@ -1197,38 +1204,33 @@ class FitCorrelations: # Separate them out so we can edit this without having to
         return models[0]
 
     def _get_scores(self, score_type, rank=None, **hyperparams):
-        indices     = self._get_indices(rank, **hyperparams)        
-        scores      = [self.cv_results_[score_type][i] for i in indices]
-        hyperparams = [self.cv_results_['params'][i]   for i in indices]
-        return scores, hyperparams
+        keys     = self._get_keys(rank, **hyperparams)
+        if score_type == 'mean_test_score':
+            scores = [self.mean_test_scores[k] for k in keys]
+        elif score_type == 'cv_test_scores':
+            scores = [self.test_scores[k] for k in keys]
+        else:
+            raise ValueError(f"Unknown score_type {score_type}.")
 
-    def best_test_score(self, **hyperparams):
-        # Returns the best test score for the given hyperparameters
-        return self._get_scores('mean_test_score', rank=0, **hyperparams)
+        return scores, keys
     
     def mean_test_score(self, rank=None, **hyperparams):
         return self._get_scores('mean_test_score', rank, **hyperparams)
 
-    def std_test_score(self, rank=None, **hyperparams):
-        return self._get_scores('std_test_score', rank, **hyperparams)
-
-    def split_test_score(self, rank=None, **hyperparams):
-        indices      = self._get_indices(rank, **hyperparams)        
-        split_scores = [[self.cv_results_[f'split{j}_test_score'][i] for j in range(self.grid_search.cv.get_n_splits())] for i in indices]
-        hyperparams   = [self.cv_results_['params'][i] for i in indices]
-        return split_scores, hyperparams
+    def cv_test_scores(self, rank=None, **hyperparams):
+        return self._get_scores('cv_test_scores', rank, **hyperparams)
      
     def hyperparams(self, rank=None, **hp):
-        indices = self._get_indices(rank, **hp)
-        return [self.cv_results_['params'][i] for i in indices]
+        keys = self._get_keys(rank, **hp)
+        return [eval(k) for k in keys]
 
     def params(self, rank=None, which_params = None, **hp):
         models, hp_list = self.models(rank, **hp)
         pp, hh = [], []
         for ms, hp in zip(models, hp_list):
+            hh.append(hp)            
             for m in ms:
-                hh.append(hp)
-                pp.append(m.models[-1].params)
+                pp.append([mi.models[-1].params for mi in m])
         return pp, hh        
     
     def models(self, rank=None, **hp):
