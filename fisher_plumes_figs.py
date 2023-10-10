@@ -418,13 +418,12 @@ def plot_alaplace_fits(F, which_dists_um,
             k = (which_probe, d, which_ifreq)
             if k not in fit_corrs_results:
                 raise ValueError(f"Key {k} not found in fit_corr_results.")
-            w = corrm.GridSearchCVKeepModelsWrapper(fit_corrs_results[k]["search"])
-            w_sc = fit_corrs_results[k]["scale"]
-            mdls = [("F$_{int}$", w.models(0, model="exp", intermittent=True), "cornflowerblue"),
-                  ("F$_{best}$", w.models(0), "navy")]
+            fc = fit_corrs_results[k]
+            mdls = [("F$_{int}$", fc.models(0, model="exp", intermittent=True), "cornflowerblue"),
+                  ("F$_{best}$", fc.models(0), "navy")]
             for label, mdl, color in mdls:
-                mdl = mdl[0][0][0].models[-1]
-                y_fit = mdl.cdf(xvals/w_sc)
+                mdl = mdl[0][0][0][0].models[-1]
+                y_fit = mdl.cdf(xvals)
                 h_fit = plt.plot(xvals, y_fit,
                                  color=color,
                                  label=label,
@@ -455,8 +454,8 @@ def plot_alaplace_fits(F, which_dists_um,
             plt.plot(rx, dvals, color=dist2col(d), linewidth=1, label = "F$_{data}$ - F$_{alap}$")
             if fit_corrs_results is not None:
                 for label, mdl, fit_color in mdls:
-                    mdl = mdl[0][0][0].models[-1]
-                    fx = mdl.cdf(rx/w_sc)
+                    mdl = mdl[0][0][0][0].models[-1]
+                    fx = mdl.cdf(rx)
                     dvals = ex - fx
                     plt.plot(rx, dvals, color=fit_color, linewidth=1, label="F$_{data}$ - " + f"{label}")
                 
@@ -485,11 +484,11 @@ def plot_alaplace_fits(F, which_dists_um,
     if fit_corrs_results is not None:
         fit_tvvals = {}
         max_ifreq = 0
-        for (iprb, d, ifreq),r in fit_corrs_results.items():
+        for (iprb, d, ifreq), r in fit_corrs_results.items():
             if iprb == which_probe:
                 if d not in fit_tvvals:
                     fit_tvvals[d] = {}
-                fit_tvvals[d][ifreq] = r["search"].grid_search.best_score_
+                fit_tvvals[d][ifreq] = r.mean_test_score(0)[0][0]
                 if ifreq > max_ifreq:
                     max_ifreq = ifreq
 
