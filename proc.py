@@ -203,10 +203,15 @@ if __name__ == "__main__":
     parser.add_argument("--fit_corrs",    help="Spec of a fit to correlations to perform.", type=check_file_exists)
     parser.add_argument("--collect_fits", help="Directory containing correlation fits to combine.", type=check_file_exists)
     parser.add_argument("--nowarn", action="store_true", help="Turn off warnings.")
+    parser.add_argument("--debug", action="store_true",  help="Set the logging level for the correlation fits to debug.")    
     args = parser.parse_args()
 
     if args.nowarn:
         warnings.filterwarnings("ignore")
+
+    if args.debug:
+        INFO("Setting corrmodels logging level to DEBUG.")
+        corr_models.logger.setLevel("DEBUG")
         
     if any([args.fit_corrs, args.fp_data, args.collect_fits]):
         # Fitting correlation data
@@ -304,6 +309,7 @@ if __name__ == "__main__":
                          "fp_file": fp_file},
                         open(output_file, "wb"))
             INFO(f"Wrote results to {output_file}.")
+            print(f"ALLDONE")
         elif args.collect_fits:
             # The files in the directory have names XYZ.1.p, XYZ.2.p, etc.
             # We want to collect all of the results into a single file XYZ.p.
@@ -343,14 +349,6 @@ if __name__ == "__main__":
                 # Write the results to a pickle file.            
                 pickle.dump(results, open(output_file, "wb"))
                 INFO(f"Collect fits results to {output_file}.")
-            
-            
-            
-            
-            
-                
-
-                
 
         exit(0)
     
