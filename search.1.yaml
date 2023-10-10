@@ -6,7 +6,7 @@ estimator:
   init_mode: "ancestral"
 cv:
   n_splits: 3
-  test_size: 0.5
+  test_size: 0.33
   random_state: 0
 param_grid:
   - model: ["exp", "gamma", "gig"]
