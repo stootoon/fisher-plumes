@@ -325,9 +325,14 @@ class IntermittentExponential(Exponential):
         yn = -y[z & (y<0)]
 
         DEBUG(f"Found {M - sum(z):d} intermittent points, {len(yp):d} positive, {len(yn):d} negative values.")
-        # Fit a gamma distribution to the positive values using scipy.stats.gamma.fit
-        _, λ = expon_dist.fit(yp, floc=0)
-        DEBUG(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+
+        if len(yp) == 0:
+            λ = self.min_μ
+            DEBUG(f"No positive values, setting λ={λ:.3g}.")
+        else:
+            _, λ = expon_dist.fit(yp, floc=0)
+            DEBUG(f"Fit exponential distribution to positive values, λ={λ:.3g}.")
+            
         if len(yn) == 0:
             μ = self.min_μ
             DEBUG(f"No negative values, setting μ={μ:.3g}.")
