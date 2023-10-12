@@ -1,5 +1,6 @@
 import os
 import numpy as np
+
 import matplotlib as mpl
 from matplotlib import pylab as plt
 plt.style.use("default")
@@ -12,6 +13,7 @@ from scipy.stats import mannwhitneyu,ttest_1samp
 import imageio as iio # For importing field snapshot PNGs
 from collections import defaultdict
 import colorsys
+import networkx as nx
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
@@ -294,7 +296,98 @@ def plot_scattergram(F, ifreq, i_pos_dist,
     return axes
 
 
+def plot_gm(sc=1,xl=[0,1],yl=[0,1], scale=[1,1], dxy=[0,0]):
+    # Initialize a directed graph
+    G = nx.DiGraph()
+    
+    # Add nodes
+    nodes = ['a', 'b', 'c', 'd']
+    G.add_nodes_from(nodes)
+    
+    # Add edges based on the relationships
+    edges = [('a', 'c'), ('a', 'd'), ('b', 'c'), ('b', 'd')]
+    G.add_edges_from(edges)
+    
+    # Define positions for each node
+    pos = {
+        'a': (0, 1),
+        'b': (1, 1),
+        'c': (0, 0),
+        'd': (1, 0)
+    }
+    pos = {k: ((v[0]-0.5)*scale[0]+0.5 + dxy[0], (v[1]-0.5)*scale[1]+0.5 + dxy[1]) for k,v in pos.items()}
+    print(pos)
+    
+    # Draw the graph
+    nx.draw(G, pos, with_labels=True, node_size=3000/sc, node_color='white',
+            font_size=15, width=1, edge_color='gray', arrowsize=20)
 
+    # Highlight observed nodes with a thicker border
+    unobserved_nodes = ['c', 'd']
+    nx.draw_networkx_nodes(G, pos, nodelist=unobserved_nodes, node_size=3000/sc,
+                           node_color=cm.gray(0.9), edgecolors='black', linewidths=0.5)
+    
+    # Highlight observed nodes with a thicker border
+    observed_nodes = ['a', 'b']
+    nx.draw_networkx_nodes(G, pos, nodelist=observed_nodes, node_size=3000/sc,
+                           node_color=cm.gray(0.6), edgecolors='black', linewidths=0.5)
+    
+    plt.xlim(xl)
+    plt.ylim(yl)    
+    
+def plot_a_vs_bcd(F, ifreq, i_pos_dist,
+                  iprb = 0,
+                  figsize=(8,3),
+                  ax = None,
+                  al = None,
+                  dist_col_scale = 120000, 
+                  cols = ["C0","C1","C2"],
+                        
+):
+    # Plot the cosine coefficient (a_n) vs the sine (b_n) of the same source 
+    # and the cosine of the other source (c_n) and the sine of the other source (d_n).
+
+    if ax is not None and len(ax)!=3:
+        raise ValueError(f"Must provide exactly 3 axes, found {len(ax)}.")
+
+    if ax is not None and figsize is not None:
+        print("Warning: figsize is ignored when ax is provided.")
+    
+    dists   = np.array(list(F.pairs_um.keys()))
+    which_d = dists[dists>0][i_pos_dist]
+    a,b,c,d = F.pool_trig_coefs_for_distance(which_d)[iprb][0,:,:,ifreq] # 0 is the raw data, not the bootstrapps
+
+    figsize is not None and ax is None and plt.figure(figsize=figsize)
+    th = np.linspace(0,2*np.pi,1001)
+
+    ax = [plt.subplot(1,3,i+1) for i in range(3)] if ax is None else ax
+    which_coef = ["Sine", "Cosine", "Sine"]
+    which_src  = [1, 2, 2]
+    al = [-1.1, 1.1] if al is None else al
+    for i, (p0, p1) in enumerate([(a,b),(a,c), (a,d)]):
+        U,S,_ = np.linalg.svd(np.cov([p0,p1]))
+        p0m= np.mean(p0)
+        p1m= np.mean(p1)
+        plt.sca(ax[i])
+        ax[i].axvline(0, linestyle="-", color="lightgray", linewidth=1)
+        ax[i].axhline(0, linestyle="-", color="lightgray", linewidth=1)
+        
+        plt.plot(p0,p1, "o", color=cols[i], markersize=1)
+        plt.plot(p0m, p1m, "k+", markersize=10)
+        
+        for r in [1,2,3]:
+            xy = U @ np.diag(np.sqrt(S)) @ [np.cos(th), np.sin(th)]
+            plt.plot(r*xy[0] + p0m, r*xy[1]+p1m,":",color="k", linewidth=1)
+        plt.axis("square")            
+        plt.xlim(al); plt.ylim(al)
+        i>0 and ax[i].set_yticklabels([])
+        fpft.spines_off(plt.gca(), which=["left","right","top","bottom"])
+        ax[i].set_xticks([]); ax[i].set_yticks([])
+        plt.ylabel(f"${'bcd'[i]}$", fontsize=14)
+        plt.xlabel(f"$a$", fontsize=14)
+        
+        plt.title(f"$\\rho$ = {np.round(np.corrcoef(p0,p1)[0,1],2)}", loc="right", y=0.8, fontsize=10)
+    return ax
 
 def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
                         figsize=(8,3),
@@ -370,6 +463,7 @@ def plot_alaplace_fits(F, which_dists_um,
                        plot_dvals = False,
                        fit_color = "cornflowerblue", # Color for the fitted correlations                       
                        fit_corrs = None, # Set non-None to also plot the explictly fitted correlations
+                       xl = None,
                        ):
 
     if cdf_mode not in ["even", "data"]:
@@ -400,7 +494,7 @@ def plot_alaplace_fits(F, which_dists_um,
         INFO(f"{d=:3d} @ Freq # {which_ifreq:3d}: -np.log10(p) = {-np.log10(F.pvals[which_probe][d][0][which_ifreq]):1.3f}")
         ax_cdf.append(plt.subplot(gs[:-1 if plot_dvals else 1,di]))
         rr    = F.rho[which_probe][d][0][which_ifreq]
-        xl    = fpft.expand_lims([np.min(rr), np.max(rr)],expansion)
+        xl    = fpft.expand_lims([np.min(rr), np.max(rr)],expansion) if xl is None else xl    
         xvals = np.linspace(xl[0],xl[-1],1001)
 
         h_data = fpft.cdfplot(rr,color=dist2col(d), linewidth=2, label='F$_{data}$')        
