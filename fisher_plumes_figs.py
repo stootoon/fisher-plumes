@@ -1285,7 +1285,7 @@ def plot_information_regression(data, which_ds, iprb,
             print(f"{ils_origin=}")
             print(f"{ils_probe=}")            
 
-        ax_coef.set_xlim(ax_coef.get_xlim()[0], np.max(dd))
+        #ax_coef.set_xlim(ax_coef.get_xlim()[0], np.max(dd))
         ax_coef.set_ylim(-0.05,0.05)
         ax_coef.set_yticklabels([f"{yti:g}" for yti in ax_coef.get_yticks()], fontsize=10)
         ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-10, fontsize=12)
