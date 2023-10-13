@@ -14,6 +14,7 @@ import imageio as iio # For importing field snapshot PNGs
 from collections import defaultdict
 import colorsys
 import networkx as nx
+import pdb
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
@@ -24,6 +25,8 @@ import utils
 import logging
 
 from units import UNITS
+
+hz_mag = lambda f: f.to(UNITS.Hz).magnitude
 
 logger = utils.create_logger("fisher_plumes_tools")
 logger.setLevel(logging.DEBUG)
@@ -664,8 +667,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
             # (which is the same as the color of the scatter points).
             
             box = plt.boxplot(γbs, widths = 0.3, patch_artist=True)
-            [plt.setp(b, color = fpft.set_alpha(colfun(f),0.5), facecolor=fpft.set_alpha(colfun(f),0.25)) for f,b in zip(F.freqs[which_fis], box["boxes"])]
-            [plt.setp(b, color = colfun(f), linewidth=1) for f, b in zip(F.freqs[which_fis], box["medians"])]
+            [plt.setp(b, color = fpft.set_alpha(colfun(hz_mag(f)),0.5), facecolor=fpft.set_alpha(colfun(hz_mag(f)),0.25)) for f,b in zip(F.freqs[which_fis], box["boxes"])]
+            [plt.setp(b, color = colfun(hz_mag(f)), linewidth=1) for f, b in zip(F.freqs[which_fis], box["medians"])]
 
             plt.xticks(np.arange(1, len(which_fis)+1),
                        labels = [f"{F.freqs[i].to('Hz').magnitude:g} Hz" for i in which_fis])
@@ -678,9 +681,9 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         else:
             for γ, k in zip(γbs, kbs):
                 plt.scatter(γ, k,
-                            c=[fpft.set_alpha(colfun(f), scatter_alpha) for i, f in enumerate(F.freqs[which_fis])],
+                            c=[fpft.set_alpha(colfun(hz_mag(f)), scatter_alpha) for i, f in enumerate(F.freqs[which_fis])],
                             s = scatter_size)
-    
+
     if plot_others:
         ind_max = F.freqs2inds([F.freq_max])[0]
         other_inds = [fi for fi in range(1, ind_max+1) if fi not in which_fis]
@@ -688,7 +691,6 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         γm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 1]/d_scale),axis=0)
         κm = np.mean(fun(F.fit_params[which_probe][1:][:, other_inds, 2]),axis=0)
         plt.scatter(γm, κm, c = cols, s=3, marker="o", edgecolors=None, linewidth=1, zorder=2)
-        
 
     hmus = []
     for ifreq, fi in enumerate(which_fis):
@@ -697,8 +699,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
         C  = np.cov(γk)
         hmui, hsdsi = fpft.plot_bivariate_gaussian(mu, C,
                                                    n_sds = 1, n_points = 1000,
-                                                   mean_style = {"marker":"o", "markersize":3, "color":colfun(F.freqs[fi])},
-                                                   sd_style   = {"linewidth":1, "color":colfun(F.freqs[fi])},
+                                                   mean_style = {"marker":"o", "markersize":3, "color":colfun(hz_mag(F.freqs[fi]))},
+                                                   sd_style   = {"linewidth":1, "color":colfun(hz_mag(F.freqs[fi]))},
         )
         hmus.append(hmui)
 
@@ -707,7 +709,8 @@ def plot_gen_exp_parameter_fits_panel(F, which_fis, contours_dist = None,
                                    labelspacing=0,
                                    frameon=False,
                                    fontsize=6,
-    )
+        )
+
     xl = list(plt.xlim())
     if xt is not None:
         xl[0] = min(xl[0], np.min(xt))
@@ -755,6 +758,7 @@ def plot_la_gen_fits_vs_distance(F,
                                  which_ifreqs = [1,2,3,4],
                                  figsize = None, legloc = None, xl = None,
                                  colfun = lambda f: freq2col(f, 10),
+                                 max_bs = 5,
                                  **kwargs
 ):
 
@@ -773,26 +777,35 @@ def plot_la_gen_fits_vs_distance(F,
     d_scale = F.pitch.to(UNITS.um).magnitude
     dx = dd_nneg_um / d_scale
     for i, fi in enumerate(which_ifreqs):
+        freq_hz = freqs[fi].to(UNITS.Hz).magnitude
         row   = i // 2
         col   = i %  2
         ax.append(plt.subplot(gs[row, col]))
         # X = ... 1: is to take the bootstraps (0 is the raw data), ...0] is to take the in_phase values of la    
-        X = np.stack([F.la[which_probe][d][1:, fi, 0] for d in dd_nneg_um],axis=1) 
-        la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
-        ax[-1].plot(dx, la_med, "o-", color=colfun(F.freqs[fi]), linewidth=1, markersize=2, label=f"{freqs[fi].magnitude:g} Hz")
-        ax[-1].plot([dx,dx], [la_lo, la_hi], "-", color=fpft.set_alpha(colfun(F.freqs[fi]),0.5), linewidth=1)
-        for j in range(min(5, F.n_bootstraps)):
-            ax[-1].plot(F.dd_fit/d_scale, fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi])),
+        X = np.stack([F.la[which_probe][d][1:, fi, 0] for d in dd_nneg_um],axis=1)
+        va = F.vars_for_freqs[which_probe][1:, fi]
+        # λ = σ^2(1 + ρ)
+        ρ = X/va[:,np.newaxis] - 1
+        # la_lo, la_med, la_hi = np.percentile(X, [5,50,95], axis=0)
+        ρ_lo, ρ_med, ρ_hi = np.percentile(ρ, [5,50,95], axis=0)
+        
+        ax[-1].plot(dx, ρ_med, "o-", color=colfun(freq_hz), linewidth=1, markersize=2, label=f"{freq_hz:g} Hz")
+        ax[-1].plot([dx,dx], [ρ_lo, ρ_hi], "-", color=fpft.set_alpha(colfun(freq_hz),0.5), linewidth=1)
+        for j in range(min(max_bs, F.n_bootstraps)):
+            la_fit = fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi]))
+            ρ_fit  = la_fit / va[j] - 1
+            ax[-1].plot(F.dd_fit/d_scale, ρ_fit,
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
                         linewidth=1, zorder=-5)
         (row == 1) and plt.xlabel(f"Distance $s$ {pitch_sym}")
-        (col == 0) and plt.ylabel("$\lambda_n(s)$")        
+        (col == 0) and plt.ylabel("$\\rho_n(s)$")        
         (xl is not None) and plt.xlim(xl)
         plt.title(f"{freqs[fi].magnitude:g} Hz", pad=-2)
         fpft.spines_off(plt.gca())
 
     # PLOT THE PARAMETERS
     ax.append(plt.subplot(gs[:,-1]))
+
     # n_params is 2 if two paramters were plotted, or 1 if only one was plotted (e.g. when k is fixed)
     n_params = plot_gen_exp_parameter_fits_panel(F, which_ifreqs, which_probe = which_probe, colfun = colfun, n_contours = 0, **kwargs)    
     fpft.spines_off(plt.gca())
