@@ -1201,9 +1201,10 @@ def plot_information_regression(data, which_ds, iprb,
                                 same_plot       = True,
                                 coef_plot_width = 2,
                                 names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"}),
-                                cols     = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                
+                                cols     = defaultdict(lambda: cm.gray(0.6), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                
                                 figsize  = None,
                                 plot_ils = False,
+                                do_label = True,
 ):
     n_rows = min(2, len(which_ds))
     gs = GridSpec(n_rows, len(which_log10_dists[which_ds[0]])+coef_plot_width)
@@ -1212,6 +1213,8 @@ def plot_information_regression(data, which_ds, iprb,
     print(figsize)
     plt.figure(figsize=figsize)
     ax = []
+    if not hasattr(do_label, "__len__"):
+        do_label = [do_label] * len(which_ds)
     for i, ds in enumerate(which_ds):
         ax.append([])
         F = data[ds]
@@ -1260,9 +1263,15 @@ def plot_information_regression(data, which_ds, iprb,
             if same_plot and gs[i,j].is_first_row(): ax_coef = plt.subplot(gs[:,-coef_plot_width:])
             elif not same_plot: ax_coef = plt.subplot(gs[i,-coef_plot_width:])
             else: pass # ax_coef will already have been defined.
+
+        # Make the elbow plot
         pc = np.percentile(F.reg_coefs[iprb][1:][:,:,-1],[5,50,95],axis=0)
-        ax_coef.semilogx(dd, pc[1], "o-", color=cols[ds], markersize=4, label = names[ds])
+        ax_coef.semilogx(dd, pc[1], "o-", color=cols[ds],
+                         linewidth=2 - 1 * names[ds].startswith("Surr"),
+                         markersize=4 - 2 * names[ds].startswith("Surr"),
+                         label = names[ds] if do_label[i] else None, zorder=10 - i)
         ax_coef.fill_between(dd, pc[0], pc[2],color=fpft.set_alpha(cols[ds],0.1))
+
         if plot_ils and hasattr(F, "sim0") and hasattr(F.sim0, "integral_length_scales"):
             keys = list(F.sim0.integral_length_scales.keys())
             origin_key = (0 * UNITS.m, 0 * UNITS.m, "y")
@@ -1271,22 +1280,25 @@ def plot_information_regression(data, which_ds, iprb,
             ils_probe  = F.sim0.integral_length_scales[probe_key]["l"].to(F.pitch)
             #ax_coef.axvline(ils_origin.magnitude, ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (origin)")
             #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
-            ax_coef.scatter([ils_origin.magnitude], [0], zorder = 5, c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
-            ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 5, c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
+            ax_coef.scatter([ils_origin.magnitude], [0], zorder = 10, c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
+            ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 10, c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
             print(f"{ils_origin=}")
             print(f"{ils_probe=}")            
-            
+
+        ax_coef.set_xlim(ax_coef.get_xlim()[0], np.max(dd))
         ax_coef.set_ylim(-0.05,0.05)
-        ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-8, fontsize=12)
+        ax_coef.set_yticklabels([f"{yti:g}" for yti in ax_coef.get_yticks()], fontsize=10)
+        ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-10, fontsize=12)
         ax_coef.set_xlabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)
         [ax_coef.spines[w].set_visible(False) for w in ["right", "top"]]
     ax_coef.grid(True, linestyle=":")
     ax_coef.legend(frameon=False, labelspacing =0, loc="lower left")
     plt.tight_layout() #pad=0,w_pad=0)
-    
+
+    # Adjust the positions of the axes
     for i, axi in enumerate(ax):
         for j, axij in enumerate(axi):
-            trans = mtrans.Affine2D().translate(-0.05*j,0).scale(sx=1.25,sy=1)
+            trans = mtrans.Affine2D().translate(-0.055*j,0).scale(sx=1.25,sy=1)
             bbox  = axij.get_position()
             axij.set_position(mtrans.TransformedBbox(bbox, trans))
 
