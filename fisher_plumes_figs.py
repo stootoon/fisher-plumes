@@ -392,36 +392,44 @@ def plot_a_vs_bcd(F, ifreq, i_pos_dist,
         plt.title(f"$\\rho$ = {np.round(np.corrcoef(p0,p1)[0,1],2)}", loc="right", y=0.8, fontsize=10)
     return ax
 
-def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
+def plot_coef1_vs_coef2(F, ifreq,
+                        config = "ab_cd",
+                        iprb = 0,
                         figsize=(8,3),
                         i_pos_dists_to_plot = [0,2,4],
                         dist_col_scale = 120000, axes = None,
                         
 ):
-    if type(coefs) is not list: coefs = [coefs]
-        
-    pooled1 = {d:np.array([
-        np.concatenate([coef[y1][0][:, ifreq] for coef in coefs for (y1,y2) in pairs_um[d]], axis = 0),
-        np.concatenate([coef[y2][0][:, ifreq] for coef in coefs for (y1,y2) in pairs_um[d]], axis = 0)
-    ]) for d in pairs_um} # [0] takes the raw data, not the bootstraps
-
-    dists = np.array(sorted(pooled1.keys()))
-    plt.figure(figsize=figsize)
-    th = np.linspace(0,2*np.pi,1001)
+    
+    dists = np.array(sorted(F.pairs_um.keys()))
     which_d = [dists[dists>0][i] for i in i_pos_dists_to_plot]
 
+    a,b,c,d = {}, {}, {}, {}
+    for d_ in which_d:
+        a[d_],b[d_],c[d_],d[d_] = F.pool_trig_coefs_for_distance(d_)[iprb][0,:,:,ifreq] # 0 is the raw data, not the bootstrapps
+    abcd = {"a":a,"b":b,"c":c,"d":d}
+
+    x_coefs, y_coefs = config.split("_")
+    pool_coefs = lambda d_: [np.hstack([abcd[xx][d_] for xx in x_coefs]),
+                             np.hstack([abcd[yy][d_] for yy in y_coefs])]
+    
+    
+    plt.figure(figsize=figsize)    
     dist2col_ = lambda d: dist2col(d,dist_col_scale)
+    th = np.linspace(0,2*np.pi,1001)
     if (axes is not None) and len(axes) != len(which_d):
         raise ValueError("Number of axes provided {len(axes)} != number of distances {len(which_d)}.")
     axes = [] if axes is None else axes
-    for i, d in enumerate(which_d):
+    for i, d_ in enumerate(which_d):
         axes.append(plt.subplot(1,len(which_d),i+1)) if len(axes)<len(which_d) else plt.sca(axes[i])
-        U,S,_ = np.linalg.svd(np.cov(pooled1[d]))
-        p0 = pooled1[d][0]
-        p1 = pooled1[d][1]
+        
+        p0, p1 = pool_coefs(d_)
+
         p0m= np.mean(p0)
         p1m= np.mean(p1)
-        plt.plot(p0,p1, "o", color=dist2col_(d), markersize=1)
+        
+        U,S,_ = np.linalg.svd(np.cov([p0, p1]))
+        plt.plot(p0,p1, "o", color=dist2col_(d_), markersize=1)
         plt.plot(p0m, p1m, "k+", markersize=10)
         
         for r in [1,2,3]:
@@ -434,8 +442,8 @@ def plot_coef1_vs_coef2(coefs, ifreq, pairs_um, pitch_units,
         plt.axis("square")
         (i == 0) and plt.ylabel("Coefficient at source 2")
         plt.xlabel("Coefficient at source 1")
-        d *= UNITS.um
-        plt.title(f"{d.to(UNITS(pitch_units)).magnitude:.2g} {pitch_sym}")
+        d_ *= UNITS.um
+        plt.title(f"{d_.to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
         plt.grid(True)
     return axes
 
