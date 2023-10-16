@@ -395,10 +395,11 @@ def plot_a_vs_bcd(F, ifreq, i_pos_dist,
 def plot_coef1_vs_coef2(F, ifreq,
                         config = "ab_cd",
                         iprb = 0,
-                        figsize=(8,3),
+                        figsize=None,
                         i_pos_dists_to_plot = [0,2,4],
-                        dist_col_scale = 120000, axes = None,
-                        
+                        col = cm.cool(0.5),
+                        axes = None,
+                        do_corr = False,                        
 ):
     
     dists = np.array(sorted(F.pairs_um.keys()))
@@ -409,17 +410,25 @@ def plot_coef1_vs_coef2(F, ifreq,
         a[d_],b[d_],c[d_],d[d_] = F.pool_trig_coefs_for_distance(d_)[iprb][0,:,:,ifreq] # 0 is the raw data, not the bootstrapps
     abcd = {"a":a,"b":b,"c":c,"d":d}
 
+    labs = {"a":"Cos @ src 1", "b":"Sin @ src 1", "c":"Cos @ src 2", "d":"Sin @ src 2"}
     x_coefs, y_coefs = config.split("_")
+    xlab = ",".join([labs[x_] for x_ in x_coefs])
+    ylab = ",".join([labs[y_] for y_ in y_coefs])
     pool_coefs = lambda d_: [np.hstack([abcd[xx][d_] for xx in x_coefs]),
                              np.hstack([abcd[yy][d_] for yy in y_coefs])]
     
+    if figsize is not None:
+        if axes is not None:
+            print("Warning: figsize is ignored when ax is provided.")
+        else:
+            plt.figure(figsize=figsize)
     
-    plt.figure(figsize=figsize)    
-    dist2col_ = lambda d: dist2col(d,dist_col_scale)
     th = np.linspace(0,2*np.pi,1001)
+
     if (axes is not None) and len(axes) != len(which_d):
         raise ValueError("Number of axes provided {len(axes)} != number of distances {len(which_d)}.")
     axes = [] if axes is None else axes
+
     for i, d_ in enumerate(which_d):
         axes.append(plt.subplot(1,len(which_d),i+1)) if len(axes)<len(which_d) else plt.sca(axes[i])
         
@@ -429,7 +438,7 @@ def plot_coef1_vs_coef2(F, ifreq,
         p1m= np.mean(p1)
         
         U,S,_ = np.linalg.svd(np.cov([p0, p1]))
-        plt.plot(p0,p1, "o", color=dist2col_(d_), markersize=1)
+        plt.plot(p0,p1, "o", color=col, markersize=1)
         plt.plot(p0m, p1m, "k+", markersize=10)
         
         for r in [1,2,3]:
@@ -440,10 +449,15 @@ def plot_coef1_vs_coef2(F, ifreq,
         plt.gca().set_yticks([-1,0,1])
         fpft.spines_off(plt.gca())
         plt.axis("square")
-        (i == 0) and plt.ylabel("Coefficient at source 2")
-        plt.xlabel("Coefficient at source 1")
+        (i == 0) and plt.ylabel(ylab, labelpad=0)
+        plt.xlabel(xlab, labelpad=-3)
         d_ *= UNITS.um
         plt.title(f"{d_.to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
+        if do_corr:
+            ρ = np.corrcoef(p0,p1)[0,1]
+            # Annotate the plot with the correlation coefficient
+            plt.annotate(f"$\\rho$ = {ρ:.2f}", xy=(0.05, 0.9), xycoords='axes fraction', fontsize=10)
+            
         plt.grid(True)
     return axes
 
