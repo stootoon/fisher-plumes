@@ -158,9 +158,6 @@ def load_spec(spec_file, verbose = False):
     
     return spec, compute_list
 
-def fit_corrs(corrs, search_spec, output_file):
-    pass
-
 def check_file_exists(file_path):
     """ Check if a file exists. """
     if os.path.exists(file_path):
