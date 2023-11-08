@@ -294,8 +294,8 @@ def plot_scattergram(F, ifreq, i_pos_dist,
                 plt.hist(p0, color=cols[i], bins=np.linspace(-scale, scale, int(np.sqrt(len(p0)))))
                 plt.xlim([-scale,scale]);
                 
-            if i==len(pooled1)-1: plt.xlabel(f"{coef_names[j%2]}, Src {(j//2)+1}")
-            if j==0: plt.ylabel(f"{coef_names[i%2]}, Src {(i//2)+1}")
+            if i==len(pooled1)-1: plt.xlabel(f"{coef_names[j%2]} @ src {(j//2)+1}")
+            if j==0: plt.ylabel(f"{coef_names[i%2]} @ src {(i//2)+1}")
     return axes
 
 
@@ -344,8 +344,7 @@ def plot_a_vs_bcd(F, ifreq, i_pos_dist,
                   ax = None,
                   al = None,
                   dist_col_scale = 120000, 
-                  cols = ["C0","C1","C2"],
-                        
+                  cols = ["C0","C1","C2"],                        
 ):
     # Plot the cosine coefficient (a_n) vs the sine (b_n) of the same source 
     # and the cosine of the other source (c_n) and the sine of the other source (d_n).
@@ -364,7 +363,7 @@ def plot_a_vs_bcd(F, ifreq, i_pos_dist,
     th = np.linspace(0,2*np.pi,1001)
 
     ax = [plt.subplot(1,3,i+1) for i in range(3)] if ax is None else ax
-    which_coef = ["Sine", "Cosine", "Sine"]
+    which_coef = ["Sin", "Cos", "Sin"]
     which_src  = [1, 2, 2]
     al = [-1.1, 1.1] if al is None else al
     for i, (p0, p1) in enumerate([(a,b),(a,c), (a,d)]):
@@ -386,8 +385,9 @@ def plot_a_vs_bcd(F, ifreq, i_pos_dist,
         i>0 and ax[i].set_yticklabels([])
         fpft.spines_off(plt.gca(), which=["left","right","top","bottom"])
         ax[i].set_xticks([]); ax[i].set_yticks([])
-        plt.ylabel(f"${'bcd'[i]}$", fontsize=14)
-        plt.xlabel(f"$a$", fontsize=14)
+        ylab = f"{'bcd'[i]}: {which_coef[i]} @ src {which_src[i]}" 
+        plt.ylabel(ylab, fontsize=12, labelpad = -5)
+        plt.xlabel(f"a: Cos @ src 1", fontsize=12, labelpad=-5)
         
         plt.title(f"$\\rho$ = {np.round(np.corrcoef(p0,p1)[0,1],2)}", loc="right", y=0.8, fontsize=10)
     return ax
@@ -489,6 +489,8 @@ def plot_alaplace_fits(F, which_dists_um,
                        fit_color = "cornflowerblue", # Color for the fitted correlations                       
                        fit_corrs = None, # Set non-None to also plot the explictly fitted correlations
                        xl = None,
+                       leg_loc = "lower right",
+                       leg_loc2= "upper right",
                        ):
 
     if cdf_mode not in ["even", "data"]:
@@ -501,7 +503,8 @@ def plot_alaplace_fits(F, which_dists_um,
         raise ValueError(f"Key {fit_corrs} not found in F.fit_corrs.")
 
     fit_corrs_results = None if fit_corrs is None else F.fit_corrs[fit_corrs]["results"]
-    
+
+    print(xl)
     
     if figsize is not None:
         plt.figure(figsize=figsize)
@@ -558,7 +561,7 @@ def plot_alaplace_fits(F, which_dists_um,
         plt.gca().set_yticks(np.arange(0,1.1,0.2))
         plt.xlim(xl)
 
-        di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='lower right')
+        di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc=leg_loc if leg_loc is not None else 'lower right')
         plt.title(f"{(d * UNITS.um).to(UNITS(F.pitch_string)).magnitude:.2g} {pitch_sym}")
 
         ax_cdf[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
@@ -592,7 +595,7 @@ def plot_alaplace_fits(F, which_dists_um,
             axdi.xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
             axdi.yaxis.set_major_formatter(lambda x, pos: f"{x:g}")
 
-            di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc='upper right')
+            di == 0 and plt.legend(frameon=False, labelspacing=0, fontsize=6, loc=leg_loc2 if leg_loc2 is not None else 'upper right')
 
     if plot_dvals:
         [axdi.set_ylim(yld) for axdi in ax_dcdf]
@@ -1302,8 +1305,8 @@ def plot_information_regression(data, which_ds, iprb,
             ils_probe  = F.sim0.integral_length_scales[probe_key]["l"].to(F.pitch)
             #ax_coef.axvline(ils_origin.magnitude, ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (origin)")
             #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
-            ax_coef.scatter([ils_origin.magnitude], [0], zorder = 10, c="orangered", marker="4", s = 150, linewidth=1.5,label="ILS (origin)")
-            ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 10, c="orangered",   marker="3", s = 150, linewidth=1.5,      label="ILS (probe)")
+            ax_coef.scatter([ils_origin.magnitude], [0], zorder = 10, c="orangered", marker="4", s = 150, linewidth=1.5,label="$L_U$ (origin)")
+            ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 10, c="orangered", marker="3", s = 150, linewidth=1.5,      label="$L_U$ (probe)")
             print(f"{ils_origin=}")
             print(f"{ils_probe=}")            
 
