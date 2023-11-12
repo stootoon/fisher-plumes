@@ -3,7 +3,7 @@ compute:
   fit_k: '[True, False]'
   istart: 0
   window_length: '[1*SEC,2*SEC]'
-  window_shape: '[''boxcar'',''hann'']'
+  window_shape: '[(''kaiser'',9), (''kaiser'', 16)]'
 init:
   freq_max: 20 * HZ
   n_bootstraps: 50
