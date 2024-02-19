@@ -79,7 +79,7 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         aw, bw = wndf(a), wndf(b)
         ρ_w = np.corrcoef(aw,bw)[0,1]
         ρ   = np.corrcoef(a, b)[0,1]
-        ax_trace[-1].set_title(f"$\Delta$ = {dists[di]/d_scale:.2g} {pitch_sym}, $\\rho_w$ = {ρ_w:.2f}, $\\rho$ = {ρ:.2g}", fontsize=8, verticalalignment="top")
+        ax_trace[-1].set_title(f"$s$ = {dists[di]/d_scale:.2g} {pitch_sym}, $\\rho_w$ = {ρ_w:.2f}, $\\rho$ = {ρ:.2g}", fontsize=8, verticalalignment="top")
         ax_trace[-1].xaxis.set_major_formatter(lambda x, pos: f"{x:g}")
 
     return ax_trace
