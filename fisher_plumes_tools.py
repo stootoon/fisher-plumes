@@ -32,64 +32,12 @@ def pool_sorted_keys(d, res=0):
     else:
         dd = [[d[0]]]
         for i in range(1, len(d)):
-            dist = abs(d[i] - dd[-1][-1])
-            print(f"{d[i]=}, {dd[-1][-1]=}, {dist=}, {res=}")
-            if dist <= res:
-                print(f"Adding {d[i]} to {dd[-1]}")
-                dd[-1].append(d[i])
-            else:
-                print(f"Creating new group for {d[i]}")
-                dd.append([d[i]])
+            if d[i] - dd[-1][-1] <= res: dd[-1].append(d[i])
+            else: dd.append([d[i]])
     return dd
-
-class Coords2D_um:
-    def __init__(self, y, x=0, L=10**8):
-        self.L = L
-        assert -L < y < L, f"y={y} must be in the range (-{L}, {L})."
-        assert -L < x < L, f"x={x} must be in the range (-{L}, {L})."
-
-        self.y = int(y)
-        self.x = int(x)
-    def __repr__(self):
-        return f"Coords2D_um({self.y=}, {self.x=})"
-    def __str__(self):
-        return f"(y={self.y}, x={self.x}) um"
-    def __eq__(self, other):
-        return self.y == other.y and self.x == other.x
-    # Implement subtraction
-    def __sub__(self, other):
-        return Coords2D_um(self.y - other.y, self.x - other.x, self.L)
-    def __add__(self, other):
-        return Coords2D_um(self.y + other.y, self.x + other.x, self.L)
-    def __lt__(self, other):
-        return self.y < other.y or (self.y == other.y and self.x < other.x)
-    def __le__(self, other):
-        return (self < other) or (self == other)
-    def __gt__(self, other):
-        return not (self <= other)
-    def __ge__(self, other):
-        return not (self < other)
-    def __hash__(self):
-        return hash((self.y, self.x))
-    def norm(self):
-        return np.sqrt(self.y**2 + self.x**2)    
-    def __abs__(self):
-        return self.norm()
-    def abs_src(self):
-        return Coords2D_um(abs(self.y), abs(self.x), self.L)
-                
+    
 def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
-    if type(yvals[0]) is not Coords2D_um:
-        INFO(f"Converting {len(yvals)=} yvals to Coords2D_um.")
-        # Convert to Coords2D_um
-        if hasattr(yvals[0], "__len__"):
-            INFO(f"Assuming that yvals are (y,x) pairs.")
-            yvals = [Coords2D_um(y, x) for x,y in yvals]
-        else:
-            INFO(f"Assuming that yvals are y values only.")
-            yvals = [Coords2D_um(y) for y in yvals]
-            
-    INFO(f"Computing pairs for {len(yvals)=} from {min(yvals)} to {max(yvals)} using {pairs_mode=}.")
+    INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
     if pairs_mode == "signed":
@@ -107,7 +55,7 @@ def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
     elif pairs_mode == "unsigned":
         for i, y1 in enumerate(yvals):
             for y2 in yvals[i:]: # Start at i instead of i+1 so that we get the dist 0 data as well.
-                k = (y2-y1).abs_src() # Will be a Coords2D_um object
+                k = np.abs(y2-y1)
                 if k not in pairs:
                     pairs[k] = [(y1,y2), (y2,y1)]
                 else:
@@ -115,12 +63,10 @@ def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
                     pairs[k].append((y2,y1))                    
     elif pairs_mode == "sym":
         for i in range(nyvals//2+ 1):
-            i1, i2 = i, nyvals - 1 - i
-            y1, y2 = yvals[i1], yvals[i2]
+            y1, y2 = i, nyvals - 1 - i
             pairs[y1-y2]= [(y1,y2)]
             pairs[y2-y1]= [(y2,y1)]
-        z = yvals[0]
-        pairs[z - z] = [(y,y) for y in yvals]
+        pairs[0] = [(y,y) for y in yvals]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
     INFO(f"Pooling data across pair distances that are <= {pair_resolution} apart.")
@@ -128,8 +74,7 @@ def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
     dd = pool_sorted_keys(d, pair_resolution) # Returns grouped distances
     DEBUG(f"{dd=}")
     pr = pair_resolution if pair_resolution > 0 else 1
-    # kd = [int(np.round(np.mean(ddi)/pr)*pr) for ddi in dd]
-    kd = [ddi[0] for ddi in dd]
+    kd = [int(np.round(np.mean(ddi)/pr)*pr) for ddi in dd]
     pairs1 = {}
     for grp,kdi in zip(dd,kd):
         DEBUG(f"key={kdi}: grouped distances = {grp}")
@@ -139,7 +84,7 @@ def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
     pairs = pairs1
     INFO("Removing duplicates in pairs dictionary.")
     pairs = {d:list(set(p)) for d,p in pairs.items()} # Remove any duplicates
-    return pairs, d
+    return pairs
 
 def validate_py_mode(py_mode):
     if py_mode.lower()[:3] == "abs":
