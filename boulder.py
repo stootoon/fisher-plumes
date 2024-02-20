@@ -6,6 +6,8 @@ import h5py
 import pickle
 import re
 
+import pdb
+
 import pandas as pd
 from   copy   import deepcopy
 import numpy  as np
@@ -391,14 +393,20 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
 
     bb.use_coords([(px, py if py_mode == "absolute" else (py * bb.dimensions[1].magnitude + bb.y_lim[0])) for (px, py) in which_coords])
     sims = {}
+
+    # Get the x and y coordinates of all the sources
+    xvals = np.array([x.to(UNITS.um).magnitude for x, _ in bb.source])
+    yvals = np.array([y.to(UNITS.um).magnitude for _, y in bb.source])
+    svals, source_line = fpt.compute_source_line(xvals, yvals, "mean", )
+
     for i, (k, v) in enumerate(bb.data.items()):
         # Have to strip the units because quantities with units don't work well as dictionary keys
-        k1 = int(bb.source[i][1].to(UNITS.um).magnitude) # Get the y-value of the source in um        
+        k1 = int(svals[i]) # Get the y-value of the source in um        
         sims[k1] = deepcopy(bb)
         sims[k1].data = v.copy()
         sims[k1].fields = [bb.fields[i]]
         sims[k1].source = bb.source[i]
     yvals = list(sims.keys())
     pairs_um = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
-    return sims, pairs_um
+    return sims, pairs_um, source_line
 

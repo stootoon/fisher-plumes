@@ -8,6 +8,7 @@ from scipy.stats  import kstest
 from scipy.optimize import curve_fit, minimize
 from matplotlib import pylab as plt
 
+from collections import namedtuple
 
 import utils
 
@@ -17,6 +18,37 @@ logger.setLevel(logging.DEBUG)
 INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
+
+SourceLine = namedtuple('SourceLine', ['origin', 'unit_vector'])
+
+def compute_source_line(xvals, yvals, origin_mode, offset = 0):
+    """
+    Given x and y values, compute the source line.
+
+    Inputs:
+    xvals = x values
+    yvals = y values
+    origin_mode = "mean" or "min"
+    offset = offset applied to the origin.
+    Need this sometimes to make the projections
+    agree with their values when they were just y-offsets.
+
+    Output:
+    svals = the projection of the x,y values onto the source line
+    source_line = a named tuple with the origin and unit vector of the source line.
+    """
+    assert origin_mode in ["mean", "min"], f"Origin mode must be 'mean' or 'min', not {origin_mode}."
+
+    isort = np.argsort(xvals*10**8 + yvals)
+    dx = np.mean(np.diff(xvals[isort]))
+    dy = np.mean(np.diff(yvals[isort]))
+    unit_vector = np.array([dx, dy])/np.linalg.norm([dx, dy])
+    x0, y0      = (np.mean(xvals), np.mean(yvals)) if origin_mode == "mean" else (xvals[isort[0]], yvals[isort[0]])
+    x0, y0      = np.array([x0, y0]) - offset*unit_vector
+    svals       = np.dot(unit_vector, [xvals - x0, yvals - y0])
+    source_line = SourceLine(origin = np.array([x0, y0]), unit_vector = unit_vector)
+    return svals, source_line
+
 
 def pool_sorted_keys(d, res=0):
     """

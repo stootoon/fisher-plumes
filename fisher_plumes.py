@@ -74,7 +74,7 @@ class FisherPlumes:
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.um)}")
             if sim_name == "boulder16":
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um = boulder.load_sims(which_coords,
+                self.sims, self.pairs_um, self.source_line = boulder.load_sims(which_coords,
                                                              pairs_mode = pairs_mode,
                                                              units = UNITS.m,
                                                              pitch_units = UNITS(self.pitch_string),
