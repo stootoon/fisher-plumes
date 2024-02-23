@@ -407,6 +407,11 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
         sims[k1].fields = [bb.fields[i]]
         sims[k1].source = bb.source[i]
     yvals = list(sims.keys())
+    INFO(f"Yvals: {yvals}")
+    INFO(f"Sourceline: {source_line}")
+    INFO(f"Computing distance pairings.")
     pairs_um = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
+    pair_vals = sorted(pairs_um)
+    INFO(f"{len(pair_vals)} distance pairings found, from {min(pair_vals)} to {max(pair_vals)}")    
     return sims, pairs_um, source_line
 

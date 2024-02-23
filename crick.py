@@ -292,26 +292,35 @@ def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf
     datasets = list_datasets(as_series=True)
     if sim_root not in datasets: raise KeyError(f"Did not find {sim_root=} in list of datasets.")
     sims = {}
+
+
+    loaded_sims = []
     for name in datasets[sim_root]:
         INFO("*"*100)
         INFO(f"Loading dataset {sim_root}/{name}.")
         new_sim = CrickSimulationData(f"{sim_root}/{name}", units=units, pitch_units = pitch_units, max_time = max_time)
-        new_yval_um = new_sim.source[1].to(UNITS.um).magnitude
-        k = int(np.round(new_yval_um/key_resolution_um)*key_resolution_um)
-        sims[k] = new_sim
-        sims[k].use_coords([(px, py * (sims[k].dimensions[1].magnitude ** (py_mode == "rel"))) for (px,py) in which_coords])
-        ind_nan = np.isnan(sims[k].data)
+        new_sim.use_coords([(px, py * (new_sim.dimensions[1].magnitude ** (py_mode == "rel"))) for (px,py) in which_coords])
+        ind_nan = np.isnan(new_sim.data)
         n_nan = np.sum(ind_nan)
         if n_nan:
             WARN(f"Found {n_nan=} NaN values. Setting to zero.")
-            sims[k].data[ind_nan] = 0
-        
+            new_sim.data[ind_nan] = 0
+
+        loaded_sims.append(new_sim)
+
+    # Get the x and y coordinates of all the sources
+    xvals = np.array([sim.source[0].to(UNITS.um).magnitude for sim in loaded_sims])
+    yvals = np.array([sim.source[1].to(UNITS.um).magnitude for sim in loaded_sims])
+    svals, source_line = fpt.compute_source_line(xvals, yvals, "min", offset = 0)
+
+    sims = {int(s):sim for s, sim in zip(svals, loaded_sims)}
     yvals = sorted(list(sims.keys()))
 
     INFO(f"Yvals: {yvals}")
+    INFO(f"Sourceline: {source_line}")
     INFO(f"Computing distance pairings.")
     pairs = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
     pair_vals = sorted(pairs)
     INFO(f"{len(pair_vals)} distance pairings found, from {min(pair_vals)} to {max(pair_vals)}")
-    return sims, pairs
+    return sims, pairs, source_line
     
