@@ -1,10 +1,17 @@
+
 {
     "registry": [
         {
             "color": "crimson",
             "name": "Re100_0_5mm_50Hz_16source_manuscript.h5",
-            "root": ""
+            "root": "original"
+        },
+	{
+            "color": "crimson",
+            "name": "Re100_0_5mm_50Hz_streamwiseSourceSep.h5", 
+            "root": "streamwise"
         }	
+
     ],
     "root": "/camp/home/tootoos/working/tootoos/data/fisher-plumes/boulder" 
 }
