@@ -2192,6 +2192,822 @@
                 0.4,
                 0.56
             ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.400",
+            "root": "n16Tslow_X",
+            "source": [
+                0.4,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.408",
+            "root": "n16Tslow_X",
+            "source": [
+                0.408,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.416",
+            "root": "n16Tslow_X",
+            "source": [
+                0.416,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.424",
+            "root": "n16Tslow_X",
+            "source": [
+                0.424,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.432",
+            "root": "n16Tslow_X",
+            "source": [
+                0.432,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.440",
+            "root": "n16Tslow_X",
+            "source": [
+                0.44,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.448",
+            "root": "n16Tslow_X",
+            "source": [
+                0.448,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.456",
+            "root": "n16Tslow_X",
+            "source": [
+                0.456,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.464",
+            "root": "n16Tslow_X",
+            "source": [
+                0.464,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.472",
+            "root": "n16Tslow_X",
+            "source": [
+                0.472,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.480",
+            "root": "n16Tslow_X",
+            "source": [
+                0.48,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.488",
+            "root": "n16Tslow_X",
+            "source": [
+                0.488,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.496",
+            "root": "n16Tslow_X",
+            "source": [
+                0.496,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.504",
+            "root": "n16Tslow_X",
+            "source": [
+                0.504,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.512",
+            "root": "n16Tslow_X",
+            "source": [
+                0.512,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.520",
+            "root": "n16Tslow_X",
+            "source": [
+                0.52,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.418Y0.458",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.418,
+                0.458
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.423Y0.463",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.423,
+                0.463
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.429Y0.469",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.429,
+                0.469
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.435Y0.475",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.435,
+                0.475
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.440Y0.480",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.44,
+                0.48
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.446Y0.486",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.446,
+                0.486
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.452Y0.492",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.452,
+                0.492
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.457Y0.497",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.457,
+                0.497
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.463Y0.503",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.463,
+                0.503
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.468Y0.508",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.468,
+                0.508
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.474Y0.514",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.474,
+                0.514
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.480Y0.520",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.48,
+                0.52
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.485Y0.525",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.485,
+                0.525
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.491Y0.531",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.491,
+                0.531
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.497Y0.537",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.497,
+                0.537
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.502Y0.542",
+            "root": "n16Tslow_45deg",
+            "source": [
+                0.502,
+                0.542
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.528",
+            "root": "n16Tslow_X",
+            "source": [
+                0.528,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.536",
+            "root": "n16Tslow_X",
+            "source": [
+                0.536,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.544",
+            "root": "n16Tslow_X",
+            "source": [
+                0.544,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.552",
+            "root": "n16Tslow_X",
+            "source": [
+                0.552,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.560",
+            "root": "n16Tslow_X",
+            "source": [
+                0.56,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.568",
+            "root": "n16Tslow_X",
+            "source": [
+                0.568,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.576",
+            "root": "n16Tslow_X",
+            "source": [
+                0.576,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.584",
+            "root": "n16Tslow_X",
+            "source": [
+                0.584,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.592",
+            "root": "n16Tslow_X",
+            "source": [
+                0.592,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.600",
+            "root": "n16Tslow_X",
+            "source": [
+                0.6,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.608",
+            "root": "n16Tslow_X",
+            "source": [
+                0.608,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.616",
+            "root": "n16Tslow_X",
+            "source": [
+                0.616,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.624",
+            "root": "n16Tslow_X",
+            "source": [
+                0.624,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.632",
+            "root": "n16Tslow_X",
+            "source": [
+                0.632,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.640",
+            "root": "n16Tslow_X",
+            "source": [
+                0.64,
+                0.5
+            ]
+        },
+        {
+            "color": "violet",
+            "dimensions": [
+                1.2,
+                1
+            ],
+            "fields": [
+                "S1"
+            ],
+            "fs": 100.0,
+            "name": "X0.648",
+            "root": "n16Tslow_X",
+            "source": [
+                0.648,
+                0.5
+            ]
         }
     ],
     "root": "/camp/home/tootoos/working/tootoos/data/fisher-plumes/crick"
