@@ -1,0 +1,17 @@
+compute:
+  fit_b: '[True]'
+  fit_k: '[False]'
+  integral_length_scale_locs_absolute__: '[(0,0) * M, (0.45,0) * M]'
+  istart: 0
+  window_length: '[1*SEC]'
+  window_shape: '[(''kaiser'',9)]'
+init:
+  freq_max: 20 * HZ
+  n_bootstraps: 50
+  pairs_mode: signed
+  py_mode: relative
+  random_seed: 0
+  sim_name: boulder16streamwise
+  prefix: Re100_0_5mm_50Hz
+  suffix: streamwiseSourceSep
+  which_coords: '[(0.45,0.5) * M]'
