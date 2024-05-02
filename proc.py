@@ -412,7 +412,10 @@ if __name__ == "__main__":
         item_hash = hash_init_compute(spec["init"], compute_item)
         matches = [i for i, r in enumerate(registry) if hash_init_compute(r["init"], r["compute"]) == item_hash]
         if len(matches) and not args.overwrite:
-            print(f"{len(matches)} found in registry. Skipping.")
+            print(f"{len(matches)} found in registry.")
+            for i in matches:
+                print(f"\tRegistry item {i}: {registry[i]}")
+            print("Skipping.")
             continue
     
         # Copy the registry without the matches.

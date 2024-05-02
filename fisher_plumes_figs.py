@@ -52,11 +52,13 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         ax_trace.append(plt.subplot(len(which_idists),1,i+1) if axes is None else axes[i])
         p = F.pairs_um[dists[di]]        
         if centered:
-            balance = [np.exp(np.abs(np.log(np.abs(y1/y2)))) for (y1,y2) in p]
+            balance = [np.exp(np.abs(np.log(np.abs(y1/(y2+1e-6))))) for (y1,y2) in p]
             ipair   = np.argmin(balance) # Find the pair where y1~y2
         else:
             ipair = 0
+        print(f"Using pair {ipair} for idist {di}, dist {dists[di]}")
         ia, ib = p[ipair]
+        print(f"ia = {ia}, ib = {ib}")
         a = F.sims[ia].data[:, which_probe].flatten()
         b = F.sims[ib].data[:, which_probe].flatten()
         t = F.sim0.t
@@ -133,6 +135,7 @@ def plot_plumes_demo(F, t_snapshot,
             
         print(list(fields_orig.keys()))
         fields, limsx, limsy = clip_snapshots(fields_orig)
+        print("fields.keys()", list(fields.keys()))
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
     plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
@@ -1161,9 +1164,10 @@ def plot_window_series(proc_data, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spe
 
 
 def plot_length_constants_vs_frequency(data, which_ds, which_probe,
-                                       names  = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"}),
-                                       labels = defaultdict(lambda: "Surr", {"s=p":"Surr", "bw":"Sims", "16Ts":"Supp"}),
-                                       cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                       
+                                       names  = defaultdict(lambda: "Surrogate data",
+                                                            {"s=p":"Surrogate data", "bw_X":"Sims (streamwise)", "bw":"Simulations", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
+                                       labels = defaultdict(lambda: "Surr", {"s=p":"Surr", "bw_X":"Sims (strm)", "bw":"Sims", "16Ts":"Supp", "16Ts_X":"Supp(X)", "16Ts_45":"Supp(45)"}),
+                                       cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),
                                        gamma_plot_width = 2,
                                        figsize = None):
                                        
@@ -1225,11 +1229,12 @@ def plot_information_regression(data, which_ds, iprb,
                                 mean_normalize  = True,
                                 same_plot       = True,
                                 coef_plot_width = 2,
-                                names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "16Ts":"Supplementary"}),
-                                cols     = defaultdict(lambda: cm.gray(0.6), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), }),                                
+                                names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "bw":"Sims (streamwise)", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
+                                cols     = defaultdict(lambda: cm.gray(0.6), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),                                
                                 figsize  = None,
                                 plot_ils = False,
                                 do_label = True,
+                                yl = (-0.05, 0.05),
 ):
     n_rows = min(2, len(which_ds))
     gs = GridSpec(n_rows, len(which_log10_dists[which_ds[0]])+coef_plot_width)
@@ -1311,7 +1316,7 @@ def plot_information_regression(data, which_ds, iprb,
             print(f"{ils_probe=}")            
 
         #ax_coef.set_xlim(ax_coef.get_xlim()[0], np.max(dd))
-        ax_coef.set_ylim(-0.05,0.05)
+        ax_coef.set_ylim(*yl)
         ax_coef.set_yticklabels([f"{yti:g}" for yti in ax_coef.get_yticks()], fontsize=10)
         ax_coef.set_ylabel("$\\beta = \Delta \log_{10}($FI$)/\Delta f$",labelpad=-10, fontsize=12)
         ax_coef.set_xlabel(f"Intersource distance ({pitch_sym})",labelpad=0, fontsize=12)

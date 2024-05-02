@@ -58,7 +58,16 @@ def parse_registry(registry):
         # allow for multiple sources 
         item["source"] = np.array(data["Odor Data"]["odorSourceLocations"]).flatten().reshape(-1,2)
         item["odor_release_speed"] = np.array(data["Odor Data"]["odorReleaseSpeed"][0])
-        item["data_fields"] = ["Odor Data/" + fld for fld in data["Odor Data"] if (fld.startswith("c") and fld[1] in "0123456789")]
+
+        # item["data_fields"] = ["Odor Data/" + fld for fld in data["Odor Data"] if (fld.startswith("c") and fld[1] in "0123456789")]
+
+        flds = [fld for fld in data["Odor Data"] if (fld.startswith("c") and fld[1] in "0123456789")]
+        # This can come in as "c10a", "c11a" before "c1a". So we need to sort them.
+        # Create a regexp for [a-z]+[0-9]+[a-z]+
+        pat     = re.compile(r"([a-z]+)(\d+)([a-z]+)")
+        convert = lambda a,n,b: (a, int(n), b)
+        sorted_flds = sorted([convert(*pat.match(f).groups()) for f in flds])
+        item["data_fields"] = [f"Odor Data/{f[0]}{f[1]}{f[2]}" for f in sorted_flds]                
         parsed.append(item)
 
     return parsed

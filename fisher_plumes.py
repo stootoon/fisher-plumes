@@ -72,14 +72,14 @@ class FisherPlumes:
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.cm)}")                                    
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.mm)}")
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.um)}")
-            if sim_name == "boulder16":
+            if sim_name in ["boulder16", "boulder16streamwise"]:
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um, self.source_line = boulder.load_sims(which_coords,
+                self.sims, self.pairs_um, self.source_line = boulder.load_sims(which_coords, 
                                                                                pairs_mode = pairs_mode,
                                                                                units = UNITS.m,
                                                                                pitch_units = UNITS(self.pitch_string),
                                                                                **kwargs)
-            elif sim_name in ["n12dishT", "n12T", "n12Tslow", "n16T", "n16Tslow"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
+            elif sim_name in ["n12dishT", "n12T", "n12Tslow", "n16T", "n16Tslow", "n16Tslow_X", "n16Tslow_45deg"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
                 self.sims, self.pairs_um, self.source_line = crick.load_sims(sim_name,
                                                                              pairs_mode = pairs_mode,
                                                                              units = UNITS.m,
