@@ -10,8 +10,12 @@
             "color": "crimson",
             "name": "Re100_0_5mm_50Hz_streamwiseSourceSep.h5", 
             "root": "streamwise"
+        },
+	{
+            "color": "crimson",
+            "name": "Re100_0_5mm_50Hz_pi4SourceSep.h5", 
+            "root": "45deg"
         }	
-
     ],
     "root": "/camp/home/tootoos/working/tootoos/data/fisher-plumes/boulder" 
 }

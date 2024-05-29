@@ -7,6 +7,7 @@ n16Tslow_X_pitch     = 76000 * um
 n16Tslow_45deg_pitch = 76000 * um
 boulder16_pitch      = 25000 * um
 boulder16streamwise_pitch = 25000 * um
+boulder16_45deg_pitch = 25000 * um
 surr_all_equal_pitch = 0.025 * m
 surr_high_pitch      = 0.025 * m
 surr_quad_pitch      = 0.025 * m

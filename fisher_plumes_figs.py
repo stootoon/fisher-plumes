@@ -1165,9 +1165,9 @@ def plot_window_series(proc_data, figsize=(8,5), n_rows = 2, heatmap_cm = cm.Spe
 
 def plot_length_constants_vs_frequency(data, which_ds, which_probe,
                                        names  = defaultdict(lambda: "Surrogate data",
-                                                            {"s=p":"Surrogate data", "bw_X":"Sims (streamwise)", "bw":"Simulations", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
-                                       labels = defaultdict(lambda: "Surr", {"s=p":"Surr", "bw_X":"Sims (strm)", "bw":"Sims", "16Ts":"Supp", "16Ts_X":"Supp(X)", "16Ts_45":"Supp(45)"}),
-                                       cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),
+                                                            {"s=p":"Surrogate data", "bw_45":"Sims (45 deg)", "bw_X":"Sims (streamwise)", "bw":"Simulations", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
+                                       labels = defaultdict(lambda: "Surr", {"s=p":"Surr", "bw_45":"Sims (45o)", "bw_X":"Sims (strm)", "bw":"Sims", "16Ts":"Supp", "16Ts_X":"Supp(X)", "16Ts_45":"Supp(45)"}),
+                                       cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),
                                        gamma_plot_width = 2,
                                        figsize = None):
                                        
@@ -1229,8 +1229,8 @@ def plot_information_regression(data, which_ds, iprb,
                                 mean_normalize  = True,
                                 same_plot       = True,
                                 coef_plot_width = 2,
-                                names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "bw":"Sims (streamwise)", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
-                                cols     = defaultdict(lambda: cm.gray(0.6), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),                                
+                                names    = defaultdict(lambda: "Surrogate data", {"s=p":"Surrogate data", "bw":"Simulations", "bw_X":"Sims (streamwise)", "bw_45":"Sims (45 deg)", "16Ts":"Supplementary", "16Ts_X":"Supplementary (X)", "16Ts_45":"Supplementary (45 deg)"}),
+                                cols     = defaultdict(lambda: cm.gray(0.6), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),                                
                                 figsize  = None,
                                 plot_ils = False,
                                 do_label = True,
