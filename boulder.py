@@ -282,6 +282,7 @@ class BoulderSimulationData:
     def load_saved_snapshot(self, t, data_dir = "."):
         fld = self.fields[0].split("/")[-1]
         file_name = f"{fld}_t{t:g}.p"
+        print("HEllo JELLO!", data_dir, file_name)
         full_file = os.path.join(data_dir, file_name)
         INFO(f"Loading {fld=} at {t=:g} from {full_file=}.")
         return np.load(os.path.join(data_dir, file_name), allow_pickle=True).T

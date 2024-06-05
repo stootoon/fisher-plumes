@@ -76,11 +76,28 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
         registry = pickle.load(open("proc/registry.p", "rb"))
         
     matches = []
+    # Check to see if the init filter has coordinates in it.
+    x_m, y_m = None, None
+    if "which_coords" in init_filter:
+        x_m = init_filter["which_coords"][0].to("m").magnitude
+        y_m = init_filter["which_coords"][1].to("m").magnitude
+        INFO(f"Checking for {x_m=}, {y_m=}.")
+    else:
+        INFO("No coords in init_filter.")
+        
     for item in registry:
         init_match = True
         compute_match = True
+        item_x_m = item["init"]["which_coords"][0][0].to("m").magnitude
+        item_y_m = item["init"]["which_coords"][0][1].to("m").magnitude
         for k,v in init_filter.items():
-            if k not in item["init"] or item["init"][k] != v:
+            if k not in item["init"]:
+                init_match = False
+            elif k == "which_coords":
+                if not np.isclose(item_x_m, x_m, atol=1e-6) or not np.isclose(item_y_m, y_m, atol=1e-6):
+                    init_match = False
+                    break
+            elif item["init"][k] != v:
                 init_match = False
                 break
         for k,v in compute_filter.items():
