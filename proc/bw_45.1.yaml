@@ -3,14 +3,15 @@ compute:
   fit_k: '[False]'
   integral_length_scale_locs_absolute__: '[(0,0) * M, "PROBE_0"]'
   istart: 0
-  window_length: '[1*SEC,2*SEC]'
-  window_shape: '[(''kaiser'',9), (''kaiser'', 16)]'
+  window_length: '[1*SEC]'
+  window_shape: '[(''kaiser'',9)]'
 init:
   freq_max: 20 * HZ
   n_bootstraps: 50
   pairs_mode: signed
   py_mode: relative
   random_seed: 0
-  sim_name: boulder16
-  suffix: manuscript
-  which_coords: '[(0.45,0.3) * M]'
+  sim_name: boulder16_45deg
+  prefix: Re100_0_5mm_50Hz
+  suffix: pi4SourceSep
+  which_coords: '[(0.45,0.5) * M]'

@@ -1,7 +1,7 @@
 compute:
   fit_b: '[True]'
   fit_k: '[False]'
-  integral_length_scale_locs_absolute__: '[(0,0) * M, (0.45,0) * M]'
+  integral_length_scale_locs_absolute__: '[(0,0) * M, "PROBE_0"]'
   istart: 0
   window_length: '[1*SEC,2*SEC]'
   window_shape: '[(''kaiser'',9), (''kaiser'', 16)]'
@@ -13,4 +13,4 @@ init:
   random_seed: 0
   sim_name: boulder16
   suffix: manuscript
-  which_coords: '[(0.45,0.5) * M]'
+  which_coords: '[(0.35,0.5) * M]'
