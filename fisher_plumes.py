@@ -507,11 +507,23 @@ class FisherPlumes:
     def compute_all_for_window(self, window_length, window_shape=('boxcar'), istart=0, dmax_um=np.inf, fit_vars = False, fit_k = True, fit_b = True, z_score = True, **kwargs):
         INFO(f"STARTING COMPUTATION.")
         if "integral_length_scale_locs_absolute" in kwargs:
+            probe_coords = self.sim0.get_used_probe_coords()            
+            n_probes = len(probe_coords)
             locs = kwargs["integral_length_scale_locs_absolute"]
             print(f"{locs=}")
             if hasattr(self, "sim0"):
                 if hasattr(self.sim0, "compute_integral_length_scale"):
                     for loc in locs:
+                        if type(loc) is str:
+                            # Make sure loc is of the form "probe_[num]"
+                            assert loc.lower()[:5] == "probe", f"Invalid location {loc}. It should be of the form 'probe_[num]'."
+                            probe_num = int(loc[6:])                            
+                            assert probe_num < n_probes, f"Invalid probe number {probe_num}. There are only {n_probes} probes."
+                            loc = probe_coords[probe_num]
+                            INFO(f"Computing integral length scales at probe {probe_num} located at {loc}.")
+                        else:
+                            INFO(f"Computing integral length scales at absolute location {loc}.")
+
                         self.sim0.compute_integral_length_scale("x", loc[0], loc[1])
                         self.sim0.compute_integral_length_scale("y", loc[0], loc[1])
                         
