@@ -66,6 +66,9 @@ def get_registry(registry_loc, build=False, write=False):
     else:
         if os.path.exists(os.path.join(registry_loc, "registry.p")):
             registry = pickle.load(open(os.path.join(registry_loc, "registry.p"), "rb"))
+        else:
+            WARN(f"No registry found in {registry_loc}.")
+            registry = None
     return registry
 
 # This function will take a registry and key-value pairs to look for in the init and compute fields.
