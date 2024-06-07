@@ -35,7 +35,7 @@ logger = create_logger(__name__)
 INFO = logger.info
 DEBUG = logger.debug
 WARN = logger.warning
-
+ERROR = logger.error
 # This function will read all the subdirectories of the given directory.
 # For each subdirectory, it will read all the pickle files in that directory.
 # It will then add the init and compute fields from each pickle file to a list,
@@ -112,17 +112,23 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     return matches
 
 
-def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None):
+def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None, strict = False):
     """ Load data from the file in the registry that matches the given init and compute filters. """
     if registry is None: registry = get_registry(data_dir)
 
     matches = find_registry_matches(registry, init_filter = init_filter, compute_filter = compute_filter)
 
     if len(matches) == 0:
-        WARN(f"No matches found for {init_filter=} and {compute_filter=}.")
+        if strict:
+            raise ValueError(f"No matches found for {init_filter=} and {compute_filter=}.")
+        else:
+            WARN(f"No matches found for {init_filter=} and {compute_filter=}.")
         return None
     elif len(matches) > 1:
-        WARN(f"{len(matches)} > 1 matches found for {init_filter=} an {compute_filter=}.")
+        if strict:
+            raise ValueError(f"{len(matches)} > 1 matches found for {init_filter=} and {compute_filter=}.")
+        else:
+            WARN(f"{len(matches)} > 1 matches found for {init_filter=} an {compute_filter=}.")
 
     results = []
     for match in matches:
