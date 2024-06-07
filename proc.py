@@ -462,8 +462,21 @@ if __name__ == "__main__":
             print(f"Results written to {output_file}.")
     
         registry.append({"init":spec["init"], "compute":compute_item, "hash":item_hash, "file":output_file})
+
     
-    
-    # Write the registry to disk.
-    pickle.dump(registry, open(args.registry, "wb"))
-    print(f"Registry with {len(registry)} items written to {args.registry}.")
+    # The registry could have been changed by other users, so load the registry again.
+    curr_registry = pickle.load(open(args.registry, "rb"))
+    # Loop through registry and add any items that are not in the current registry.
+    appended = 0 
+    for r in registry:
+        if r not in curr_registry:
+            curr_registry.append(r)
+            appended += 1
+
+    if appended:
+        print(f"Appended {appended} items to registry.")
+        # Write the registry to disk.
+        pickle.dump(curr_registry, open(args.registry, "wb"))
+        print(f"Registry with {len(curr_registry)} items written to {args.registry}.")
+    else:
+        print("No new items appended to registry.")
