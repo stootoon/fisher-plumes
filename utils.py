@@ -99,3 +99,14 @@ def deepcopy_data_fields(obj, dont_copy = []):
     return data
     
 remove_non_alphanum = lambda wnd_shp: re.sub(r'[^A-Za-z0-9\.]+', '', str(wnd_shp))
+
+def load_txt_coords(fname):
+    coords = {}
+    with open(fname) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            probe, x, y = line.split()
+            coords[probe] = (float(x), float(y))
+    return coords
