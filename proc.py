@@ -466,10 +466,13 @@ if __name__ == "__main__":
     
     # The registry could have been changed by other users, so load the registry again.
     curr_registry = pickle.load(open(args.registry, "rb"))
+
     # Loop through registry and add any items that are not in the current registry.
-    appended = 0 
+    curr_reg_hashes = [hash_init_compute(r["init"], r["compute"]) for r in curr_registry]
+    appended = 0    
     for r in registry:
-        if r not in curr_registry:
+        hashi = hash_init_compute(r["init"], r["compute"])
+        if hashi not in curr_reg_hashes:
             curr_registry.append(r)
             appended += 1
 
