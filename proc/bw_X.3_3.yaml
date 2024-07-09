@@ -3,8 +3,9 @@ compute:
   fit_k: '[False]'
   integral_length_scale_locs_absolute__: '[(0,0) * M, "PROBE_0"]'
   istart: 0
-  window_length: '[1*SEC]'
-  window_shape: '[(''kaiser'',9)]'
+  window_length: '[0.5*SEC, 1*SEC, 2*SEC]'
+  window_shape: '[("boxcar"),("hann"),("kaiser",9),("kaiser",16)]'
+  dmax_um: '["1 * PITCH"]'
 init:
   freq_max: 20 * HZ
   n_bootstraps: 50

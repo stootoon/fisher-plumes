@@ -483,3 +483,5 @@ if __name__ == "__main__":
         print(f"Registry with {len(curr_registry)} items written to {args.registry}.")
     else:
         print("No new items appended to registry.")
+
+    print("ALLDONE")

@@ -106,6 +106,44 @@ def get_snapshot(fld, time, which_dim = 0, which_channel = 0, normalizer = 255.,
     img = iio.imread(file_name)
     return np.array(img[:,:,which_channel])/normalizer    
 
+
+def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = None, figsize=(8,3), mean_subtract_y_coords = True, which_probe=0):
+    to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
+    if "boulder" in F.pitch_string:
+        fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
+    else:
+        if hasattr(F, "sims"):
+            fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+        else:
+            print("No 'sims' attribute found. Trying to load snapshots from disk.")
+            data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
+            snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
+            fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
+            
+        print(list(fields_orig.keys()))
+        fields, limsx, limsy = clip_snapshots(fields_orig)
+        print("fields.keys()", list(fields.keys()))
+        INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
+
+    if ax_plume is None:
+        plt.figure(figsize=figsize)
+        ax_plume = plt.subplot(111)
+    pp = concs2rgb(fields[which_srcs[0]], fields[which_srcs[1]]) if fields else None
+    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
+    if pp is not None:
+        ax_plume.matshow(pp, extent =
+                         [to_pitch(x) for x in F.sim0.x_lim] +
+                         [to_pitch(y - dy) for y in F.sim0.y_lim])
+        px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
+        py -= to_pitch(dy)
+        ax_plume.plot(px, py, "kx", markersize=5)
+        ax_plume.xaxis.set_ticks_position('bottom')
+#        ax_plume.axis("equal")
+    plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
+    plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
+
+    return ax_plume
+
 def plot_plumes_demo(F, t_snapshot, 
                      which_keys,
                      which_probe = 0,
@@ -141,7 +179,7 @@ def plot_plumes_demo(F, t_snapshot,
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
     pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
-    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
+    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 * mean_subtract_y_coords
     if pp is not None:
         ax_plume.matshow(pp, extent =
                          [to_pitch(x) for x in F.sim0.x_lim] +
@@ -1169,12 +1207,13 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
                                        labels = defaultdict(lambda: "Surr", {"s=p":"Surr", "bw.1_3": "Sims (1_3)", "bw_45":"Sims (45o)", "bw_X":"Sims (strm)", "bw":"Sims", "16Ts":"Supp", "16Ts_X":"Supp(X)", "16Ts_45":"Supp(45)"}),
                                        cols   = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw.1_3":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)}),
                                        gamma_plot_width = 2,
+                                       which_corr_freqs_Hz = [2,5,10,20],
                                        figsize = None):
                                        
     gs = GridSpec(len(which_ds), 1+gamma_plot_width+1)
     plt.figure(figsize=(8,2 * len(which_ds) if figsize is None else figsize))
     ax = []
-    which_corr_freqs = [2,5,10,20] * UNITS.Hz
+    which_corr_freqs = which_corr_freqs_Hz * UNITS.Hz
     labs = [f"{f}" for f in which_corr_freqs]
     cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/20) for f in which_corr_freqs])})
     coef_γ_vs_freq = {}
@@ -1222,7 +1261,18 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
     plt.tight_layout(w_pad=0)
     return ax, ax_γ
     
-
+def plot_elbow(F, ax = None, iprb=0, col = [0,0,1], markerstyle = "o-", error_bars = True,lw=2):
+    d_scale = F.pitch.to(UNITS.um).magnitude        
+    dd      = F.I_dists/d_scale
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+    pc = np.percentile(F.reg_coefs[iprb][1:][:,:,-1],[5,50,95],axis=0)
+    ax.semilogx(dd, pc[1], markerstyle, color=col,
+                linewidth=lw,
+                markersize=4,
+                label = "bw", zorder=10)
+    error_bars and ax.fill_between(dd, pc[0], pc[2],color=fpft.set_alpha(col,0.1));
                                        
 def plot_information_regression(data, which_ds, iprb,
                                 which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [1e-1, 4e-1, 7e-1]]}),

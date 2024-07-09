@@ -375,10 +375,20 @@ class FisherPlumes:
         """
         Computes a generalized exponential fit to the decay of correlations with distance.
         """
-        INFO(f"Computing generalized exponential fit to distance.")
+        INFO(f"Computing generalized exponential fit to distance for dmax_um={dmax_um}.")
+
+        if type(dmax_um) is str:
+            INFO(f"dmax_um is a string. Assuming it specifies a multiplier of the pitch.")
+            pitch_um = self.pitch.to(UNITS.um).magnitude
+            dmax_um = dmax_um.replace("PITCH", str(pitch_um))
+            INFO(f"Converted dmax_um to {dmax_um}.")
+            dmax_um = eval(dmax_um)
+            INFO(f"Evaluated dmax_um to {dmax_um}.")
+        
         dists = np.array(sorted(list(self.la[0].keys())))
         dd    = np.array([d for d in dists if 0 <= d <= dmax_um])
-    
+
+        
         INFO(f"Using {len(dd)} distances >= 0 and <= {dmax_um} um ")
         la_sub = [np.stack([la[d][:,:,0] for d in dd],axis=-1) for la in self.la]
         n_bs, n_freqs, n_dists = la_sub[0].shape
