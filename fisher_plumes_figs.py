@@ -179,13 +179,13 @@ def plot_plumes_demo(F, t_snapshot,
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])
     pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
-    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 * mean_subtract_y_coords
+    dy = to_pitch((F.sim0.y_lim[1] + F.sim0.y_lim[0])/2) * mean_subtract_y_coords
     if pp is not None:
         ax_plume.matshow(pp, extent =
                          [to_pitch(x) for x in F.sim0.x_lim] +
-                         [to_pitch(y - dy) for y in F.sim0.y_lim])
+                         [to_pitch(y) - dy for y in F.sim0.y_lim])
         px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-        py -= to_pitch(dy)
+        py -= dy
         ax_plume.plot(px, py, "kx", markersize=5)
         ax_plume.xaxis.set_ticks_position('bottom')
 #        ax_plume.axis("equal")
