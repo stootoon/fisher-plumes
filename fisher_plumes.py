@@ -37,8 +37,23 @@ class FisherPlumes:
             INFO(f"Copied {len(copied)} data fields from FisherPlumes object.")
         elif type(sim_name) is dict:
             INFO(f"Initializing from dictionary.")
-            copied = self.init_from_dict(sim_name, dont_copy = ["sim0", "sims"] if load_sims is False else [])
-            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")                
+            # Copying all the sims can take up lots of space.
+            # If load_sims is false, then we don't load any.
+            # If load_sims is a list of keys, then we will manually copy just those sims, +sim0, below,
+            # so init_from_dict will not copy them.
+            copied = self.init_from_dict(sim_name, dont_copy = ["sim0", "sims"] if ((load_sims is False) or type(load_sims) is list) else [])
+            INFO(f"Copied {len(copied)} data fields from supplied dictionary.")
+            if type(load_sims) is list:
+                INFO(f"Loading sims {load_sims}, and, sim0 from dictionary.")
+                self.sims = {}
+                for which_sim in load_sims:
+                    if which_sim not in sim_name["sims"]:
+                        raise KeyError(f"Could not find {which_sim} in the 'sims' of the provided dictionary.")
+                    INFO(f"-- Loading {which_sim} from the 'sims' field of the dictionary.")
+                    self.sims[which_sim] = deepcopy(sim_name["sims"][which_sim])
+                if "sim0" in sim_name:
+                    INFO(f"-- Loading sim0 from dictionary.")
+                    self.sim0 = deepcopy(sim_name["sim0"])                                    
             if hasattr(self, "sim0"):
                 if self.sim0["class_name"] == "CrickSimulationData":
                     constructor = crick.CrickSimulationData
