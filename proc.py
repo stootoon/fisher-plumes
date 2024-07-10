@@ -112,7 +112,7 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     return matches
 
 
-def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None, strict = False):
+def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None, strict = False, load_sims = True, load_only = []):
     """ Load data from the file in the registry that matches the given init and compute filters. """
     if registry is None: registry = get_registry(data_dir)
 
@@ -150,6 +150,19 @@ def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None,
                 else:
                     INFO(f"{fit_file} does not exist.")
                     sys.stdout.flush()
+
+        if load_sims is False:
+            del resi["sim0"]
+            del resi["sims"]
+        elif type(load_sims) is list:
+            INFO(f"Returning only specified sims {load_sims} and sim0.")
+            sim0 = resi["sim0"]
+            sims = resi["sims"]
+            resi["sims"] = {k:sims[k] for k in load_sims}
+
+        if len(load_only) > 0:
+            INFO(f"Returning only specified keys {load_only}.")
+            resi = {k:resi[k] for k in load_only}
                 
         results.append(resi)
 

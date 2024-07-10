@@ -1,4 +1,4 @@
-import os, re
+import os, re, sys, gc
 from functools import reduce
 import logging
 from copy import deepcopy
@@ -16,10 +16,42 @@ def create_logger(name):
     logger.addHandler(ch)
     return logger
 
+def get_deep_size(obj, seen=None):
+    size = sys.getsizeof(obj)
+    if seen is None:
+        seen = set()
+    obj_id = id(obj)
+    if obj_id in seen:
+        return 0
+    seen.add(obj_id)
+    if isinstance(obj, dict):
+        size += sum([get_deep_size(v, seen) for v in obj.values()])
+        size += sum([get_deep_size(k, seen) for k in obj.keys()])
+    elif hasattr(obj, '__dict__'):
+        size += get_deep_size(vars(obj), seen)
+    elif hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+        size += sum([get_deep_size(i, seen) for i in obj])
+    return size
+
+def print_object_sizes(F, fields=True):
+    szs = {}
+    for f in dir(F):
+        if not f.startswith("__"):
+            szs[f] = get_deep_size(getattr(F, f))
+    
+    # Print the keys, sorted by size
+    print(f"{'Object':>24s} {get_deep_size(F)}")
+    if not fields:
+        return
+    for k in sorted(szs, key=szs.get, reverse=True):
+        fld = "." + k
+        print(f"{fld[:24]:>24s} {szs[k]}")
+    
+
 def progn(*args):
     for a in args:
         a()
-
+        
 chain = lambda af: lambda x: reduce(lambda a, f: f(a), af[1:],af[0](x))         
 
 fapply = lambda farr, a: [f(a) for f in farr] # applies each function in farr to a
