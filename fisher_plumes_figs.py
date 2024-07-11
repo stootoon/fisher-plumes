@@ -106,11 +106,21 @@ def get_snapshot(fld, time, which_dim = 0, which_channel = 0, normalizer = 255.,
     img = iio.imread(file_name)
     return np.array(img[:,:,which_channel])/normalizer    
 
+def convert_sources(all_sources, which_srcs):
+    if all([ws in all_sources for ws in which_srcs]):
+        INFO(f"Found all sources {which_srcs} in the list of sources, so assuming direct selection of sources.")
+    else:
+        if all([(type(ws) is int) and ((ws >= 0) and (ws < len(all_sources))) or ((ws < 0) and (-ws<=len(all_sources))) for ws in which_srcs]):
+            INFO(f"All sources {which_srcs} were valid indices into the list of sources, so assuming indexing of sources.")
+            which_srcs = [all_sources[ws] for ws in which_srcs]
+        else:
+            raise ValueError(f"Provided sources {which_srcs} are not valid sources or indices into the list of sources.")
+    return which_srcs
 
 def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = None, figsize=(8,3), mean_subtract_y_coords = True, which_probe=0):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
     if "boulder" in F.pitch_string:
-        fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
+        fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
     else:
         if hasattr(F, "sims"):
             fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
@@ -125,17 +135,23 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
         print("fields.keys()", list(fields.keys()))
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
 
+    # which_srcs could either by an actual source location,
+    # or the index within the array of source locations.
+    all_sources = sorted(list(fields.keys()))
+    which_srcs = convert_sources(all_sources, which_srcs)
+    INFO(f"Using sources {which_srcs}.")    
+        
     if ax_plume is None:
         plt.figure(figsize=figsize)
         ax_plume = plt.subplot(111)
     pp = concs2rgb(fields[which_srcs[0]], fields[which_srcs[1]]) if fields else None
-    dy = (F.sim0.y_lim[1] + F.sim0.y_lim[0])/2 if mean_subtract_y_coords else 0
+    dy = to_pitch((F.sim0.y_lim[1] + F.sim0.y_lim[0])/2) if mean_subtract_y_coords else 0
     if pp is not None:
         ax_plume.matshow(pp, extent =
                          [to_pitch(x) for x in F.sim0.x_lim] +
-                         [to_pitch(y - dy) for y in F.sim0.y_lim])
+                         [to_pitch(y) - dy for y in F.sim0.y_lim])
         px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-        py -= to_pitch(dy)
+        py -= dy
         ax_plume.plot(px, py, "kx", markersize=5)
         ax_plume.xaxis.set_ticks_position('bottom')
 #        ax_plume.axis("equal")
@@ -158,41 +174,12 @@ def plot_plumes_demo(F, t_snapshot,
                      nneg_dists = True,
                      **kwargs
 ):
-    to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
-    d_scale = F.pitch.to(UNITS.um).magnitude
-    if "boulder" in F.pitch_string:
-        fields = F.load_saved_snapshots(t = t_snapshot.to(UNITS.sec).magnitude, data_dir = data_dir)
-    else:
-        if hasattr(F, "sims"):
-            fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
-        else:
-            print("No 'sims' attribute found. Trying to load snapshots from disk.")
-            data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
-            snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
-            fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
-            
-        print(list(fields_orig.keys()))
-        fields, limsx, limsy = clip_snapshots(fields_orig)
-        print("fields.keys()", list(fields.keys()))
-        INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
     plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
-    ax_plume = plt.subplot(gs[:,0])
-    pp = concs2rgb(fields[which_keys[0]], fields[which_keys[1]]) if fields else None
-    dy = to_pitch((F.sim0.y_lim[1] + F.sim0.y_lim[0])/2) * mean_subtract_y_coords
-    if pp is not None:
-        ax_plume.matshow(pp, extent =
-                         [to_pitch(x) for x in F.sim0.x_lim] +
-                         [to_pitch(y) - dy for y in F.sim0.y_lim])
-        px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
-        py -= dy
-        ax_plume.plot(px, py, "kx", markersize=5)
-        ax_plume.xaxis.set_ticks_position('bottom')
-#        ax_plume.axis("equal")
-    plt.xlabel(f"x ({pitch_sym})", labelpad=-1)
-    plt.ylabel(f"y ({pitch_sym})", labelpad=-1)
-    #ax_plume.set_yticks(arange(-0.2,0.21,0.1) if 'wide' in name else arange(-0.1,0.11,0.1))
+    ax_plume = plt.subplot(gs[:,0])    
+    plot_plumes_snapshot(F, t_snapshot, which_keys, ax_plume = ax_plume, data_dir = data_dir, figsize=figsize, mean_subtract_y_coords = mean_subtract_y_coords, which_probe=which_probe)
 
+    d_scale = F.pitch.to(UNITS.um).magnitude    
     if t_center is None: t_center = t_snapshot
     ax_trace = plot_two_plumes(F, which_idists, t_lim  = t_wnd + t_center,
                                dt = dt, y_lim = y_lim,

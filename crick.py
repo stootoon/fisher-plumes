@@ -169,13 +169,16 @@ class CrickSimulationData:
         if snapshot_finder_fun: self.snapshot_finder_fun = snapshot_finder_fun
         else: self.snapshot_finder_fun = lambda fld, dim, time: os.path.join(root_folder, f"{fld}_d{dim}_{int(time.to(UNITS.ms).magnitude):06}.png")
 
-    def get_snapshot(self, fld, time, which_dim = 0, which_channel = 0, normalizer = 255.):
+    def get_snapshot(self, fld, time, which_dim = 0, which_channel = 0, normalizer = 255., **kwargs):
         if not hasattr(self, "snapshot_finder_fun"): raise AttributeError("Missing 'snapshot_finder_fun'. Run init_snapshots first.")
         file_name = self.snapshot_finder_fun(fld, which_dim, time)
         if not os.path.exists(file_name): raise FileExistsError(f"Could not find {file_name=}.")
         img = iio.imread(file_name)
         return np.array(img[:,:,which_channel])/normalizer    
-            
+
+    def load_saved_snapshot(self, time, fld = "S1", **kwargs): # For compatibility with boulder.py
+        return self.get_snapshot(fld, time, **kwargs)
+
     def nearest_probe(self, x, y, relative_to_source = False):
         xx = x + self.source[0] * float(relative_to_source)
         yy = y + self.source[1] * float(relative_to_source)
