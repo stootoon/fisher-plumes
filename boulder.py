@@ -409,19 +409,23 @@ def load_sims(which_coords, py_mode = "absolute", pairs_mode = "all",
     yvals = np.array([y.to(UNITS.um).magnitude for _, y in bb.source])
     svals, source_line = fpt.compute_source_line(xvals, yvals, "mean", )
 
+    sims = {}
     for i, (k, v) in enumerate(bb.data.items()):
-        # Have to strip the units because quantities with units don't work well as dictionary keys
-        k1 = int(svals[i]) # Get the y-value of the source in um        
-        sims[k1] = deepcopy(bb)
-        sims[k1].data = v.copy()
-        sims[k1].fields = [bb.fields[i]]
-        sims[k1].source = bb.source[i]
-    yvals = list(sims.keys())
-    INFO(f"Yvals: {yvals}")
+        sims[i] = deepcopy(bb)
+        sims[i].data = v.copy()
+        sims[i].fields = [bb.fields[i]]
+        sims[i].source = bb.source[i]
+
+    source_order = np.argsort(svals)
+    # Sort the sims by the source line
+    sims = {isrt:sims[i] for isrt,i in enumerate(source_order)}
+
+    source_locs_on_line = svals[source_order]
     INFO(f"Sourceline: {source_line}")
+    INFO(f"Source locs on line: {source_locs_on_line}")
     INFO(f"Computing distance pairings.")
-    pairs_um = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
+    pairs_um = fpt.compute_pairs(source_locs_on_line, pairs_mode, pair_resolution_um)
     pair_vals = sorted(pairs_um)
     INFO(f"{len(pair_vals)} distance pairings found, from {min(pair_vals)} to {max(pair_vals)}")    
-    return sims, pairs_um, source_line
+    return sims, pairs_um, source_line, source_locs_on_line
 

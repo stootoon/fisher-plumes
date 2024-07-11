@@ -89,18 +89,18 @@ class FisherPlumes:
             INFO(f"1 {self.pitch_string} = {(1 * UNITS(f'{self.pitch_string}')).to(UNITS.um)}")
             if sim_name in ["boulder16", "boulder16streamwise", "boulder16_45deg"]:
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
-                self.sims, self.pairs_um, self.source_line = boulder.load_sims(which_coords, 
-                                                                               pairs_mode = pairs_mode,
-                                                                               units = UNITS.m,
-                                                                               pitch_units = UNITS(self.pitch_string),
-                                                                               **kwargs)
+                self.sims, self.pairs_um, self.source_line, self.svals_um = boulder.load_sims(which_coords, 
+                                                                                                         pairs_mode = pairs_mode,
+                                                                                                         units = UNITS.m,
+                                                                                                         pitch_units = UNITS(self.pitch_string),
+                                                                                                         **kwargs)
             elif sim_name in ["n12dishT", "n12T", "n12Tslow", "n16T", "n16Tslow", "n16Tslow_X", "n16Tslow_45deg"]+ [f"crimgrid_w{i}" for i in range(1,5)]:
-                self.sims, self.pairs_um, self.source_line = crick.load_sims(sim_name,
-                                                                             pairs_mode = pairs_mode,
-                                                                             units = UNITS.m,
-                                                                             pitch_units = UNITS(self.pitch_string),
-                                                                             max_time = max_time,
-                                                                             **kwargs)
+                self.sims, self.pairs_um, self.source_line, self.svals_um = crick.load_sims(sim_name,
+                                                                                                       pairs_mode = pairs_mode,
+                                                                                                       units = UNITS.m,
+                                                                                                       pitch_units = UNITS(self.pitch_string),
+                                                                                                       max_time = max_time,
+                                                                                                       **kwargs)
             elif sim_name.startswith("surr_"):
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            
                 surr_type = sim_name[5:]
@@ -117,11 +117,10 @@ class FisherPlumes:
                 raise ValueError(f"Don't know how to load {sim_name=}.")
             self.n_bootstraps = n_bootstraps
             self.random_seed  = random_seed
-            self.yvals_um     = np.array(sorted(list(self.sims.keys())))
             self.pairs_mode   = pairs_mode            
             self.wnd = None
             self.freq_max = freq_max
-            self.sim0 = self.sims[self.yvals_um[0]]
+            self.sim0 = self.sims[0]
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
         else:
@@ -169,7 +168,7 @@ class FisherPlumes:
     def compute_stft(self):
         INFO("Computing spectrum.")
         self.stft = {}
-        fs = self.fs.to(UNITS.hertz).magnitude        
+        fs = self.fs.to(UNITS.hertz).magnitude
         for k, s in self.sims.items():
             self.stft[k] = [stft(s.data[:,iprb], fs = fs, window='boxcar', nperseg=int(fs), noverlap=fs//2, boundary=None, padded=False) for iprb in range(s.data.shape[1])]
 
@@ -177,15 +176,15 @@ class FisherPlumes:
         INFO(f"Computing trig coefficients for {self.name} with {istart=} and {window=} and {z_score=} and {kwargs=} ")
         if self.wnd is None: raise ValueError("Window size is unset. Use set_window to set it.")
 
-        wnd    = self.wnd
-        n_probes = utils.d1(self.sims).data.shape[1]
+        wnd      = self.wnd
+        n_probes = self.sims[0].data.shape[1]
         INFO(f"Computing coefficients for {n_probes} probes.")        
         self.ss, self.cc, self.tt = [{} for _ in range(n_probes)],[{} for _ in range(n_probes)],[{} for _ in range(n_probes)]
         
-        for src in self.sims:
-            for i in range(n_probes):
-                ss, cc, tt = fpt.compute_sin_cos_stft(self.sims[src].data[:,i], istart, wnd, wnd//2, window=window, z_score = z_score, **kwargs);
-                self.ss[i][src], self.cc[i][src], self.tt[i][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
+        for src, sim in self.sims.items():
+            for iprb in range(n_probes):
+                ss, cc, tt = fpt.compute_sin_cos_stft(sim.data[:,iprb], istart, wnd, wnd//2, window=window, z_score = z_score, **kwargs);
+                self.ss[iprb][src], self.cc[iprb][src], self.tt[iprb][src] = [self.bootstrap(fld, dim=0) for fld in [ss,cc,tt]] # The same random seed is used every time so the ss, cc and tt line up after bootstrapping
 
     def compute_vars_for_freqs(self):
         """

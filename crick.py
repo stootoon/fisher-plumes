@@ -316,14 +316,15 @@ def load_sims(sim_root = "n12dishT", which_coords=[(1,  0.5)], max_time = np.inf
     yvals = np.array([sim.source[1].to(UNITS.um).magnitude for sim in loaded_sims])
     svals, source_line = fpt.compute_source_line(xvals, yvals, "min", offset = 0)
 
-    sims = {int(s):sim for s, sim in zip(svals, loaded_sims)}
-    yvals = sorted(list(sims.keys()))
-
-    INFO(f"Yvals: {yvals}")
+    source_order = np.argsort(svals)
+    sims = {isrt:loaded_sims[i] for isrt, i in enumerate(source_order)}
+    source_locs_on_line = svals[source_order]
+    
     INFO(f"Sourceline: {source_line}")
+    INFO(f"Source locs on line: {source_locs_on_line}")
     INFO(f"Computing distance pairings.")
-    pairs = fpt.compute_pairs(yvals, pairs_mode, pair_resolution_um)
+    pairs = fpt.compute_pairs(source_locs_on_line, pairs_mode, pair_resolution_um)
     pair_vals = sorted(pairs)
     INFO(f"{len(pair_vals)} distance pairings found, from {min(pair_vals)} to {max(pair_vals)}")
-    return sims, pairs, source_line
+    return sims, pairs, source_line, source_locs_on_line
     

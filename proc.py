@@ -467,9 +467,7 @@ if __name__ == "__main__":
             if hasattr(fp, "sim0"):
                 results["sim0"] = deepcopy_data_fields(fp.sim0)
             if hasattr(fp, "sims"):
-                results["sims"] = {}
-                for k,v in fp.sims.items():
-                    results["sims"][k] = deepcopy_data_fields(v)                    
+                results["sims"] = {k:deepcopy_data_fields(v) for k,v in fp.sims.items()}
                 
             pickle.dump({"init":spec["init"], "compute":compute_item, "results":results}, open(output_file, "wb"))
             print(f"Results written to {output_file}.")
