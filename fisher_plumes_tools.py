@@ -69,36 +69,41 @@ def pool_sorted_keys(d, res=0):
     return dd
     
 def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
+    # pairs dictionary is keyed by actual distances, but values are the index of the sims that are at that distance.
+    # Assumes that sims have been sorted by distance long the source line.
+    assert list(yvals) == sorted(yvals), "yvals must be sorted."
     INFO(f"Computing pairs for {len(yvals)=} from {np.min(yvals)} to {np.max(yvals)} using {pairs_mode=}.")
     nyvals = len(yvals)
     pairs = {}
     if pairs_mode == "signed":
         for i, y1 in enumerate(yvals):
-            for y2 in yvals[i:]: # Start at i instead of i+1 so that we get the dist 0 data as well.
+            for j, y2 in enumerate(yvals[i:]): # Start at i instead of i+1 so that we get the dist 0 data as well.
+                i2 = i + j
                 if (y2-y1) not in pairs:
-                    pairs[y2-y1] = [(y2,y1)]
+                    pairs[y2-y1] = [(i2,i)]
                 else:
-                    pairs[y2-y1].append((y2,y1))
+                    pairs[y2-y1].append((i2,i))
         
                 if (y1-y2) not in pairs:
-                    pairs[y1-y2] = [(y1,y2)]
+                    pairs[y1-y2] = [(i,i2)]
                 else:
-                    pairs[y1-y2].append((y1,y2))
+                    pairs[y1-y2].append((i,i2))
     elif pairs_mode == "unsigned":
         for i, y1 in enumerate(yvals):
-            for y2 in yvals[i:]: # Start at i instead of i+1 so that we get the dist 0 data as well.
+            for i2, y2 in enumerate(yvals[i:]): # Start at i instead of i+1 so that we get the dist 0 data as well.
+                i2 = i + j
                 k = np.abs(y2-y1)
                 if k not in pairs:
-                    pairs[k] = [(y1,y2), (y2,y1)]
+                    pairs[k] = [(i,i2), (i2,i)]
                 else:
-                    pairs[k].append((y1,y2))
-                    pairs[k].append((y2,y1))                    
+                    pairs[k].append((i,i2))
+                    pairs[k].append((i2,i))                    
     elif pairs_mode == "sym":
         for i in range(nyvals//2+ 1):
             y1, y2 = i, nyvals - 1 - i
             pairs[y1-y2]= [(y1,y2)]
             pairs[y2-y1]= [(y2,y1)]
-        pairs[0] = [(y,y) for y in yvals]
+        pairs[0] = [(i,i) for i in range(yvals)]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
     INFO(f"Pooling data across pair distances that are <= {pair_resolution} apart.")
