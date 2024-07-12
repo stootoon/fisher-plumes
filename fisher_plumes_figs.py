@@ -1262,7 +1262,7 @@ def plot_elbow(F, ax = None, iprb=0, col = [0,0,1], markerstyle = "o-", error_ba
     error_bars and ax.fill_between(dd, pc[0], pc[2],color=fpft.set_alpha(col,0.1));
                                        
 def plot_information_regression(data, which_ds, iprb,
-                                which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [1e-1, 4e-1, 7e-1]]}),
+                                which_log10_dists = defaultdict(lambda: [-1,0, np.log10(2)], {"16Ts":[np.log10(i) for i in [1e-1, 1e0, 2e0]]}),
                                 mean_normalize  = True,
                                 same_plot       = True,
                                 coef_plot_width = 2,

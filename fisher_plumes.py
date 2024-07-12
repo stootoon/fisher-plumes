@@ -121,6 +121,7 @@ class FisherPlumes:
             self.wnd = None
             self.freq_max = freq_max
             self.sim0 = self.sims[0]
+            
             for fld in ["fs", "dimensions"]:
                 self.__dict__[fld] = self.sim0.__dict__[fld]
         else:
