@@ -41,7 +41,7 @@ scaled2col = lambda s, scale=1., cmap=cm.cool_r: cmap(s/scale)
 dist2col   = lambda d, d_scale = 120000, cmap = cm.cool_r: scaled2col(d, d_scale, cmap)
 freq2col   = lambda f, f_scale = 10,     cmap = cm.cool_r: scaled2col(f, f_scale, cmap)
 
-def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, y_ticks = None, axes = None, pos_dists = True, centered=True, cols=["r","b"]):
+def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.sec, y_lim = None, y_ticks = None, axes = None, pos_dists = True, centered=True, cols=["r","b"], **kwargs):
     to_sec  = lambda t: t.to(UNITS.sec).magnitude
     to_pitch= lambda x: x.to(UNITS(F.pitch_units)).magnitude
     d_scale = F.pitch.to(UNITS.um).magnitude
@@ -62,6 +62,9 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
         a = F.sims[ia].data[:, which_probe].flatten()
         b = F.sims[ib].data[:, which_probe].flatten()
         t = F.sim0.t
+        print("Before scaling to unit variance:")
+        print("std(a) = ", a.std())
+        print("std(b) = ", b.std())
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
@@ -117,7 +120,7 @@ def convert_sources(all_sources, which_srcs):
             raise ValueError(f"Provided sources {which_srcs} are not valid sources or indices into the list of sources.")
     return which_srcs
 
-def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = None, figsize=(8,3), mean_subtract_y_coords = True, which_probe=0):
+def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = None, figsize=(8,3), mean_subtract_y_coords = True, which_probe=0, plot_source_locations = False):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
     if "boulder" in F.pitch_string:
         fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
@@ -152,6 +155,16 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
                          [to_pitch(y) - dy for y in F.sim0.y_lim])
         px, py = [to_pitch(z) for z in F.sim0.get_used_probe_coords()[which_probe]]
         py -= dy
+
+        if plot_source_locations:
+            p0, u = F.source_line[0], F.source_line[1]
+            svals_um = F.svals_um
+            xvals = p0[0] + svals_um*u[0]
+            yvals = p0[1] + svals_um*u[1]
+            xp = [to_pitch(x * UNITS.um) for x in xvals]
+            yp = [to_pitch(y * UNITS.um) - dy for y in yvals]
+            ax_plume.scatter(xp, yp, **plot_source_locations)
+            
         ax_plume.plot(px, py, "kx", markersize=5)
         ax_plume.xaxis.set_ticks_position('bottom')
 #        ax_plume.axis("equal")
@@ -172,12 +185,13 @@ def plot_plumes_demo(F, t_snapshot,
                      t_center = None,
                      data_dir = None,
                      nneg_dists = True,
+                     plot_source_locations = False,
                      **kwargs
 ):
     plt.figure(figsize=figsize)
     gs = GridSpec(3,3)
     ax_plume = plt.subplot(gs[:,0])    
-    plot_plumes_snapshot(F, t_snapshot, which_keys, ax_plume = ax_plume, data_dir = data_dir, figsize=figsize, mean_subtract_y_coords = mean_subtract_y_coords, which_probe=which_probe)
+    plot_plumes_snapshot(F, t_snapshot, which_keys, ax_plume = ax_plume, data_dir = data_dir, figsize=figsize, mean_subtract_y_coords = mean_subtract_y_coords, which_probe=which_probe, plot_source_locations = plot_source_locations)
 
     d_scale = F.pitch.to(UNITS.um).magnitude    
     if t_center is None: t_center = t_snapshot
