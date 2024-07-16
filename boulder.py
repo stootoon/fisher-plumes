@@ -281,10 +281,41 @@ class BoulderSimulationData:
                     
     def load_saved_snapshot(self, t, data_dir = "."):
         fld = self.fields[0].split("/")[-1]
-        file_name = f"{fld}_t{t.to(UNITS.sec).magnitude:g}.p"
-        full_file = os.path.join(data_dir, file_name)
-        DEBUG(f"Loading {fld=} at {t=:g} from {full_file=}.")
-        return np.load(os.path.join(data_dir, file_name), allow_pickle=True).T
+        # Find the times available by looking at the files in the directory
+        files = os.listdir(data_dir)
+        times = []
+        from glob import glob
+        # Look for files of the form {fld}_t{t}.p
+        files = glob(os.path.join(data_dir, f"{fld}_t*.p"))
+        
+        for file in files:
+            t_str = file.split("_")[-1].split(".")[0]
+            times.append(float(t_str[1:]))
+        times = np.array(times)
+        DEBUG(f"Found {len(times)} files in snapshots directory {data_dir} for {fld=}, from {times.min()} to {times.max()} sec.")
+        # Find the closest time
+        if len(times) == 0:
+            raise ValueError(f"No files found in {data_dir}.")
+
+        # If t is a scalar, treat it as a time in seconds
+        if type(t) is list:
+            t_min, t_max = [t[0].to("sec").magnitude, t[1].to("sec").magnitude]
+            which_times = times[(times >= t_min) & (times <= t_max)]
+            if len(which_times) == 0:
+                raise ValueError(f"No files found in {data_dir} for {t_min} <= t <= {t_max}.")
+        else:
+            t_sec = t.to("sec").magnitude
+            which_times = [times[np.argmin(np.abs(times - t_sec))]]
+
+        # Load the data and average it
+        data = []
+        for t_sec in which_times:        
+            file_name = f"{fld}_t{t_sec:g}.p"
+            full_file = os.path.join(data_dir, file_name)
+            DEBUG(f"Loading {fld=} at {t_sec=:g} from {full_file=}.")
+            data.append(np.load(os.path.join(data_dir, file_name), allow_pickle=True).T)
+        data = np.array(data)
+        return data.mean(axis = 0)
 
     def use_coords(self, coords, names = None, skip_if_exists = True):
         """ Which of the probe coords to actually use. 
