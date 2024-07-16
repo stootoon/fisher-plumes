@@ -122,11 +122,19 @@ def convert_sources(all_sources, which_srcs):
 
 def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = None, figsize=(8,3), mean_subtract_y_coords = True, which_probe=0, plot_source_locations = False):
     to_pitch = lambda x: x.to(UNITS(F.pitch_string)).magnitude
+    # which_srcs could either by an actual source location,
+    # or the index within the array of source locations.
+    assert hasattr(F, "sims"), "No 'sims' attribute found."
+    all_sources = sorted(list(F.sims.keys()))
+    which_srcs = convert_sources(all_sources, which_srcs)
+    INFO(f"Using sources {which_srcs}.")    
+
     if "boulder" in F.pitch_string:
         fields = F.load_saved_snapshots(t = t_snapshot, data_dir = data_dir)
     else:
         if hasattr(F, "sims"):
-            fields_orig = {k:s.get_snapshot("S1", t_snapshot.to(UNITS.sec)) for k,s in F.sims.items()}
+            sims = F.sims
+            fields_orig = {k:sims[k].get_snapshot("S1", t_snapshot.to(UNITS.sec) if hasattr(t_snapshot, "to") else t_snapshot) for k in which_srcs}
         else:
             print("No 'sims' attribute found. Trying to load snapshots from disk.")
             data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
@@ -138,11 +146,6 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
         print("fields.keys()", list(fields.keys()))
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
 
-    # which_srcs could either by an actual source location,
-    # or the index within the array of source locations.
-    all_sources = sorted(list(fields.keys()))
-    which_srcs = convert_sources(all_sources, which_srcs)
-    INFO(f"Using sources {which_srcs}.")    
         
     if ax_plume is None:
         plt.figure(figsize=figsize)
@@ -157,10 +160,17 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
         py -= dy
 
         if plot_source_locations:
+            all_sources = sorted(list(range(len(F.svals_um))))
+            if "which_sources" in plot_source_locations:
+                ind_src = convert_sources(all_sources, plot_source_locations["which_sources"])                
+                del plot_source_locations["which_sources"]
+            else:
+                ind_src = all_sources
+            print("Plotting source locations", ind_src)
             p0, u = F.source_line[0], F.source_line[1]
             svals_um = F.svals_um
-            xvals = p0[0] + svals_um*u[0]
-            yvals = p0[1] + svals_um*u[1]
+            xvals = p0[0] + svals_um[ind_src]*u[0]
+            yvals = p0[1] + svals_um[ind_src]*u[1]
             xp = [to_pitch(x * UNITS.um) for x in xvals]
             yp = [to_pitch(y * UNITS.um) - dy for y in yvals]
             ax_plume.scatter(xp, yp, **plot_source_locations)

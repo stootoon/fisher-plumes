@@ -16,6 +16,7 @@ from scipy.stats import skew, kurtosis
 import utils
 import fisher_plumes_tools as fpt
 
+from glob import glob
 from units import UNITS
 
 logging.basicConfig()
@@ -160,21 +161,48 @@ class CrickSimulationData:
             DEBUG(f"z-range: {min(self.z):8.3g} - {max(self.z):.3g}")        
             self.used_probe_coords = [] # Locations of the used probes
             self.init_snapshots(snapshots_folder)
-    
+
+    @classmethod
+    def snapshot_finder_fun_(cls, root_folder, fld, dim, time):
+        # Find all files of the form fld_d{dim}_123.png in root_folder, where 
+        files = glob(os.path.join(root_folder, f"{fld}_d{dim}_*.png"))
+        # Get the list of times in milliseconds by parsing the filenames
+        times_ms = np.array([int(os.path.basename(f).split("_")[-1].split(".")[0]) for f in files])
+        # If time is a list, treat it as a min/max range, otherwise as a single value
+        if type(time) is list:
+            min_time, max_time = time
+            min_time_ms = int(min_time.to(UNITS.ms).magnitude)
+            max_time_ms = int(max_time.to(UNITS.ms).magnitude)
+            use_times = times_ms[(times_ms >= min_time_ms) & (times_ms <= max_time_ms)]
+        else:
+            time_ms = int(time.to(UNITS.ms).magnitude)
+            # Find the closest time in the list
+            use_times = np.array([times_ms[np.argmin(np.abs(times_ms - time_ms))]])
+        # Return the list of files that match the selected times
+        DEBUG(f"Found {len(use_times)} matching times for {fld=} in {root_folder}, ranging from {min(use_times)} to {max(use_times)}.")
+        return [f for f in files if int(os.path.basename(f).split("_")[-1].split(".")[0]) in use_times]
+            
     def init_snapshots(self, root_folder = None, snapshot_finder_fun = None):
         if root_folder is None:            
             root_folder = os.path.join(self.path, "png")
         INFO(f"Initializing snapshots folder to {root_folder}.")
         if not os.path.exists(root_folder): raise FileExistsError(f"Snapshots folder {root_folder} not found.")
         if snapshot_finder_fun: self.snapshot_finder_fun = snapshot_finder_fun
-        else: self.snapshot_finder_fun = lambda fld, dim, time: os.path.join(root_folder, f"{fld}_d{dim}_{int(time.to(UNITS.ms).magnitude):06}.png")
+        else:
+            #self.snapshot_finder_fun = lambda fld, dim, time: os.path.join(root_folder, f"{fld}_d{dim}_{int(time.to(UNITS.ms).magnitude):06}.png")
+            self.snapshot_finder_fun = lambda fld, dim, time: self.snapshot_finder_fun_(root_folder, fld, dim, time)
 
     def get_snapshot(self, fld, time, which_dim = 0, which_channel = 0, normalizer = 255., **kwargs):
         if not hasattr(self, "snapshot_finder_fun"): raise AttributeError("Missing 'snapshot_finder_fun'. Run init_snapshots first.")
-        file_name = self.snapshot_finder_fun(fld, which_dim, time)
-        if not os.path.exists(file_name): raise FileExistsError(f"Could not find {file_name=}.")
-        img = iio.imread(file_name)
-        return np.array(img[:,:,which_channel])/normalizer    
+        file_names = self.snapshot_finder_fun(fld, which_dim, time)
+        if len(file_names) == 0:
+            raise FileNotFoundError(f"Could not find any files matching {fld=}, {which_dim=}, {time=}.")
+        data = []
+        for file_name in file_names:
+            if not os.path.exists(file_name): raise FileExistsError(f"Could not find {file_name=}.")
+            img = iio.imread(file_name)
+            data.append(np.array(img[:,:,which_channel])/normalizer)
+        return np.array(data).mean(axis = 0)
 
     def load_saved_snapshot(self, time, fld = "S1", **kwargs): # For compatibility with boulder.py
         return self.get_snapshot(fld, time, **kwargs)
