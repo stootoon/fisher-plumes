@@ -12,5 +12,5 @@ init:
   pairs_mode: signed
   py_mode: absolute
   random_seed: 0
-  sim_name: n16Tslow_X
-  which_coords: '[(1.0,0.5) * M]'
+  sim_name: n16Tslow
+  which_coords: '[(1.1,0.7) * M]'

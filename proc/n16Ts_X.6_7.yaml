@@ -13,4 +13,4 @@ init:
   py_mode: absolute
   random_seed: 0
   sim_name: n16Tslow_X
-  which_coords: '[(1.0,0.5) * M]'
+  which_coords: '[(1.15,0.7) * M]'
