@@ -161,7 +161,32 @@ def fig__corr_decomp():
         sys.stdout.flush(); plt.show()
 
 ("corr_decomp" in plots_list) and fig__corr_decomp()
-exit(0)        
+
+def fig__phase_example():
+    print("\nPLOTTING PHASE RELATIONSHIPS EXAMPLE.")
+    P = FigParams.phase_example
+    for name, F in data.items():
+        #if name != "bw" or not "16" in name: continue
+        if surrQ(name): continue
+        plt.figure(figsize=P.fig_size)
+        which_freq = P.which_freq[name]
+        ifreq = F.freqs2inds([which_freq])[0]
+        idist = P.which_idists[name]
+        axes = [plt.subplot(1,4,i+1) for i in range(4)]
+        plt.sca(axes[0])
+        fpf.plot_gm(sc=4.5, scale=[0.1,0.125],dxy=[0,0])    
+        axes[0].axis("square")
+        axes[0].set_ylim([0.41,0.59])
+        ax_ = fpf.plot_a_vs_bcd(F, ifreq, idist, cols = [cm.cool(0.2), cm.cool(0.8), cm.cool(0.4)], al=[-0.5,0.5], ax = axes[1:])
+        plt.tight_layout()
+        fpft.label_axes(axes, "ABCD", fontsize=12, fontweight="bold", dy=-0.01, align_y=[0,1,2,3])            
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/a_vs_bcd_{name}_{which_freq.magnitude}Hz_{idist=}.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+
+("phase_example" in plots_list) and fig__phase_example()        
+
+exit(0)
 print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
 freqs_to_plot = [5 * UNITS.Hz, 10 * UNITS.Hz]
 which_freqs = dict_update_from_field({"bw":freqs_to_plot,   "cr":freqs_to_plot},   su_ds + ["16Ts"], "bw"); 

@@ -46,7 +46,13 @@ class CorrDecomp:
         self.xlims = defaultdict(lambda: DEFAULT)
         self.xticks = defaultdict(lambda: DEFAULT)
         self.which_freqs = defaultdict(lambda: [1,2,5,10] * UNITS.Hz)
-        
+
+class PhaseExample:
+    def __init__(self, UNITS):
+        self.which_freq   = defaultdict(lambda: 5 * UNITS.Hz)
+        self.which_idists = defaultdict(lambda: 1)
+        self.fig_size = (8,3)
+    
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
         window_shape  = compute_filter["window_shape"]
@@ -60,5 +66,6 @@ class FigParams:
         self.fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{self.fig_dir_fitk=}")
 
 
-        self.plumes_demo = PlumesDemo(UNITS, su_ds = su_ds)
-        self.corr_decomp = CorrDecomp(UNITS)
+        self.plumes_demo   = PlumesDemo(UNITS, su_ds = su_ds)
+        self.corr_decomp   = CorrDecomp(UNITS)
+        self.phase_example = PhaseExample(UNITS)
