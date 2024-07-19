@@ -78,7 +78,7 @@ class SurrogateSimulationData:
         self.surr_data_args = {"type":name, "n_samples":n_samples, "n_sources":n_sources, "fs":fs}
         self.surr_data_args.update(kwargs)
         self.seed = 0 if "random_seed" not in kwargs else kwargs["random_seed"]                
-        INFO(self)
+        #INFO(self)
 
     def generate_surrogate_data(self, seed=None):
         if seed is None:
