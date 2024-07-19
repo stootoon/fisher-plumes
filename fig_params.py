@@ -106,6 +106,10 @@ class FisherInfo:
         self.bf_yl     = dict_update_from_field({"bw":[0,15]},                         su_ds + all_but_bw, "bw")
         self.plot_param_fits = False
 
+class LengthVsFreq:
+    def __init__(self, UNITS, su_ds):
+        self.which_corr_freqs_Hz = defaultdict(lambda: [2, 5, 10, 15, 20])
+        self.paired_ds = defaultdict(lambda: "s=p_0")
         
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
@@ -129,4 +133,5 @@ class FigParams:
         self.alap_fits     = AlapFits(UNITS, su_ds)
         self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
         self.fisher_info   = FisherInfo(UNITS, su_ds)
+        self.length_vs_freq= LengthVsFreq(UNITS, su_ds)
         

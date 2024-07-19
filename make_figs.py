@@ -9,10 +9,11 @@ import units; reload(units); UNITS = units.UNITS;
 logger = utils.create_logger(__name__)
 INFO = logger.info
 DEBUG = logger.debug
-
+WARN = logger.warning
 
 parser = ArgumentParser()
 parser.add_argument('datasets', help="CSV file listing datasets to plot.")
+parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
 parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="('kaiser',9)")
 parser.add_argument("--fitk", action="store_true", help="Fit k.")
@@ -36,18 +37,38 @@ assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exi
 to_use = {}
 with open(args.datasets, "r") as f:
     for line in f:
+        if line.startswith("#"):
+            continue
         line = [l.strip() for l in line.strip().split(",")]
         if len(line)==4:
             key, sim_name, probe_x, probe_y = line
             to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
 
+if args.surrogates is not None:            
+    assert os.path.exists(args.surrogates), f"Surrogate file {args.surrogates} does not exist."
+    for line in open(args.surrogates, "r"):
+        if line.startswith("#"):
+            continue
+        line = [l.strip() for l in line.strip().split(",")]
+        if len(line)==4:
+            key, sim_name, surrogate_k, random_seed = line
+            to_use[key] = {"sim_name": sim_name, "surrogate_k": float(surrogate_k), "random_seed": int(random_seed)}
+    
+su_ds = [k for k,v in to_use.items() if v["sim_name"].startswith("surr")]
+surrQ = lambda x: x in su_ds
+surr_trialsQ = lambda x: any([x.startswith(s) for s in ["s=p_", "s=w_"]])
+INFO(f"Surrogate datasets = {su_ds}.")
 
-compute = {"window_shape": eval(args.window_shape),
-           "window_length": eval(args.window_length),
-           "fit_k": args.fitk,
-           "fit_b": not args.dontfitb,
-           "dmax_um": "1 * PITCH",
+
+compute_basic = {"window_shape": eval(args.window_shape),
+                "window_length": eval(args.window_length),
+                "fit_k": args.fitk,
+                "fit_b": not args.dontfitb,
            }
+compute_surr = dict(**compute_basic)
+compute = dict(**compute_basic, **{"dmax_um":"1 * PITCH"})
+
+        
 
 INFO(f"Datasets: {to_use}")
 INFO(f"Compute: {compute}")
@@ -85,7 +106,7 @@ fp.logger.setLevel(logging.INFO)
 [f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
 loaded = {k:utils.safe_load(proc.load_data(strict = True,
                                      init_filter = v,
-                                     compute_filter = compute,
+                                     compute_filter = compute if not surrQ(k) else compute_surr,
                                      # fit_corrs = ["search.1"],
                                      fit_corrs = [],                                     
                                      ))          
@@ -94,10 +115,6 @@ loaded = {k:utils.safe_load(proc.load_data(strict = True,
 data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 
 [f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
-su_ds = [k for k,v in to_use.items() if v["sim_name"].startswith("surr")]
-surrQ = lambda x: x in su_ds
-surr_trialsQ = lambda x: any([x.startswith(s) for s in ["s=p_", "s=w_"]])
-INFO(f"Surrogate datasets = {su_ds}.")
 
 SAVEPLOTS = True # Whether to actually make the plots
 FigParams = fig_params.FigParams(UNITS, compute, su_ds)
@@ -383,4 +400,37 @@ def fig__fisher_info():
         sys.stdout.flush(); plt.show()
 
 ("fisher_info" in plots_list) and fig__fisher_info()
+
+def fig__length_vs_frequency():
+    print("\nPLOTTING LENGTH CONSTANTS VS FREQUENCY.")
+    P = FigParams.length_vs_freq
+            
+    for k, F in sorted(data.items()):
+        prefix = k.split(".")[0]
+        if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
+            continue
+
+        paired_ds = P.paired_ds[k]
+        if paired_ds is None:
+            paired_ds = []
+        else:
+            if paired_ds not in data:
+                WARN(f"Paired dataset {paired_ds} not loaded so not including.")
+                paired_ds = []
+            else:
+                paired_ds = [paired_ds]
+
+        which_ds = [k] + paired_ds
+        ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = P.which_corr_freqs_Hz[k])
+        fpft.label_axes(ax + [ax_γ], "ABCDE",
+                        fontsize=12, fontweight="bold",
+                        dx = -0.01, dy=0.01,
+                        align_x = [[0,2],[1,3]],
+                        align_y = [[0,1,4]])
+        
+        file_name = f"{FigParams.fig_dir_full}/length_vs_freq_{which_ds[0]}.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+("length_vs_freq" in plots_list) and fig__length_vs_frequency()    
+
 exit(0)
