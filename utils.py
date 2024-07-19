@@ -142,3 +142,5 @@ def load_txt_coords(fname):
             probe, x, y = line.split()
             coords[probe] = (float(x), float(y))
     return coords
+
+safe_load = lambda d: d[0] if d is not None else d
