@@ -18,6 +18,21 @@ isdefault = lambda x: type(x) is str and x == DEFAULT
 
 all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
 
+Info = namedtuple('Info','name,color')
+infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
+         "16Ts_X": Info(name="Supp. dataset (X)",               color = "dodgerblue"),
+         "16Ts_45": Info(name="Supp. dataset (45 deg)",               color = "dodgerblue"),
+         "bw":   Info(name="Main dataset",                color = "orangered"),
+         "bw_X":   Info(name="Main dataset (streamwise)",                color = "orange"),
+         "bw_45":   Info(name="Main dataset (45 deg)",                color = "orange"),         
+         "s=p_0":  Info(name="Surrogate (all =)",     color = "pink"),
+         "s=w":  Info(name="Surrogate (all =, white)",    color = "green"),
+         "shw":  Info(name="Surrogate (high>low, white)", color = "silver"),
+         "shp":  Info(name="Surrogate (high>low)",  color = "violet"),
+         "s=w_q0":  Info(name="Surrogate (quad, ϕ=0, white)", color="blue"),
+         "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
+}
+
 class PlumesDemo:
     def __init__(self, UNITS, su_ds = []):
         self.which_srcs   = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       

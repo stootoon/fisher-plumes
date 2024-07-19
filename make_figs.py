@@ -505,5 +505,32 @@ def fig__ils():
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
 ("ils" in plots_list) and fig__ils()
-        
+
+def fig__spectrum():
+    print("\nPLOTTING SPECTRA.")
+    plt.figure(figsize=(8,5))
+    infos = fig_params.infos
+    for ki, (k, F) in enumerate(sorted(data.items(), key=lambda x: infos[x].name if x in infos else x)):    
+        if k not in infos: continue
+        f = []
+        for _, s in F.stft.items():
+            fr, tt, S = s[0]
+            f.append(np.abs(S))
+            
+        fs = F.fs.to("Hz").magnitude
+        f = np.array(f)
+        a = np.mean(f,axis=-1).mean(axis=0)    
+        plt.loglog(fr[fr<fs/2][1:],a[fr<fs/2][1:]/a[1] * (10**0),
+               label=infos[k].name,
+               color=infos[k].color)
+    plt.legend(borderpad=0)
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Normalized amplitude")
+    plt.title("Plume spectra averaged over windows and source locations")
+    plt.grid(True, which='both', linestyle=":")
+    fig_dir = FigParams.fig_dir_wnd_shp_len
+    file_name = f"{fig_dir}/spectra.pdf"
+    SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+
+("spectrum" in plots_list) and fig__spectrum()
 exit(0)
