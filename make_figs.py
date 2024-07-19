@@ -462,5 +462,48 @@ def fig__elbow():
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
 ("elbow" in plots_list) and fig__elbow()
-    
+
+def fig__ils():
+    print("\nPLOTTING ILS.")    
+    for k, F in sorted(data.items()):
+        if surrQ(k): continue
+        if not hasattr(F, "sim0"):
+            WARN(f"Skipping {k} because it doesn't have a sim0 attribute.")
+            continue
+        if not hasattr(F.sim0, "integral_length_scales"):
+            WARN(f"Skipping {k} because it doesn't have an integral_length_scales attribute.")
+            continue
+
+        ils = F.sim0.integral_length_scales
+
+        keys = ils.keys()
+        plt.figure(figsize=(8.5,3.5))
+        ax = []
+        for i, d in enumerate("xy"):
+            ax.append(plt.subplot(1,2,i+1))
+            orig_key = (0 * UNITS.m, 0 * UNITS.m, d)
+            probe_key = [k for k in keys if k[-1]==d and k!=orig_key][0]
+            for j, (kk, name) in enumerate(zip([orig_key,probe_key], ["origin", "probe"])):
+                res   = ils[kk]
+                fr, l = res["fr"], res["l"]
+                # l = nansum(fr) * ds
+                ds = l / np.nansum(fr)
+                xx = np.arange(len(fr))*ds.to(F.pitch).magnitude
+                plt.plot(xx, fr, label=f"p={name}")
+                lmag = l.to(F.pitch).magnitude
+                plt.gca().axvline(lmag, color=f"C{j}", linewidth=1, linestyle=":", label = f"$L_U$ = {lmag:.2} {fpf.pitch_sym}")
+            plt.legend()
+            plt.ylabel(f"$\langle \\widetilde u_{d}(p) \\widetilde u_{d}(p + r \hat e_{d}) \\rangle$")
+            plt.xlabel(f"r ({fpf.pitch_sym})")
+            plt.title(f"{d}-velocity autocorrelation function")
+            fpft.spines_off(plt.gca())
+        plt.tight_layout()
+        fpft.label_axes(ax, "AB",
+                            fontsize=12, fontweight="bold",
+                            align_y = [[0,1]])
+        file_name = f"figs/ils_supp_{k}.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+("ils" in plots_list) and fig__ils()
+        
 exit(0)
