@@ -29,6 +29,9 @@ else:
 
 INFO(f"Plots to make: {plots_list}")
 
+iprb = args.iprb
+INFO(f"Using probe {iprb}.")
+
 assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
 to_use = {}
 with open(args.datasets, "r") as f:
@@ -93,17 +96,15 @@ data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 [f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
 su_ds = [k for k,v in to_use.items() if v["sim_name"].startswith("surr")]
 surrQ = lambda x: x in su_ds
-print(f"Surrogate datasets = {su_ds}.")
+INFO(f"Surrogate datasets = {su_ds}.")
 
-
-# FIGURE DIRECTORIES
 SAVEPLOTS = True # Whether to actually make the plots
 FigParams = fig_params.FigParams(UNITS, compute, su_ds)
 
 isdefault = fig_params.isdefault
 
 def fig__plumes_demo():
-    print("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
+    INFO("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
     P = FigParams.plumes_demo
     for k, F in sorted(data.items()):
         if surrQ(k): continue
@@ -132,33 +133,35 @@ def fig__plumes_demo():
         sys.stdout.flush(); plt.show()
     
 ("plumes_demo" in plots_list) and fig__plumes_demo()
-exit(0)
 
-print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
-iprb = args.iprb
-print(f"Using probe {iprb}.")
 
-xlims_  = defaultdict(lambda: DEFAULT) #{"su_high":DEFAULT, "su":DEFAULT, "bw":DEFAULT, "cr":DEFAULT}
-xticks_ = defaultdict(lambda: DEFAULT) #{"su_high":DEFAULT, "su":DEFAULT, "bw":DEFAULT, "cr":DEFAULT}
-for k, F in data.items():
-    which_freqs = [1,2,5,10] * UNITS.Hz
-    labs = [f"{f}" for f in which_freqs]
-    cols = {"All":cm.gray(0.4)}; cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/10) for f in which_freqs])})    
-    print(k)
-    slices = {"All":slice(1,10000)}
-    freq_inds = F.freqs2inds(which_freqs)
-    print(f"Mapped frequencies {which_freqs} to indices {freq_inds}.")
-    slices.update({l:slice(fi, fi+1) for l, fi in zip(labs, freq_inds)})
-    ax = fpf.plot_correlations(F.rho[iprb], F.pitch.to("um").magnitude, slices=slices, cols=cols, n_rows = 2, plot_order = ["All"] + labs)
-    [(axi.set_xlabel(f"Intersource distance ({fpf.pitch_sym})"),
-      not isdefault(xlims_[k])  and axi.set_xlim(xlims_[k]),
-      not isdefault(xticks_[k]) and axi.set_xticks(xticks_[k])) for axi in ax]    
-    file_name = f"{fig_dir_wnd_shp_len}/corr_components_{k}.pdf"
-    fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
-    ax[-1].set_ylim(-0.5,1)
-    SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
-    sys.stdout.flush(); plt.show()
+def fig__corr_decomp():
+    print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
+    P = FigParams.corr_decomp
+    for k, F in data.items():
+        if k.startswith("s=p"):
+            if not k == "s=p_0":
+                continue
+        which_freqs = P.which_freqs[k]
+        labs = [f"{f}" for f in which_freqs]
+        cols = {"All":cm.gray(0.4)}; cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/10) for f in which_freqs])})    
+        INFO(f"Plotting correlation decomposition for {k}.")
+        slices = {"All":slice(1,10000)}
+        freq_inds = F.freqs2inds(which_freqs)
+        INFO(f"Mapped frequencies {which_freqs} to indices {freq_inds}.")
+        slices.update({l:slice(fi, fi+1) for l, fi in zip(labs, freq_inds)})
+        ax = fpf.plot_correlations(F.rho[iprb], F.pitch.to("um").magnitude, slices=slices, cols=cols, n_rows = 2, plot_order = ["All"] + labs)
+        [(axi.set_xlabel(f"Intersource distance ({fpf.pitch_sym})"),
+          not isdefault(P.xlims[k])  and axi.set_xlim(P.xlims[k]),
+          not isdefault(P.xticks[k]) and axi.set_xticks(P.xticks[k])) for axi in ax]    
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/corr_components_{k}.pdf"
+        fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
+        ax[-1].set_ylim(-0.5,1)
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
+        sys.stdout.flush(); plt.show()
 
+("corr_decomp" in plots_list) and fig__corr_decomp()
+exit(0)        
 print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
 freqs_to_plot = [5 * UNITS.Hz, 10 * UNITS.Hz]
 which_freqs = dict_update_from_field({"bw":freqs_to_plot,   "cr":freqs_to_plot},   su_ds + ["16Ts"], "bw"); 

@@ -41,6 +41,12 @@ class PlumesDemo:
                                           "16Ts_45": None,
                                           })
 
+class CorrDecomp:
+    def __init__(self, UNITS):
+        self.xlims = defaultdict(lambda: DEFAULT)
+        self.xticks = defaultdict(lambda: DEFAULT)
+        self.which_freqs = defaultdict(lambda: [1,2,5,10] * UNITS.Hz)
+        
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
         window_shape  = compute_filter["window_shape"]
@@ -55,3 +61,4 @@ class FigParams:
 
 
         self.plumes_demo = PlumesDemo(UNITS, su_ds = su_ds)
+        self.corr_decomp = CorrDecomp(UNITS)
