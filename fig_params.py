@@ -69,6 +69,15 @@ class Scattergrams:
         self.freqs_to_plot = defaultdict(lambda: [2 * UNITS.Hz, 5 * UNITS.Hz, 8 * UNITS.Hz, 10 * UNITS.Hz])
         self.which_freqs   = dict_update_from_field({"bw":self.freqs_to_plot["bw"]},   su_ds + all_but_bw, "bw"); 
         self.dcol_scales = dict_update_from_field({"bw":120000},  su_ds + all_but_bw, "bw");
+
+class AlapFits:
+    def __init__(self, UNITS, su_ds):
+        self.idist     = dict_update_from_field({"bw":[0,1,2]},          su_ds + all_but_bw, "bw")
+        self.freq_max  = dict_update_from_field({"bw":21 * UNITS.hertz}, su_ds + all_but_bw, "bw")
+        self.vmin      = dict_update_from_field({"bw":[0,0]},            su_ds + all_but_bw, "bw")
+        self.vmax      = dict_update_from_field({"bw":[1,1]},            su_ds + all_but_bw, "bw")
+        self.fit_corrs = defaultdict(lambda: None)
+
         
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
@@ -88,5 +97,6 @@ class FigParams:
         self.phase_example = PhaseExample(UNITS)
         self.mvg_fits      = MVGaussianFits(UNITS, su_ds = su_ds)
         self.scattergrams  = Scattergrams(UNITS, su_ds)
+        self.alap_fits     = AlapFits(UNITS, su_ds)
 
         

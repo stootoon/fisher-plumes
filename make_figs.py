@@ -245,9 +245,59 @@ def fit__scattergrams():
             sys.stdout.flush(); plt.show()
 
 ("scattergrams" in plots_list) and fit__scattergrams()
-exit(0)
 
-            
+
+def fit__phase_heatmaps():
+    print("\nPLOTTING PHASE HEATMAPS.")
+    for name, F in sorted(data.items()):
+        if surr_trialsQ(name): continue
+        ax = fpf.plot_phase_heatmap(F, max_phi = np.pi/3, plot_which="all", max_corr=0.1,figsize=(8,6))
+        plt.tight_layout()
+        fpft.label_axes(ax, "ABCD", 
+                        align_y = [[0,1],[2,3]],
+                        align_x = [[0,2],[1,3]],
+                        fontsize=12, fontweight="bold", dy=-0.025)
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/phase_heatmap_{name}.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+
+("phase_heatmaps" in plots_list) and fit__phase_heatmaps()
+
+def fig__alap_fits():
+    print("\nPLOTTING ASYMMETRIC LAPLACIAN FITS.")
+    P = FigParams.alap_fits
+    for name, F in sorted(data.items()):
+        if surrQ(name): continue
+        if surr_trialsQ(name): continue
+        d = np.array(list(F.rho[iprb].keys()))
+        d = np.sort(d[d>=0])
+        for f, xl in zip([1,5,10] * UNITS.hertz, [[-0.25, 1.0], [-0.02, 0.05], [-0.02, 0.05]]):
+            if f != 5 * UNITS.hertz: continue
+            which_freq = defaultdict(lambda: f)
+            ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[P.idist[name]],
+                                                            which_probe = iprb,
+                                                            ifreq_lim = [1, F.freqs2inds([P.freq_max[name]])[0]],
+                                                            which_ifreq = F.freqs2inds([which_freq[name]])[0],
+                                                            figsize=(9,4),
+                                                            fit_color="gray",
+                                                            vmax=P.vmax[name],
+                                                            vmin=P.vmin[name],
+                                                            plot_dvals=True,
+                                                            expansion = 1.0,
+                                                            xl = xl,
+                                                            fit_corrs = P.fit_corrs[name],
+                                                            leg_loc = None,
+                                                            leg_loc2 = "lower right",
+                                                            cdf_mode = "even")
+            plt.tight_layout(pad=0)
+            fpft.label_axes(ax_cdf + ax_dcdf + ax_hm, "ABCDEFGHIJK",
+                            align_y = [[0,1,2,6],[3,4,5,7]],
+                            align_x = [[0,3],[1,4],[2,5],[6,7]],
+                            fontsize=12, fontweight="bold", dy=0)
+            file_name = f"{FigParams.fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+("alap_fits" in plots_list) and fig__alap_fits()
+exit(0)
             
 print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
 freq      = dict_update_from_field({"bw":5 * UNITS.hertz,          "cr":5 * UNITS.hertz},        su_ds + ["16Ts", "16T"], "bw"); 

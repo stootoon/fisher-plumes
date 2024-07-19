@@ -84,11 +84,13 @@ def label_axes(ax_list, labs, dx=0, dy=0, x = None, y = None,
     y_vals = np.array(y_vals)
     if len(align_x):
         for grp in align_x:
-            x_vals[grp] = align_x_fun(x_vals[grp])
+            g = [g for g in grp if g >= 0 and g < len(x_vals)]
+            x_vals[g] = align_x_fun(x_vals[g])
             
     if len(align_y):
         for grp in align_y:
-            y_vals[grp] = align_y_fun(y_vals[grp])
+            g = [g for g in grp if g >= 0 and g < len(y_vals)]
+            y_vals[g] = align_y_fun(y_vals[g])
 
     for hi, x,y in zip(h, x_vals, y_vals):
         hi.set_position((x,y))

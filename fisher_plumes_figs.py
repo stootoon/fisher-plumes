@@ -141,9 +141,7 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
             snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
             fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
             
-        DEBUG(list(fields_orig.keys()))
         fields, limsx, limsy = clip_snapshots(fields_orig)
-        DEBUG("fields.keys()", list(fields.keys()))
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
 
         
@@ -655,6 +653,7 @@ def plot_alaplace_fits(F, which_dists_um,
     freq_res = F.fs/F.wnd
     ax_hm = []
 
+    fit_tvvals = None
     if fit_corrs_results is not None:
         fit_tvvals = {}
         max_ifreq = 0
@@ -678,6 +677,9 @@ def plot_alaplace_fits(F, which_dists_um,
         else:
             vals = fit_tvvals
 
+        if vals is None: # E.g. if we haven't fit the more complicated models
+            continue
+        
         ax_hm.append(plt.subplot(gs[i,3] if fit_tvvals else gs[:,3]))
 
         dists_um = np.array([d for d in sorted(vals) if d >= 0])
