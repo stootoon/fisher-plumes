@@ -220,6 +220,31 @@ def fig__mvg_fits():
             sys.stdout.flush(); plt.show()
 
 ("mvg_fits" in plots_list) and fig__mvg_fits()
+
+def fit__scattergrams():
+    print("\nPLOTTING SCATTERGRAMS.")
+    P = FigParams.scattergrams
+    for name, F in sorted(data.items()):
+        if surr_trialsQ(name): continue
+        for which_freq in P.which_freqs[name]:
+            ifreq = F.freqs2inds([which_freq])[0]
+            INFO(f"Mapped {which_freq} to index {ifreq}.")
+            ax = fpf.plot_scattergram(F,
+                                      ifreq,
+                                      iprb,
+                                      figsize=(8,8),
+                                      dist_col_scale = P.dcol_scales[name],
+                                      markersize = 0.2,
+                                      cols = ["royalblue","crimson", "seagreen", "magenta"],
+                                      coef_names = {0:"Sin", 1:"Cos"},
+                                      lim_scale = 2.,
+                                      print_fun = np.corrcoef,
+                                      )
+            file_name = f"{FigParams.fig_dir_wnd_shp_len}/scattergram_{name}_{which_freq.magnitude}Hz.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+
+("scattergrams" in plots_list) and fit__scattergrams()
 exit(0)
 
             
