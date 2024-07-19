@@ -64,6 +64,14 @@ class MVGaussianFits:
         self.configs = ["a_c", "a_d"]
         self.cols    = [cm.cool(r) for r in [0.9, 0.4]]
 
+class MVGaussianSuppFits:
+    def __init__(self, UNITS, su_ds):
+        self.freq      = dict_update_from_field({"bw":5 * UNITS.hertz,},    su_ds + all_but_bw, "bw") 
+        self.idists    = dict_update_from_field({"bw":[0,1,2,3,4,6,7,12]},  su_ds + all_but_bw, "bw") 
+        self.t_lim     = dict_update_from_field({"bw":[35, 45]*UNITS.sec},  su_ds + all_but_bw, "bw")
+        self.dt        = dict_update_from_field({"bw":1*UNITS.sec},         su_ds + all_but_bw, "bw")
+
+
 class Scattergrams:
     def __init__(self, UNITS, su_ds):
         self.freqs_to_plot = defaultdict(lambda: [2 * UNITS.Hz, 5 * UNITS.Hz, 8 * UNITS.Hz, 10 * UNITS.Hz])
@@ -96,6 +104,7 @@ class FigParams:
         self.corr_decomp   = CorrDecomp(UNITS)
         self.phase_example = PhaseExample(UNITS)
         self.mvg_fits      = MVGaussianFits(UNITS, su_ds = su_ds)
+        self.mvg_supp_fits = MVGaussianSuppFits(UNITS, su_ds = su_ds)
         self.scattergrams  = Scattergrams(UNITS, su_ds)
         self.alap_fits     = AlapFits(UNITS, su_ds)
 

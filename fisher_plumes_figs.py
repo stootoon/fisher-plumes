@@ -523,7 +523,7 @@ def plot_coef_vs_coef_and_traces(F, freq, idists_to_plot, which_probe = 0,
     trace_axes   = [plt.subplot(gs_trace_fun(i)) for i,_ in enumerate(idists_to_plot)]
     coef_axes    = [plt.subplot(gs_coef_fun(i))  for i,_ in enumerate(idists_to_plot)]
     
-    plot_coef1_vs_coef2([F.ss[which_probe], F.cc[which_probe]], F.freqs2inds([freq])[0], F.pairs_um, F.pitch_string, i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
+    plot_coef1_vs_coef2(F, F.freqs2inds([freq])[0], i_pos_dists_to_plot = idists_to_plot, axes = coef_axes, **kwargs)
     plot_two_plumes(F, idists_to_plot, t_lim, which_probe = which_probe, dt = dt, y_lim = y_lim, axes = trace_axes)
     return coef_axes, trace_axes
     

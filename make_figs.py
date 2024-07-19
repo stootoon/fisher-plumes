@@ -297,64 +297,33 @@ def fig__alap_fits():
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
 ("alap_fits" in plots_list) and fig__alap_fits()
-exit(0)
-            
-print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-freq      = dict_update_from_field({"bw":5 * UNITS.hertz,          "cr":5 * UNITS.hertz},        su_ds + ["16Ts", "16T"], "bw"); 
-idists    = dict_update_from_field({"bw":[0,1,2,3,4,6,7,12],       "cr":[0,4,8,12,16,20,21,22]}, su_ds + ["16Ts", "16T"], "bw"); 
-t_lim     = dict_update_from_field({"bw":[35, 45]*UNITS.sec,       "cr":[39.5,40.5]*UNITS.sec,  "16T":[9.5,10.5]*UNITS.sec},  su_ds + ["16Ts"], "bw")
-dt        = dict_update_from_field({"bw":1*UNITS.sec,              "cr":0.25*UNITS.sec},         su_ds + ["16Ts"], "bw", ["16T"], "cr");
-for k, F in sorted(data.items()):
-    if surrQ(k): continue
-    plt.figure(figsize=(12,6))
-    coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, freq[k], idists[k],
-                                                         which_probe = iprb, n_per_row = 2,
-                                                         y_lim=[0,5] if k[:2]!="su" else [-3,3],
-                                                         t_lim = t_lim[k],
-                                                         dt = dt[k])
-    for ax in coef_ax:
-        ax.set_xlabel("")
-        ax.set_ylabel("")
-    [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
-    plt.tight_layout(pad=0)
-    all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
-    n_ax   = len(all_ax)
-    fpft.label_axes(all_ax,
-                    [ch+nu for ch in "ABCDEFGH" for nu in "12"],
-                    align_x = [list(range(i,n_ax,4)) for i in range(4)],
-                    align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
-                    fontsize=12, fontweight="bold", dy=-0.01)
-    file_name = f"{fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
-    SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-    sys.stdout.flush(); plt.show()
 
-print("\nPLOTTING FIGURES SHOWING ASYMMETRIC LAPLACIAN FITS.")
-idist     = dict_update_from_field({"bw":[1,2,3],          "cr":[1,13,15]},         su_ds + ["16Ts"], "bw", ["16T"],"cr")
-freq_max  = dict_update_from_field({"bw":21 * UNITS.hertz, "cr":101 * UNITS.hertz}, su_ds + ["16Ts"], "bw", ["16T"],"cr")
-vmin      = dict_update_from_field({"bw":[0,0.0],          "cr":[0,0.5]},           su_ds + ["16Ts"], "bw", ["16T"],"cr")
-vmax      = dict_update_from_field({"bw":[50,1],           "cr":[10,1]},            su_ds + ["16Ts"], "bw", ["16T"],"cr")
-plot_pvals= False
-for name, F in sorted(data.items()):
-    if surrQ(name): continue
-    print(name)
-    d = np.array(list(F.rho[iprb].keys()))
-    d = np.sort(d[d>=0])
-    for f in [1, 5, 10] * UNITS.hertz:
-        which_freq = defaultdict(lambda: f)
-        ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[idist[name]],
-                                                        which_probe = iprb,
-                               ifreq_lim = [1, F.freqs2inds([freq_max[name]])[0]],
-                               which_ifreq = F.freqs2inds([which_freq[name]])[0],
-                                                        figsize=(8,4),
-                                                        vmax=vmax[name],
-                                                        vmin=vmin[name],
-                                                        plot_dvals=True,
-                                                        plot_pvals=plot_pvals)
+
+def fig__mvg_supp_fits():
+    print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
+    P = FigParams.mvg_supp_fits
+    for k, F in sorted(data.items()):
+        if surrQ(k): continue
+        plt.figure(figsize=(12,6))
+        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, P.freq[k], P.idists[k],
+                                                             which_probe = iprb, n_per_row = 2,
+                                                             y_lim=[0,5] if k[:2]!="su" else [-3,3],
+                                                             t_lim = P.t_lim[k],
+                                                             dt = P.dt[k])
+        for ax in coef_ax:
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+        [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
         plt.tight_layout(pad=0)
-        fpft.label_axes(ax_cdf + ax_dcdf + ax_hm, "ABCDEFGHIJK",
-                        align_y = [[0,1,2,6],[3,4,5,7]] if plot_pvals else [[0,1,2],[3,4,5]],
-                        align_x = [[0,3],[1,4],[2,5]],
-                        fontsize=12, fontweight="bold", dy=0)
-        file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
+        all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
+        n_ax   = len(all_ax)
+        fpft.label_axes(all_ax,
+                        [ch+nu for ch in "ABCDEFGH" for nu in "12"],
+                        align_x = [list(range(i,n_ax,4)) for i in range(4)],
+                        align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
+                        fontsize=12, fontweight="bold", dy=-0.01)
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{P.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
+("mvg_supp_fits" in plots_list) and fig__mvg_supp_fits()
+exit(0)
