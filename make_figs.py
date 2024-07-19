@@ -96,6 +96,7 @@ data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 [f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
 su_ds = [k for k,v in to_use.items() if v["sim_name"].startswith("surr")]
 surrQ = lambda x: x in su_ds
+surr_trialsQ = lambda x: any([x.startswith(s) for s in ["s=p_", "s=w_"]])
 INFO(f"Surrogate datasets = {su_ds}.")
 
 SAVEPLOTS = True # Whether to actually make the plots
@@ -186,29 +187,43 @@ def fig__phase_example():
 
 ("phase_example" in plots_list) and fig__phase_example()        
 
-exit(0)
-print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-freqs_to_plot = [5 * UNITS.Hz, 10 * UNITS.Hz]
-which_freqs = dict_update_from_field({"bw":freqs_to_plot,   "cr":freqs_to_plot},   su_ds + ["16Ts"], "bw"); 
-which_idists= dict_update_from_field({"bw":[0,2,4],         "cr":[8,12,18]},       su_ds + ["16Ts"], "bw"); 
-dcol_scales = dict_update_from_field({"bw":120000,          "cr":80000},           su_ds + ["16Ts"], "bw"); 
-for name, F in sorted(data.items()):
-    print(name)
-    for which_freq in which_freqs[name]:
-        ifreq = F.freqs2inds([which_freq])[0]
-        print(f"Mapped {which_freq} to index {ifreq}.")
-        ax = fpf.plot_coef1_vs_coef2([F.ss[iprb], F.cc[iprb]],
-                                     ifreq,
-                                     F.pairs_um,
-                                     F.pitch_string,                                 
-                                i_pos_dists_to_plot = which_idists[name],
-                                dist_col_scale = dcol_scales[name]
-        )
-        fpft.label_axes(ax, "ABC", fontsize=12, fontweight="bold", dy=-0.01)            
-        file_name = f"{fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
+def fig__mvg_fits():
+    print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
+    P = FigParams.mvg_fits
+    for name, F in sorted(data.items()):
+        if surr_trialsQ(name): continue
+        for which_freq in P.which_freqs[name]:
+            ifreq = F.freqs2inds([which_freq])[0]
+            INFO(f"Mapped {which_freq} to index {ifreq}.")
+            
+            plt.figure(figsize=(12, 3 * len(P.configs)))
+            axes = []
+            for i, config in enumerate(P.configs):
+                idists = P.which_idists[name]
+                ax = [plt.subplot(len(P.configs), len(idists), i*len(idists) + j+1) for j in range(len(idists))]
+                ax_ = fpf.plot_coef1_vs_coef2(F,
+                                              ifreq,
+                                              config=config,
+                                              iprb=iprb,
+                                              i_pos_dists_to_plot = P.which_idists[name],
+                                              col = P.cols[i],
+                                              axes = ax,
+                                              do_corr = True,
+                )
+                if i:
+                    [axi.set_title("") for axi in ax_]
+                            
+                axes.extend(ax)
+            fpft.label_axes(axes, "ABCDEFGH", fontsize=12, fontweight="bold", dy=-0.01)            
+            file_name = f"{FigParams.fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(P.configs)}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
 
+("mvg_fits" in plots_list) and fig__mvg_fits()
+exit(0)
+
+            
+            
 print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
 freq      = dict_update_from_field({"bw":5 * UNITS.hertz,          "cr":5 * UNITS.hertz},        su_ds + ["16Ts", "16T"], "bw"); 
 idists    = dict_update_from_field({"bw":[0,1,2,3,4,6,7,12],       "cr":[0,4,8,12,16,20,21,22]}, su_ds + ["16Ts", "16T"], "bw"); 

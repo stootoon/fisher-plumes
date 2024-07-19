@@ -1,6 +1,7 @@
 import os, sys
 from importlib import reload
 from collections import defaultdict, namedtuple
+from matplotlib import cm   
 
 import utils
 import boulder
@@ -14,6 +15,8 @@ from utils import dict_update_from_field
 DEFAULT   = "default"
 isdefault = lambda x: type(x) is str and x == DEFAULT
 
+all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
+
 class PlumesDemo:
     def __init__(self, UNITS, su_ds = []):
         self.which_srcs   = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
@@ -25,7 +28,6 @@ class PlumesDemo:
                                                     },       
                                       su_ds, "bw")
 
-        all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
         self.t_wnd        = dict_update_from_field({"bw":[-4,4]*UNITS.sec}, su_ds + all_but_bw, "bw")
         self.which_idists = dict_update_from_field({"bw":[0,2,3]}, su_ds + all_but_bw, "bw")
         self.tticks       = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
@@ -52,7 +54,17 @@ class PhaseExample:
         self.which_freq   = defaultdict(lambda: 5 * UNITS.Hz)
         self.which_idists = defaultdict(lambda: 1)
         self.fig_size = (8,3)
-    
+
+class MVGaussianFits:
+    def __init__(self, UNITS, su_ds):
+        self.freqs_to_plot = defaultdict(lambda: [5 * UNITS.Hz, 10 * UNITS.Hz])
+        self.which_freqs = dict_update_from_field({"bw":self.freqs_to_plot["bw"]},   su_ds + all_but_bw, "bw"); 
+        self.which_idists= dict_update_from_field({"bw":[0,1,2,3]},   su_ds + all_but_bw, "bw"); 
+        self.dcol_scales = dict_update_from_field({"bw":120000},  su_ds + all_but_bw, "bw");
+        self.configs = ["a_c", "a_d"]
+        self.cols    = [cm.cool(r) for r in [0.9, 0.4]]
+
+        
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
         window_shape  = compute_filter["window_shape"]
@@ -69,3 +81,6 @@ class FigParams:
         self.plumes_demo   = PlumesDemo(UNITS, su_ds = su_ds)
         self.corr_decomp   = CorrDecomp(UNITS)
         self.phase_example = PhaseExample(UNITS)
+        self.mvg_fits      = MVGaussianFits(UNITS, su_ds = su_ds)
+
+        
