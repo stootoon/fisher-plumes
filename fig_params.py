@@ -93,7 +93,18 @@ class RhoDecayFits:
         self.xl     = dict_update_from_field({"bw":(-10,200)},                 su_ds + all_but_bw, "bw"); 
         self.xt     = dict_update_from_field({"bw":np.arange(0,201,50)},          su_ds + all_but_bw, "bw"); 
         self.xtp    = dict_update_from_field({"bw":np.array([60,90,135])},     su_ds + all_but_bw, "bw"); 
-        self.ytp    = dict_update_from_field({"bw":np.array([0.8,1,1.2,1.5])}, su_ds + all_but_bw, "bw"); 
+        self.ytp    = dict_update_from_field({"bw":np.array([0.8,1,1.2,1.5])}, su_ds + all_but_bw, "bw");
+
+class FisherInfo:
+    def __init__(self, UNITS, su_ds):
+        self.freqs     = dict_update_from_field({"bw":[1,2, 5, 10, 20] * UNITS.hertz}, su_ds + all_but_bw, "bw")
+        self.freq_max  = dict_update_from_field({"bw":25 * UNITS.hertz},               su_ds + all_but_bw, "bw")
+        self.colscale  = dict_update_from_field({"bw":10},                             su_ds + all_but_bw, "bw")
+        self.d_vals_um = dict_update_from_field({"bw":[1,5,50]},                       su_ds + all_but_bw, "bw")
+        self.d_lim_um  = dict_update_from_field({"bw":[100, 125000 ]},                 su_ds + all_but_bw, "bw")
+        self.bf_ytick  = dict_update_from_field({"bw":[0,5,10]},                       su_ds + all_but_bw, "bw")
+        self.bf_yl     = dict_update_from_field({"bw":[0,15]},                         su_ds + all_but_bw, "bw")
+        self.plot_param_fits = False
 
         
 class FigParams:
@@ -117,5 +128,5 @@ class FigParams:
         self.scattergrams  = Scattergrams(UNITS, su_ds)
         self.alap_fits     = AlapFits(UNITS, su_ds)
         self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
-
+        self.fisher_info   = FisherInfo(UNITS, su_ds)
         

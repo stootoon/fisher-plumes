@@ -348,4 +348,39 @@ def fig__rho_decay_fits():
 
 ("rho_decay_fits" in plots_list) and fig__rho_decay_fits()    
 
+def fig__fisher_info():
+    print("\nPLOTTING FISHER INFORMATION.")
+    P = FigParams.fisher_info
+    for k, F in sorted(data.items()):
+        prefix = k.split(".")[0]
+        if prefix not in ["bw","16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]: continue
+        plt.figure(figsize=(6,7))
+        ax_fisher, ax_best_freq, ax_d = fpf.plot_fisher_information(F,
+                                                                    which_probe = iprb,
+                                                                    d_lim_um   = P.d_lim_um[k],
+                                                                    d_vals_um  = np.array(P.d_vals_um[k])*1000,
+                                                                    d_space_fun  = lambda d0,d1,n:np.logspace(np.log10(d0),np.log10(d1),n),
+                                                                    which_ifreqs = F.freqs2inds(P.freqs[k]),
+                                                                    x_stagger = lambda x, i: x*(1.02**i),
+                                                                    plot_fun = plt.loglog,
+                                                                    log_scale = True,
+                                                                    plot_param_fits = P.plot_param_fits,
+                                                                    freq_max  = P.freq_max[k],
+                                                                    colfun    = lambda f: cm.cool_r(f/P.colscale[k]),
+                                                                    info_heatmap = True,
+                                                                    heatmap_range =[-2, np.log10(500)],
+                                                                    heatmap_cm    =cm.Spectral_r,
+        )
+        ax_fisher.set_ylim(1e-2,1e3)
+        plt.tight_layout(h_pad=2,w_pad=0)
+        fpft.label_axes([ax_fisher, ax_best_freq] + ax_d , "ABCDEFGHIJK",
+                        #align_y = [[2,3,4]],
+                        align_x = [[0,1,2] if P.plot_param_fits else [0,1]],
+                        fontsize=12, fontweight="bold", dy=-0.02)
+
+        file_name = f"{FigParams.fig_dir_full}/fisher_info_{k}.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+
+("fisher_info" in plots_list) and fig__fisher_info()
 exit(0)
