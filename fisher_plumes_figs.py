@@ -15,6 +15,8 @@ from collections import defaultdict
 import colorsys
 import networkx as nx
 import pdb
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, message="FixedFormatter should")
 
 import fisher_plumes_fig_tools as fpft
 import fisher_plumes_tools as fpt
@@ -1303,7 +1305,6 @@ def plot_information_regression(data, which_ds, iprb,
     gs = GridSpec(n_rows, len(which_log10_dists[which_ds[0]])+coef_plot_width)
     if figsize is None:
         figsize = (2*(len(which_log10_dists[which_ds[0]])+coef_plot_width),2.5 * n_rows)
-    print(figsize)
     plt.figure(figsize=figsize)
     ax = []
     if not hasattr(do_label, "__len__"):
@@ -1375,8 +1376,8 @@ def plot_information_regression(data, which_ds, iprb,
             #ax_coef.axvline(ils_probe.magnitude,  ymin=0.48, ymax=0.52, color="r", linewidth=2, label="ILS (probe)")
             ax_coef.scatter([ils_origin.magnitude], [0], zorder = 10, c="orangered", marker="4", s = 150, linewidth=1.5,label="$L_U$ (origin)")
             ax_coef.scatter([ils_probe.magnitude],  [0], zorder = 10, c="orangered", marker="3", s = 150, linewidth=1.5,      label="$L_U$ (probe)")
-            print(f"{ils_origin=}")
-            print(f"{ils_probe=}")            
+            INFO(f"{ils_origin=}")
+            INFO(f"{ils_probe=}")            
 
         #ax_coef.set_xlim(ax_coef.get_xlim()[0], np.max(dd))
         ax_coef.set_ylim(*yl)

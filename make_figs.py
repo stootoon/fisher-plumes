@@ -401,6 +401,17 @@ def fig__fisher_info():
 
 ("fisher_info" in plots_list) and fig__fisher_info()
 
+def get_paired_ds(paired_ds, data):
+    if paired_ds is None:
+        paired_ds = []
+    else:
+        if paired_ds not in data:
+            WARN(f"Paired dataset {paired_ds} not loaded so not including.")
+            paired_ds = []
+        else:
+            paired_ds = [paired_ds]
+    return paired_ds
+
 def fig__length_vs_frequency():
     print("\nPLOTTING LENGTH CONSTANTS VS FREQUENCY.")
     P = FigParams.length_vs_freq
@@ -409,17 +420,8 @@ def fig__length_vs_frequency():
         prefix = k.split(".")[0]
         if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
             continue
-
-        paired_ds = P.paired_ds[k]
-        if paired_ds is None:
-            paired_ds = []
-        else:
-            if paired_ds not in data:
-                WARN(f"Paired dataset {paired_ds} not loaded so not including.")
-                paired_ds = []
-            else:
-                paired_ds = [paired_ds]
-
+        
+        paired_ds = get_paired_ds(P.paired_ds[k], data)
         which_ds = [k] + paired_ds
         ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = P.which_corr_freqs_Hz[k])
         fpft.label_axes(ax + [ax_γ], "ABCDE",
@@ -433,4 +435,32 @@ def fig__length_vs_frequency():
         sys.stdout.flush(); plt.show()
 ("length_vs_freq" in plots_list) and fig__length_vs_frequency()    
 
+def fig__elbow():
+    print("\nPLOTTING ELBOW.")
+    P = FigParams.elbow
+    for k, F in sorted(data.items()):
+        if surrQ(k): continue
+        which_ds = bsum([get_paired_ds(ods, data) for ods in P.other_ds[k]],[])
+        names = {ki:ki for ki in which_ds}
+        names[k] = k
+        # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
+        ax, ax_coef = fpf.plot_information_regression(data,
+                                                      [k] + which_ds,
+                                                      iprb,
+                                                      plot_ils = True,
+                                                      do_label = [True]*2 + [False]*(len(which_ds)-1),
+                                                      yl=(-0.06,0.06))
+    
+
+        fpft.label_axes([ax[0][0], ax[1][0], ax_coef], "ABC",
+                        fontsize=12, fontweight="bold",
+                        align_x = [[0,1]],
+                        align_y = [[0,2]])
+    
+        file_name = f"{FigParams.fig_dir_full}/reg_coefs_{k}.pdf"
+        #tight_layout(pad=0,w_pad=0, h_pad=0)
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+("elbow" in plots_list) and fig__elbow()
+    
 exit(0)

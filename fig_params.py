@@ -110,6 +110,11 @@ class LengthVsFreq:
     def __init__(self, UNITS, su_ds):
         self.which_corr_freqs_Hz = defaultdict(lambda: [2, 5, 10, 15, 20])
         self.paired_ds = defaultdict(lambda: "s=p_0")
+
+
+class Elbow:
+    def __init__(self):
+        self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(4)])
         
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
@@ -134,4 +139,5 @@ class FigParams:
         self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
         self.fisher_info   = FisherInfo(UNITS, su_ds)
         self.length_vs_freq= LengthVsFreq(UNITS, su_ds)
+        self.elbow         = Elbow()
         
