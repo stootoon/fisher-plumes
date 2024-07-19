@@ -221,6 +221,34 @@ def fig__mvg_fits():
 
 ("mvg_fits" in plots_list) and fig__mvg_fits()
 
+def fig__mvg_supp_fits():
+    print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
+    P = FigParams.mvg_supp_fits
+    for k, F in sorted(data.items()):
+        if surrQ(k): continue
+        plt.figure(figsize=(12,6))
+        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, P.freq[k], P.idists[k],
+                                                             which_probe = iprb, n_per_row = 2,
+                                                             y_lim=[0,5] if k[:2]!="su" else [-3,3],
+                                                             t_lim = P.t_lim[k],
+                                                             dt = P.dt[k])
+        for ax in coef_ax:
+            ax.set_xlabel("")
+            ax.set_ylabel("")
+        [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
+        plt.tight_layout(pad=0)
+        all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
+        n_ax   = len(all_ax)
+        fpft.label_axes(all_ax,
+                        [ch+nu for ch in "ABCDEFGH" for nu in "12"],
+                        align_x = [list(range(i,n_ax,4)) for i in range(4)],
+                        align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
+                        fontsize=12, fontweight="bold", dy=-0.01)
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{P.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+("mvg_supp_fits" in plots_list) and fig__mvg_supp_fits()
+
 def fit__scattergrams():
     print("\nPLOTTING SCATTERGRAMS.")
     P = FigParams.scattergrams
@@ -245,7 +273,6 @@ def fit__scattergrams():
             sys.stdout.flush(); plt.show()
 
 ("scattergrams" in plots_list) and fit__scattergrams()
-
 
 def fit__phase_heatmaps():
     print("\nPLOTTING PHASE HEATMAPS.")
@@ -298,32 +325,27 @@ def fig__alap_fits():
             sys.stdout.flush(); plt.show()
 ("alap_fits" in plots_list) and fig__alap_fits()
 
-
-def fig__mvg_supp_fits():
-    print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-    P = FigParams.mvg_supp_fits
+def fig__rho_decay_fits():
+    print("\nPLOTTING RHO DECAY FITS.")
+    P = FigParams.rho_decay_fits
     for k, F in sorted(data.items()):
         if surrQ(k): continue
-        plt.figure(figsize=(12,6))
-        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, P.freq[k], P.idists[k],
-                                                             which_probe = iprb, n_per_row = 2,
-                                                             y_lim=[0,5] if k[:2]!="su" else [-3,3],
-                                                             t_lim = P.t_lim[k],
-                                                             dt = P.dt[k])
-        for ax in coef_ax:
-            ax.set_xlabel("")
-            ax.set_ylabel("")
-        [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
-        plt.tight_layout(pad=0)
-        all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
-        n_ax   = len(all_ax)
-        fpft.label_axes(all_ax,
-                        [ch+nu for ch in "ABCDEFGH" for nu in "12"],
-                        align_x = [list(range(i,n_ax,4)) for i in range(4)],
-                        align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
-                        fontsize=12, fontweight="bold", dy=-0.01)
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{P.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
+        ax = fpf.plot_la_gen_fits_vs_distance(F, 
+                                              figsize=(8,4), legloc = 'right',
+                                              log_scale = True,
+                                              scatter_size=1.5,
+                                              max_bs = 10,
+                                              which_ifreqs = F.freqs2inds(P.freqs[k]))
+        [((i>1) and axi.set_xlabel(f"Intersource Distance $s$ ({fpf.pitch_sym})")) for i, axi in enumerate(ax[:4])]
+        plt.tight_layout(h_pad=1,w_pad=0.5)
+        fpft.label_axes(ax, "ABCDEFGHIJK",
+                        align_y = [[0,1,4],[2,3]],
+                        align_x = [[0,2],[1,3]],
+                        fontsize=12, fontweight="bold", dy=-0.02)                        
+        file_name = f"{FigParams.fig_dir_full}/rho_vs_s_fits_{k}.pdf"
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
-("mvg_supp_fits" in plots_list) and fig__mvg_supp_fits()
+
+("rho_decay_fits" in plots_list) and fig__rho_decay_fits()    
+
 exit(0)

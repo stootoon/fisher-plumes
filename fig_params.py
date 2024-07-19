@@ -1,4 +1,5 @@
 import os, sys
+import numpy as np
 from importlib import reload
 from collections import defaultdict, namedtuple
 from matplotlib import cm   
@@ -10,7 +11,7 @@ logger = utils.create_logger(__name__)
 INFO = logger.info
 DEBUG = logger.debug
 
-from utils import dict_update_from_field
+from utils import dict_update_from_field, dict_update
 
 DEFAULT   = "default"
 isdefault = lambda x: type(x) is str and x == DEFAULT
@@ -86,6 +87,14 @@ class AlapFits:
         self.vmax      = dict_update_from_field({"bw":[1,1]},            su_ds + all_but_bw, "bw")
         self.fit_corrs = defaultdict(lambda: None)
 
+class RhoDecayFits:
+    def __init__(self, UNITS, su_ds):
+        self.freqs  = dict_update({fld:[2,3,7,10] * UNITS.hertz for fld in ["bw", "16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]}, su_ds, [[1,3,17,20] * UNITS.hertz]*4)
+        self.xl     = dict_update_from_field({"bw":(-10,200)},                 su_ds + all_but_bw, "bw"); 
+        self.xt     = dict_update_from_field({"bw":np.arange(0,201,50)},          su_ds + all_but_bw, "bw"); 
+        self.xtp    = dict_update_from_field({"bw":np.array([60,90,135])},     su_ds + all_but_bw, "bw"); 
+        self.ytp    = dict_update_from_field({"bw":np.array([0.8,1,1.2,1.5])}, su_ds + all_but_bw, "bw"); 
+
         
 class FigParams:
     def __init__(self, UNITS, compute_filter, su_ds = []):
@@ -107,5 +116,6 @@ class FigParams:
         self.mvg_supp_fits = MVGaussianSuppFits(UNITS, su_ds = su_ds)
         self.scattergrams  = Scattergrams(UNITS, su_ds)
         self.alap_fits     = AlapFits(UNITS, su_ds)
+        self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
 
         
