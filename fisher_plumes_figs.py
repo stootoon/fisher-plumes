@@ -56,15 +56,15 @@ def plot_two_plumes(F, which_idists, t_lim, which_probe = 0, dt = 0.5 * UNITS.se
             ipair   = np.argmin(balance) # Find the pair where y1~y2
         else:
             ipair = 0
-        print(f"Using pair {ipair} for idist {di}, dist {dists[di]}")
+        DEBUG(f"Using pair {ipair} for idist {di}, dist {dists[di]}")
         ia, ib = p[ipair]
-        print(f"ia = {ia}, ib = {ib}")
+        DEBUG(f"ia = {ia}, ib = {ib}")
         a = F.sims[ia].data[:, which_probe].flatten()
         b = F.sims[ib].data[:, which_probe].flatten()
         t = F.sim0.t
-        print("Before scaling to unit variance:")
-        print("std(a) = ", a.std())
-        print("std(b) = ", b.std())
+        DEBUG("Before scaling to unit variance:")
+        DEBUG(f"std(a) = {a.std()}")
+        DEBUG(f"std(b) = {b.std()}")
         sc = max(a.std(), b.std())
         a /= sc
         b /= sc
@@ -136,14 +136,14 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
             sims = F.sims
             fields_orig = {k:sims[k].get_snapshot("S1", t_snapshot.to(UNITS.sec) if hasattr(t_snapshot, "to") else t_snapshot) for k in which_srcs}
         else:
-            print("No 'sims' attribute found. Trying to load snapshots from disk.")
+            DEBUG("No 'sims' attribute found. Trying to load snapshots from disk.")
             data_root = os.path.join(os.environ["FISHER_PLUMES_DATA"], "crick", F.name)
             snapshots_dir = lambda um: os.path.join(data_root, f"Y0.{int(um/1000)}", "png")
             fields_orig = {k:get_snapshot("S1", t_snapshot.to(UNITS.sec), snapshots_dir = snapshots_dir(k)) for k in F.yvals_um}
             
-        print(list(fields_orig.keys()))
+        DEBUG(list(fields_orig.keys()))
         fields, limsx, limsy = clip_snapshots(fields_orig)
-        print("fields.keys()", list(fields.keys()))
+        DEBUG("fields.keys()", list(fields.keys()))
         INFO(f"Clipped snapshots to {limsx=}, {limsy=}.")
 
         
@@ -166,7 +166,7 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
                 del plot_source_locations["which_sources"]
             else:
                 ind_src = all_sources
-            print("Plotting source locations", ind_src)
+            DEBUG("Plotting source locations {ind_src}")
             p0, u = F.source_line[0], F.source_line[1]
             svals_um = F.svals_um
             xvals = p0[0] + svals_um[ind_src]*u[0]
