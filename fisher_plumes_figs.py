@@ -166,7 +166,7 @@ def plot_plumes_snapshot(F, t_snapshot, which_srcs, ax_plume = None, data_dir = 
                 del plot_source_locations["which_sources"]
             else:
                 ind_src = all_sources
-            DEBUG("Plotting source locations {ind_src}")
+            DEBUG(f"Plotting source locations {ind_src}")
             p0, u = F.source_line[0], F.source_line[1]
             svals_um = F.svals_um
             xvals = p0[0] + svals_um[ind_src]*u[0]

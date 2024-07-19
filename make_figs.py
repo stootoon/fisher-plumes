@@ -19,7 +19,15 @@ parser.add_argument("--fitk", action="store_true", help="Fit k.")
 parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
+parser.add_argument("--plot_only", type=lambda x: x.split(","), default=[], help="Plot only these figures.")
 args = parser.parse_args()
+
+if len(args.plot_only):
+    plots_list = args.plot_only
+else:
+    plots_list = ["plumes_demo"]
+
+INFO(f"Plots to make: {plots_list}")
 
 assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
 to_use = {}
@@ -123,7 +131,7 @@ def fig__plumes_demo():
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
     
-fig__plumes_demo()
+("plumes_demo" in plots_list) and fig__plumes_demo()
 exit(0)
 
 print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
