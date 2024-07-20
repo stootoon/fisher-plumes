@@ -122,30 +122,23 @@ def main():
             #     DEBUG(f'fr at 423, {j}: {fr}')
             #     plt.savefig(f'/rc_scratch/elst4602/tests/frline_{j}_423.png')
 
-            # Integrate f(r) until first zero crossing 
+            # Integrate f(r)  
             dx = 0.0005
+            ils = np.nansum(fr * dx)
+            ils_array[i, j] = ils
+            
+            # If required, below provides integration to first zero-crossing
             # fr_to_zero = fr[0:np.argmax(fr<0)]
             # if len(fr_to_zero)==0:
             #     ils = np.nansum(fr * dx)
             # else:
             #     ils = np.nansum(fr_to_zero * dx)
             
-            ils = np.nansum(fr * dx)
-            ils_array[i, j] = ils
-
-            # # Add q_plus and q_minus to get components of autocorrelation function
-            # qsum = q_plus + q_minus
-            # DEBUG(f'qsum dimensions: {qsum.shape}')
-            # qsum_array[:, i, j] = qsum
-
-
-    # local_result = qsum_array.flatten()
     local_result = ils_array.flatten()
     # local_u_mean = np.mean(local_u_chunk, axis=2)
     # local_u_mean = local_u_chunk[:, :, 0]
     # local_u_mean = local_u_mean.flatten()
     DEBUG(f"Process {rank} completed with result size {local_result.size}")
-
 
     # GATHER ALL RESULTS INTO PROCESS 0
 
