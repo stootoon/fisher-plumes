@@ -308,92 +308,111 @@ class FigPhaseExample:
     
 ("phase_example" in plots_list) and FigPhaseExample().plot()
 
-def fig__mvg_fits():
-    print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-    P = FigParams.mvg_fits
-    for name, F in sorted(data.items()):
-        if surr_trialsQ(name): continue
-        for which_freq in self.which_freqs[name]:
-            ifreq = F.freqs2inds([which_freq])[0]
-            INFO(f"Mapped {which_freq} to index {ifreq}.")
-            
-            plt.figure(figsize=(12, 3 * len(self.configs)))
-            axes = []
-            for i, config in enumerate(self.configs):
-                idists = self.which_idists[name]
-                ax = [plt.subplot(len(self.configs), len(idists), i*len(idists) + j+1) for j in range(len(idists))]
-                ax_ = fpf.plot_coef1_vs_coef2(F,
-                                              ifreq,
-                                              config=config,
-                                              iprb=iprb,
-                                              i_pos_dists_to_plot = self.which_idists[name],
-                                              col = self.cols[i],
-                                              axes = ax,
-                                              do_corr = True,
-                )
-                if i:
-                    [axi.set_title("") for axi in ax_]
-                            
-                axes.extend(ax)
-            fpft.label_axes(axes, "ABCDEFGH", fontsize=12, fontweight="bold", dy=-0.01)            
-            file_name = f"{FigParams.fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(self.configs)}.pdf"
+class FigMvgFits:
+    def __init__(self):
+        self.freqs_to_plot = defaultdict(lambda: [5 * UNITS.Hz, 10 * UNITS.Hz])
+        self.which_freqs = dict_update_from_field({"bw":self.freqs_to_plot["bw"]},   su_ds + all_but_bw, "bw"); 
+        self.which_idists= dict_update_from_field({"bw":[0,1,2,3]},   su_ds + all_but_bw, "bw"); 
+        self.dcol_scales = dict_update_from_field({"bw":120000},  su_ds + all_but_bw, "bw");
+        self.configs = ["a_c", "a_d"]
+        self.cols    = [cm.cool(r) for r in [0.9, 0.4]]
+
+    def plot(self):
+        print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
+        for name, F in sorted(data.items()):
+            if surr_trialsQ(name): continue
+            for which_freq in self.which_freqs[name]:
+                ifreq = F.freqs2inds([which_freq])[0]
+                INFO(f"Mapped {which_freq} to index {ifreq}.")
+                
+                plt.figure(figsize=(12, 3 * len(self.configs)))
+                axes = []
+                for i, config in enumerate(self.configs):
+                    idists = self.which_idists[name]
+                    ax = [plt.subplot(len(self.configs), len(idists), i*len(idists) + j+1) for j in range(len(idists))]
+                    ax_ = fpf.plot_coef1_vs_coef2(F,
+                                                  ifreq,
+                                                  config=config,
+                                                  iprb=iprb,
+                                                  i_pos_dists_to_plot = self.which_idists[name],
+                                                  col = self.cols[i],
+                                                  axes = ax,
+                                                  do_corr = True,
+                    )
+                    if i:
+                        [axi.set_title("") for axi in ax_]
+                                
+                    axes.extend(ax)
+                fpft.label_axes(axes, "ABCDEFGH", fontsize=12, fontweight="bold", dy=-0.01)            
+                file_name = f"{fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(self.configs)}.pdf"
+                SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+                sys.stdout.flush(); plt.show()
+    
+("mvg_fits" in plots_list) and FigMvgFits().plot()
+
+class FigMvgSuppFits:
+    def __init__(self):
+        self.freq      = dict_update_from_field({"bw":5 * UNITS.hertz,},    su_ds + all_but_bw, "bw") 
+        self.idists    = dict_update_from_field({"bw":[0,1,2,3,4,6,7,12]},  su_ds + all_but_bw, "bw") 
+        self.t_lim     = dict_update_from_field({"bw":[35, 45]*UNITS.sec},  su_ds + all_but_bw, "bw")
+        self.dt        = dict_update_from_field({"bw":1*UNITS.sec},         su_ds + all_but_bw, "bw")
+
+    def plot(self):
+        print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
+        for k, F in sorted(data.items()):
+            if surrQ(k): continue
+            plt.figure(figsize=(12,6))
+            coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, self.freq[k], self.idists[k],
+                                                                 which_probe = iprb, n_per_row = 2,
+                                                                 y_lim=[0,5] if k[:2]!="su" else [-3,3],
+                                                                 t_lim = self.t_lim[k],
+                                                                 dt = self.dt[k])
+            for ax in coef_ax:
+                ax.set_xlabel("")
+                ax.set_ylabel("")
+            [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
+            plt.tight_layout(pad=0)
+            all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
+            n_ax   = len(all_ax)
+            fpft.label_axes(all_ax,
+                            [ch+nu for ch in "ABCDEFGH" for nu in "12"],
+                            align_x = [list(range(i,n_ax,4)) for i in range(4)],
+                            align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
+                            fontsize=12, fontweight="bold", dy=-0.01)
+            file_name = f"{fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{self.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
+("mvg_supp_fits" in plots_list) and FigMvgSuppFits().plot()
 
-("mvg_fits" in plots_list) and fig__mvg_fits()
+class Scattergrams:
+    def __init__(self):
+        self.freqs_to_plot = defaultdict(lambda: [2 * UNITS.Hz, 5 * UNITS.Hz, 8 * UNITS.Hz, 10 * UNITS.Hz])
+        self.which_freqs   = dict_update_from_field({"bw":self.freqs_to_plot["bw"]},   su_ds + all_but_bw, "bw"); 
+        self.dcol_scales = dict_update_from_field({"bw":120000},  su_ds + all_but_bw, "bw");
 
-def fig__mvg_supp_fits():
-    print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-    P = FigParams.mvg_supp_fits
-    for k, F in sorted(data.items()):
-        if surrQ(k): continue
-        plt.figure(figsize=(12,6))
-        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, self.freq[k], self.idists[k],
-                                                             which_probe = iprb, n_per_row = 2,
-                                                             y_lim=[0,5] if k[:2]!="su" else [-3,3],
-                                                             t_lim = self.t_lim[k],
-                                                             dt = self.dt[k])
-        for ax in coef_ax:
-            ax.set_xlabel("")
-            ax.set_ylabel("")
-        [ax.legend(fontsize=6,labelspacing=0,frameon=False) for ax in trace_ax]
-        plt.tight_layout(pad=0)
-        all_ax = bsum([[ax_c, ax_t] for ax_c, ax_t in zip(coef_ax, trace_ax)], [])
-        n_ax   = len(all_ax)
-        fpft.label_axes(all_ax,
-                        [ch+nu for ch in "ABCDEFGH" for nu in "12"],
-                        align_x = [list(range(i,n_ax,4)) for i in range(4)],
-                        align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
-                        fontsize=12, fontweight="bold", dy=-0.01)
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{self.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
-("mvg_supp_fits" in plots_list) and fig__mvg_supp_fits()
-
-def fit__scattergrams():
-    print("\nPLOTTING SCATTERGRAMS.")
-    P = FigParams.scattergrams
-    for name, F in sorted(data.items()):
-        if surr_trialsQ(name): continue
-        for which_freq in self.which_freqs[name]:
-            ifreq = F.freqs2inds([which_freq])[0]
-            INFO(f"Mapped {which_freq} to index {ifreq}.")
-            ax = fpf.plot_scattergram(F,
-                                      ifreq,
-                                      iprb,
-                                      figsize=(8,8),
-                                      dist_col_scale = self.dcol_scales[name],
-                                      markersize = 0.2,
-                                      cols = ["royalblue","crimson", "seagreen", "magenta"],
-                                      coef_names = {0:"Sin", 1:"Cos"},
-                                      lim_scale = 2.,
-                                      print_fun = np.corrcoef,
-                                      )
-            file_name = f"{FigParams.fig_dir_wnd_shp_len}/scattergram_{name}_{which_freq.magnitude}Hz.pdf"
-            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
-
-("scattergrams" in plots_list) and fit__scattergrams()
+    def plot(self):
+        print("\nPLOTTING SCATTERGRAMS.")
+        for name, F in sorted(data.items()):
+            if surr_trialsQ(name): continue
+            for which_freq in self.which_freqs[name]:
+                ifreq = F.freqs2inds([which_freq])[0]
+                INFO(f"Mapped {which_freq} to index {ifreq}.")
+                ax = fpf.plot_scattergram(F,
+                                          ifreq,
+                                          iprb,
+                                          figsize=(8,8),
+                                          dist_col_scale = self.dcol_scales[name],
+                                          markersize = 0.2,
+                                          cols = ["royalblue","crimson", "seagreen", "magenta"],
+                                          coef_names = {0:"Sin", 1:"Cos"},
+                                          lim_scale = 2.,
+                                          print_fun = np.corrcoef,
+                                          )
+                file_name = f"{fig_dir_wnd_shp_len}/scattergram_{name}_{which_freq.magnitude}Hz.pdf"
+                SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+                sys.stdout.flush(); plt.show()
+    
+("scattergrams" in plots_list) and FitScattergrams().plot()
 
 def fit__phase_heatmaps():
     print("\nPLOTTING PHASE HEATMAPS.")
