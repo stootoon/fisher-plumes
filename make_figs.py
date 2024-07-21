@@ -119,7 +119,7 @@ data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 
 SAVEPLOTS = True # Whether to actually make the plots
 window_shape  = args.window_shape
-window_length = args.window_length
+window_length = eval(args.window_length)
 fit_k         = args.fitk
 
 fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, create = True); DEBUG(f"{fig_dir_full=}")
@@ -129,11 +129,24 @@ fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_lengt
 fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{fig_dir_fitk=}")
 fig_dir_fitkb       = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, fit_b = fit_b, create = True); DEBUG(f"{fig_dir_fitkb=}")
 
-FigParams = fig_params.FigParams(UNITS, compute, su_ds)
-
 DEFAULT   = "default"
 isdefault = lambda x: type(x) is str and x == DEFAULT
 all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
+
+Info = namedtuple('Info','name,color')
+infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
+         "16Ts_X": Info(name="Supp. dataset (X)",               color = "dodgerblue"),
+         "16Ts_45": Info(name="Supp. dataset (45 deg)",               color = "dodgerblue"),
+         "bw":   Info(name="Main dataset",                color = "orangered"),
+         "bw_X":   Info(name="Main dataset (streamwise)",                color = "orange"),
+         "bw_45":   Info(name="Main dataset (45 deg)",                color = "orange"),         
+         "s=p_0":  Info(name="Surrogate (all =)",     color = "pink"),
+         "s=w":  Info(name="Surrogate (all =, white)",    color = "green"),
+         "shw":  Info(name="Surrogate (high>low, white)", color = "silver"),
+         "shp":  Info(name="Surrogate (high>low)",  color = "violet"),
+         "s=w_q0":  Info(name="Surrogate (quad, ϕ=0, white)", color="blue"),
+         "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
+}
 
 class FigPlumesDemo:
     def __init__(self, data):
@@ -187,7 +200,7 @@ class FigPlumesDemo:
             if surrQ(k) or k  in ["bw"]: ax_corr.set_xticks(np.arange(5))
             if surrQ(k): [ax_corr.set_ylim(-0.85,1.05), ax_corr.set_ylabel("Correlation",labelpad=-8)]
             fpft.label_axes([ax_plume, ax_traces[0], ax_corr], "ABC", y = [0.99]*3, fontsize=12, fontweight="bold")
-            file_name = f"{FigParams.fig_dir_wnd_shp_len}/plumes_demo_{k}.pdf"
+            file_name = f"{fig_dir_wnd_shp_len}/plumes_demo_{k}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
         
@@ -384,7 +397,7 @@ class FigMvgSuppFits:
             sys.stdout.flush(); plt.show()
 ("mvg_supp_fits" in plots_list) and FigMvgSuppFits().plot()
 
-class Scattergrams:
+class FigScattergrams:
     def __init__(self):
         self.freqs_to_plot = defaultdict(lambda: [2 * UNITS.Hz, 5 * UNITS.Hz, 8 * UNITS.Hz, 10 * UNITS.Hz])
         self.which_freqs   = dict_update_from_field({"bw":self.freqs_to_plot["bw"]},   su_ds + all_but_bw, "bw"); 
@@ -412,117 +425,142 @@ class Scattergrams:
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
                 sys.stdout.flush(); plt.show()
     
-("scattergrams" in plots_list) and FitScattergrams().plot()
+("scattergrams" in plots_list) and FigScattergrams().plot()
 
-def fit__phase_heatmaps():
-    print("\nPLOTTING PHASE HEATMAPS.")
-    for name, F in sorted(data.items()):
-        if surr_trialsQ(name): continue
-        ax = fpf.plot_phase_heatmap(F, max_phi = np.pi/3, plot_which="all", max_corr=0.1,figsize=(8,6))
-        plt.tight_layout()
-        fpft.label_axes(ax, "ABCD", 
-                        align_y = [[0,1],[2,3]],
-                        align_x = [[0,2],[1,3]],
-                        fontsize=12, fontweight="bold", dy=-0.025)
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/phase_heatmap_{name}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+class FigPhaseHeatmaps:
+    def plot(self):
+        print("\nPLOTTING PHASE HEATMAPS.")
+        for name, F in sorted(data.items()):
+            if surr_trialsQ(name): continue
+            ax = fpf.plot_phase_heatmap(F, max_phi = np.pi/3, plot_which="all", max_corr=0.1,figsize=(8,6))
+            plt.tight_layout()
+            fpft.label_axes(ax, "ABCD", 
+                            align_y = [[0,1],[2,3]],
+                            align_x = [[0,2],[1,3]],
+                            fontsize=12, fontweight="bold", dy=-0.025)
+            file_name = f"{fig_dir_wnd_shp_len}/phase_heatmap_{name}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+    
+("phase_heatmaps" in plots_list) and FigPhaseHeatmaps().plot()
 
-("phase_heatmaps" in plots_list) and fit__phase_heatmaps()
+class FigAlapFits:
+    def __init__(self):
+        self.idist     = dict_update_from_field({"bw":[0,1,2]},          su_ds + all_but_bw, "bw")
+        self.freq_max  = dict_update_from_field({"bw":21 * UNITS.hertz}, su_ds + all_but_bw, "bw")
+        self.vmin      = dict_update_from_field({"bw":[0,0]},            su_ds + all_but_bw, "bw")
+        self.vmax      = dict_update_from_field({"bw":[1,1]},            su_ds + all_but_bw, "bw")
+        self.fit_corrs = defaultdict(lambda: None)
+    
+    def plot(self):
+        print("\nPLOTTING ASYMMETRIC LAPLACIAN FITS.")
+        for name, F in sorted(data.items()):
+            if surrQ(name): continue
+            if surr_trialsQ(name): continue
+            d = np.array(list(F.rho[iprb].keys()))
+            d = np.sort(d[d>=0])
+            for f, xl in zip([1,5,10] * UNITS.hertz, [[-0.25, 1.0], [-0.02, 0.05], [-0.02, 0.05]]):
+                if f != 5 * UNITS.hertz: continue
+                which_freq = defaultdict(lambda: f)
+                ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[self.idist[name]],
+                                                                which_probe = iprb,
+                                                                ifreq_lim = [1, F.freqs2inds([self.freq_max[name]])[0]],
+                                                                which_ifreq = F.freqs2inds([which_freq[name]])[0],
+                                                                figsize=(9,4),
+                                                                fit_color="gray",
+                                                                vmax=self.vmax[name],
+                                                                vmin=self.vmin[name],
+                                                                plot_dvals=True,
+                                                                expansion = 1.0,
+                                                                xl = xl,
+                                                                fit_corrs = self.fit_corrs[name],
+                                                                leg_loc = None,
+                                                                leg_loc2 = "lower right",
+                                                                cdf_mode = "even")
+                plt.tight_layout(pad=0)
+                fpft.label_axes(ax_cdf + ax_dcdf + ax_hm, "ABCDEFGHIJK",
+                                align_y = [[0,1,2,6],[3,4,5,7]],
+                                align_x = [[0,3],[1,4],[2,5],[6,7]],
+                                fontsize=12, fontweight="bold", dy=0)
+                file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
+                SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+                sys.stdout.flush(); plt.show()
+                
+("alap_fits" in plots_list) and FigAlapFits().plot()
 
-def fig__alap_fits():
-    print("\nPLOTTING ASYMMETRIC LAPLACIAN FITS.")
-    P = FigParams.alap_fits
-    for name, F in sorted(data.items()):
-        if surrQ(name): continue
-        if surr_trialsQ(name): continue
-        d = np.array(list(F.rho[iprb].keys()))
-        d = np.sort(d[d>=0])
-        for f, xl in zip([1,5,10] * UNITS.hertz, [[-0.25, 1.0], [-0.02, 0.05], [-0.02, 0.05]]):
-            if f != 5 * UNITS.hertz: continue
-            which_freq = defaultdict(lambda: f)
-            ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[self.idist[name]],
-                                                            which_probe = iprb,
-                                                            ifreq_lim = [1, F.freqs2inds([self.freq_max[name]])[0]],
-                                                            which_ifreq = F.freqs2inds([which_freq[name]])[0],
-                                                            figsize=(9,4),
-                                                            fit_color="gray",
-                                                            vmax=self.vmax[name],
-                                                            vmin=self.vmin[name],
-                                                            plot_dvals=True,
-                                                            expansion = 1.0,
-                                                            xl = xl,
-                                                            fit_corrs = self.fit_corrs[name],
-                                                            leg_loc = None,
-                                                            leg_loc2 = "lower right",
-                                                            cdf_mode = "even")
-            plt.tight_layout(pad=0)
-            fpft.label_axes(ax_cdf + ax_dcdf + ax_hm, "ABCDEFGHIJK",
-                            align_y = [[0,1,2,6],[3,4,5,7]],
-                            align_x = [[0,3],[1,4],[2,5],[6,7]],
-                            fontsize=12, fontweight="bold", dy=0)
-            file_name = f"{FigParams.fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
+class FigRhoDecayFits:
+    def __init__(self):
+        self.freqs  = dict_update({fld:[2,3,7,10] * UNITS.hertz for fld in ["bw", "16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]}, su_ds, [[1,3,17,20] * UNITS.hertz]*4)
+        self.xl     = dict_update_from_field({"bw":(-10,200)},                 su_ds + all_but_bw, "bw"); 
+        self.xt     = dict_update_from_field({"bw":np.arange(0,201,50)},          su_ds + all_but_bw, "bw"); 
+        self.xtp    = dict_update_from_field({"bw":np.array([60,90,135])},     su_ds + all_but_bw, "bw"); 
+        self.ytp    = dict_update_from_field({"bw":np.array([0.8,1,1.2,1.5])}, su_ds + all_but_bw, "bw");
+    
+    def plot(self):
+        print("\nPLOTTING RHO DECAY FITS.")
+        for k, F in sorted(data.items()):
+            if surrQ(k): continue
+            ax = fpf.plot_la_gen_fits_vs_distance(F, 
+                                                  figsize=(8,4), legloc = 'right',
+                                                  log_scale = True,
+                                                  scatter_size=1.5,
+                                                  max_bs = 10,
+                                                  which_ifreqs = F.freqs2inds(self.freqs[k]))
+            [((i>1) and axi.set_xlabel(f"Intersource Distance $s$ ({fpf.pitch_sym})")) for i, axi in enumerate(ax[:4])]
+            plt.tight_layout(h_pad=1,w_pad=0.5)
+            fpft.label_axes(ax, "ABCDEFGHIJK",
+                            align_y = [[0,1,4],[2,3]],
+                            align_x = [[0,2],[1,3]],
+                            fontsize=12, fontweight="bold", dy=-0.02)                        
+            file_name = f"{fig_dir_full}/rho_vs_s_fits_{k}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
-("alap_fits" in plots_list) and fig__alap_fits()
+    
+("rho_decay" in plots_list) and FigRhoDecayFits().plot()    
 
-def fig__rho_decay_fits():
-    print("\nPLOTTING RHO DECAY FITS.")
-    P = FigParams.rho_decay_fits
-    for k, F in sorted(data.items()):
-        if surrQ(k): continue
-        ax = fpf.plot_la_gen_fits_vs_distance(F, 
-                                              figsize=(8,4), legloc = 'right',
-                                              log_scale = True,
-                                              scatter_size=1.5,
-                                              max_bs = 10,
-                                              which_ifreqs = F.freqs2inds(self.freqs[k]))
-        [((i>1) and axi.set_xlabel(f"Intersource Distance $s$ ({fpf.pitch_sym})")) for i, axi in enumerate(ax[:4])]
-        plt.tight_layout(h_pad=1,w_pad=0.5)
-        fpft.label_axes(ax, "ABCDEFGHIJK",
-                        align_y = [[0,1,4],[2,3]],
-                        align_x = [[0,2],[1,3]],
-                        fontsize=12, fontweight="bold", dy=-0.02)                        
-        file_name = f"{FigParams.fig_dir_full}/rho_vs_s_fits_{k}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
+class FigFisherInfo:
+    def __init__(self):
+        self.freqs     = dict_update_from_field({"bw":[1,2, 5, 10, 20] * UNITS.hertz}, su_ds + all_but_bw, "bw")
+        self.freq_max  = dict_update_from_field({"bw":25 * UNITS.hertz},               su_ds + all_but_bw, "bw")
+        self.colscale  = dict_update_from_field({"bw":10},                             su_ds + all_but_bw, "bw")
+        self.d_vals_um = dict_update_from_field({"bw":[1,5,50]},                       su_ds + all_but_bw, "bw")
+        self.d_lim_um  = dict_update_from_field({"bw":[100, 125000 ]},                 su_ds + all_but_bw, "bw")
+        self.bf_ytick  = dict_update_from_field({"bw":[0,5,10]},                       su_ds + all_but_bw, "bw")
+        self.bf_yl     = dict_update_from_field({"bw":[0,15]},                         su_ds + all_but_bw, "bw")
+        self.plot_param_fits = False
 
-("rho_decay_fits" in plots_list) and fig__rho_decay_fits()    
-
-def fig__fisher_info():
-    print("\nPLOTTING FISHER INFORMATION.")
-    P = FigParams.fisher_info
-    for k, F in sorted(data.items()):
-        prefix = k.split(".")[0]
-        if prefix not in ["bw","16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]: continue
-        plt.figure(figsize=(6,7))
-        ax_fisher, ax_best_freq, ax_d = fpf.plot_fisher_information(F,
-                                                                    which_probe = iprb,
-                                                                    d_lim_um   = self.d_lim_um[k],
-                                                                    d_vals_um  = np.array(self.d_vals_um[k])*1000,
-                                                                    d_space_fun  = lambda d0,d1,n:np.logspace(np.log10(d0),np.log10(d1),n),
-                                                                    which_ifreqs = F.freqs2inds(self.freqs[k]),
-                                                                    x_stagger = lambda x, i: x*(1.02**i),
-                                                                    plot_fun = plt.loglog,
-                                                                    log_scale = True,
-                                                                    plot_param_fits = self.plot_param_fits,
-                                                                    freq_max  = self.freq_max[k],
-                                                                    colfun    = lambda f: cm.cool_r(f/self.colscale[k]),
-                                                                    info_heatmap = True,
-                                                                    heatmap_range =[-2, np.log10(500)],
-                                                                    heatmap_cm    =cm.Spectral_r,
-        )
-        ax_fisher.set_ylim(1e-2,1e3)
-        plt.tight_layout(h_pad=2,w_pad=0)
-        fpft.label_axes([ax_fisher, ax_best_freq] + ax_d , "ABCDEFGHIJK",
-                        #align_y = [[2,3,4]],
-                        align_x = [[0,1,2] if self.plot_param_fits else [0,1]],
-                        fontsize=12, fontweight="bold", dy=-0.02)
-
-        file_name = f"{FigParams.fig_dir_full}/fisher_info_{k}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
-
-("fisher_info" in plots_list) and fig__fisher_info()
+    def plot(self):
+        print("\nPLOTTING FISHER INFORMATION.")
+        for k, F in sorted(data.items()):
+            prefix = k.split(".")[0]
+            if prefix not in ["bw","16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]: continue
+            plt.figure(figsize=(6,7))
+            ax_fisher, ax_best_freq, ax_d = fpf.plot_fisher_information(F,
+                                                                        which_probe = iprb,
+                                                                        d_lim_um   = self.d_lim_um[k],
+                                                                        d_vals_um  = np.array(self.d_vals_um[k])*1000,
+                                                                        d_space_fun  = lambda d0,d1,n:np.logspace(np.log10(d0),np.log10(d1),n),
+                                                                        which_ifreqs = F.freqs2inds(self.freqs[k]),
+                                                                        x_stagger = lambda x, i: x*(1.02**i),
+                                                                        plot_fun = plt.loglog,
+                                                                        log_scale = True,
+                                                                        plot_param_fits = self.plot_param_fits,
+                                                                        freq_max  = self.freq_max[k],
+                                                                        colfun    = lambda f: cm.cool_r(f/self.colscale[k]),
+                                                                        info_heatmap = True,
+                                                                        heatmap_range =[-2, np.log10(500)],
+                                                                        heatmap_cm    =cm.Spectral_r,
+            )
+            ax_fisher.set_ylim(1e-2,1e3)
+            plt.tight_layout(h_pad=2,w_pad=0)
+            fpft.label_axes([ax_fisher, ax_best_freq] + ax_d , "ABCDEFGHIJK",
+                            #align_y = [[2,3,4]],
+                            align_x = [[0,1,2] if self.plot_param_fits else [0,1]],
+                            fontsize=12, fontweight="bold", dy=-0.02)
+    
+            file_name = f"{fig_dir_full}/fisher_info_{k}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+("fisher_info" in plots_list) and FigFisherInfo().plot()
 
 def get_paired_ds(paired_ds, data):
     if paired_ds is None:
@@ -535,125 +573,130 @@ def get_paired_ds(paired_ds, data):
             paired_ds = [paired_ds]
     return paired_ds
 
-def fig__length_vs_frequency():
-    print("\nPLOTTING LENGTH CONSTANTS VS FREQUENCY.")
-    P = FigParams.length_vs_freq
-            
-    for k, F in sorted(data.items()):
-        prefix = k.split(".")[0]
-        if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
-            continue
-        
-        paired_ds = get_paired_ds(self.paired_ds[k], data)
-        which_ds = [k] + paired_ds
-        ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = self.which_corr_freqs_Hz[k])
-        fpft.label_axes(ax + [ax_γ], "ABCDE",
-                        fontsize=12, fontweight="bold",
-                        dx = -0.01, dy=0.01,
-                        align_x = [[0,2],[1,3]],
-                        align_y = [[0,1,4]])
-        
-        file_name = f"{FigParams.fig_dir_full}/length_vs_freq_{which_ds[0]}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
-("length_vs_freq" in plots_list) and fig__length_vs_frequency()    
+class FigLengthVsFreq:
+    def __init__(self):
+        self.which_corr_freqs_Hz = defaultdict(lambda: [2, 5, 10, 15, 20])
+        self.paired_ds = defaultdict(lambda: "s=p_0")
 
-def fig__elbow():
-    print("\nPLOTTING ELBOW.")
-    P = FigParams.elbow
-    for k, F in sorted(data.items()):
-        if surrQ(k): continue
-        which_ds = bsum([get_paired_ds(ods, data) for ods in self.other_ds[k]],[])
-        names = {ki:ki for ki in which_ds}
-        names[k] = k
-        # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
-        ax, ax_coef = fpf.plot_information_regression(data,
-                                                      [k] + which_ds,
-                                                      iprb,
-                                                      plot_ils = True,
-                                                      do_label = [True]*2 + [False]*(len(which_ds)-1),
-                                                      yl=(-0.06,0.06))
-    
-
-        fpft.label_axes([ax[0][0], ax[1][0], ax_coef], "ABC",
-                        fontsize=12, fontweight="bold",
-                        align_x = [[0,1]],
-                        align_y = [[0,2]])
-    
-        file_name = f"{FigParams.fig_dir_full}/reg_coefs_{k}.pdf"
-        #tight_layout(pad=0,w_pad=0, h_pad=0)
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
-("elbow" in plots_list) and fig__elbow()
-
-def fig__ils():
-    print("\nPLOTTING ILS.")    
-    for k, F in sorted(data.items()):
-        if surrQ(k): continue
-        if not hasattr(F, "sim0"):
-            WARN(f"Skipping {k} because it doesn't have a sim0 attribute.")
-            continue
-        if not hasattr(F.sim0, "integral_length_scales"):
-            WARN(f"Skipping {k} because it doesn't have an integral_length_scales attribute.")
-            continue
-
-        ils = F.sim0.integral_length_scales
-
-        keys = ils.keys()
-        plt.figure(figsize=(8.5,3.5))
-        ax = []
-        for i, d in enumerate("xy"):
-            ax.append(plt.subplot(1,2,i+1))
-            orig_key = (0 * UNITS.m, 0 * UNITS.m, d)
-            probe_key = [k for k in keys if k[-1]==d and k!=orig_key][0]
-            for j, (kk, name) in enumerate(zip([orig_key,probe_key], ["origin", "probe"])):
-                res   = ils[kk]
-                fr, l = res["fr"], res["l"]
-                # l = nansum(fr) * ds
-                ds = l / np.nansum(fr)
-                xx = np.arange(len(fr))*ds.to(F.pitch).magnitude
-                plt.plot(xx, fr, label=f"p={name}")
-                lmag = l.to(F.pitch).magnitude
-                plt.gca().axvline(lmag, color=f"C{j}", linewidth=1, linestyle=":", label = f"$L_U$ = {lmag:.2} {fpf.pitch_sym}")
-            plt.legend()
-            plt.ylabel(f"$\langle \\widetilde u_{d}(p) \\widetilde u_{d}(p + r \hat e_{d}) \\rangle$")
-            plt.xlabel(f"r ({fpf.pitch_sym})")
-            plt.title(f"{d}-velocity autocorrelation function")
-            fpft.spines_off(plt.gca())
-        plt.tight_layout()
-        fpft.label_axes(ax, "AB",
+    def plot(self):
+        print("\nPLOTTING LENGTH CONSTANTS VS FREQUENCY.")                
+        for k, F in sorted(data.items()):
+            prefix = k.split(".")[0]
+            if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
+                continue            
+            paired_ds = get_paired_ds(self.paired_ds[k], data)
+            which_ds = [k] + paired_ds
+            ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = self.which_corr_freqs_Hz[k])
+            fpft.label_axes(ax + [ax_γ], "ABCDE",
                             fontsize=12, fontweight="bold",
-                            align_y = [[0,1]])
-        file_name = f"figs/ils_supp_{k}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
-("ils" in plots_list) and fig__ils()
-
-def fig__spectrum():
-    print("\nPLOTTING SPECTRA.")
-    plt.figure(figsize=(8,5))
-    infos = fig_params.infos
-    for ki, (k, F) in enumerate(sorted(data.items(), key=lambda x: infos[x].name if x in infos else x)):    
-        if k not in infos: continue
-        f = []
-        for _, s in F.stft.items():
-            fr, tt, S = s[0]
-            f.append(np.abs(S))
+                            dx = -0.01, dy=0.01,
+                            align_x = [[0,2],[1,3]],
+                            align_y = [[0,1,4]])
             
-        fs = F.fs.to("Hz").magnitude
-        f = np.array(f)
-        a = np.mean(f,axis=-1).mean(axis=0)    
-        plt.loglog(fr[fr<fs/2][1:],a[fr<fs/2][1:]/a[1] * (10**0),
-               label=infos[k].name,
-               color=infos[k].color)
-    plt.legend(borderpad=0)
-    plt.xlabel("Frequency (Hz)")
-    plt.ylabel("Normalized amplitude")
-    plt.title("Plume spectra averaged over windows and source locations")
-    plt.grid(True, which='both', linestyle=":")
-    fig_dir = FigParams.fig_dir_wnd_shp_len
-    file_name = f"{fig_dir}/spectra.pdf"
-    SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            file_name = f"{fig_dir_full}/length_vs_freq_{which_ds[0]}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+("length_vs_freq" in plots_list) and FigLengthVsFreq().plot()    
 
-("spectrum" in plots_list) and fig__spectrum()
+class FigElbow:
+    def __init__(self):
+        self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(4)])
+
+    def plot(self):
+        print("\nPLOTTING ELBOW.")
+        for k, F in sorted(data.items()):
+            if surrQ(k): continue
+            which_ds = bsum([get_paired_ds(ods, data) for ods in self.other_ds[k]],[])
+            names = {ki:ki for ki in which_ds}
+            names[k] = k
+            # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
+            ax, ax_coef = fpf.plot_information_regression(data,
+                                                          [k] + which_ds,
+                                                          iprb,
+                                                          plot_ils = True,
+                                                          do_label = [True]*2 + [False]*(len(which_ds)-1),
+                                                          yl=(-0.06,0.06))
+        
+    
+            fpft.label_axes([ax[0][0], ax[1][0], ax_coef], "ABC",
+                            fontsize=12, fontweight="bold",
+                            align_x = [[0,1]],
+                            align_y = [[0,2]])
+        
+            file_name = f"{fig_dir_full}/reg_coefs_{k}.pdf"
+            #tight_layout(pad=0,w_pad=0, h_pad=0)
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+("elbow" in plots_list) and FigElbow().plot()
+
+class FigIls:
+    def plot(self):
+        print("\nPLOTTING ILS.")    
+        for k, F in sorted(data.items()):
+            if surrQ(k): continue
+            if not hasattr(F, "sim0"):
+                WARN(f"Skipping {k} because it doesn't have a sim0 attribute.")
+                continue
+            if not hasattr(F.sim0, "integral_length_scales"):
+                WARN(f"Skipping {k} because it doesn't have an integral_length_scales attribute.")
+                continue
+    
+            ils = F.sim0.integral_length_scales
+    
+            keys = ils.keys()
+            plt.figure(figsize=(8.5,3.5))
+            ax = []
+            for i, d in enumerate("xy"):
+                ax.append(plt.subplot(1,2,i+1))
+                orig_key = (0 * UNITS.m, 0 * UNITS.m, d)
+                probe_key = [k for k in keys if k[-1]==d and k!=orig_key][0]
+                for j, (kk, name) in enumerate(zip([orig_key,probe_key], ["origin", "probe"])):
+                    res   = ils[kk]
+                    fr, l = res["fr"], res["l"]
+                    # l = nansum(fr) * ds
+                    ds = l / np.nansum(fr)
+                    xx = np.arange(len(fr))*ds.to(F.pitch).magnitude
+                    plt.plot(xx, fr, label=f"p={name}")
+                    lmag = l.to(F.pitch).magnitude
+                    plt.gca().axvline(lmag, color=f"C{j}", linewidth=1, linestyle=":", label = f"$L_U$ = {lmag:.2} {fpf.pitch_sym}")
+                plt.legend()
+                plt.ylabel(f"$\langle \\widetilde u_{d}(p) \\widetilde u_{d}(p + r \hat e_{d}) \\rangle$")
+                plt.xlabel(f"r ({fpf.pitch_sym})")
+                plt.title(f"{d}-velocity autocorrelation function")
+                fpft.spines_off(plt.gca())
+            plt.tight_layout()
+            fpft.label_axes(ax, "AB",
+                                fontsize=12, fontweight="bold",
+                                align_y = [[0,1]])
+            file_name = f"figs/ils_supp_{k}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+("ils" in plots_list) and FigIls().plot()
+
+class FigSpectrum:
+    def plot(self):
+        print("\nPLOTTING SPECTRA.")
+        plt.figure(figsize=(8,5))
+        for ki, (k, F) in enumerate(sorted(data.items(), key=lambda x: infos[x].name if x in infos else x)):    
+            if k not in infos: continue
+            f = []
+            for _, s in F.stft.items():
+                fr, tt, S = s[0]
+                f.append(np.abs(S))
+                
+            fs = F.fs.to("Hz").magnitude
+            f = np.array(f)
+            a = np.mean(f,axis=-1).mean(axis=0)    
+            plt.loglog(fr[fr<fs/2][1:],a[fr<fs/2][1:]/a[1] * (10**0),
+                   label=infos[k].name,
+                   color=infos[k].color)
+        plt.legend(borderpad=0)
+        plt.xlabel("Frequency (Hz)")
+        plt.ylabel("Normalized amplitude")
+        plt.title("Plume spectra averaged over windows and source locations")
+        plt.grid(True, which='both', linestyle=":")
+        fig_dir = fig_dir_wnd_shp_len
+        file_name = f"{fig_dir}/spectra.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+("spectrum" in plots_list) and FigSpectrum().plot()
 exit(0)
