@@ -247,77 +247,87 @@ class FigWindowing:
 
 ("windowing" in plots_list) and FigWindowing().plot()        
 
-def fig__corr_decomp():
-    print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
-    P = FigParams.corr_decomp
-    for k, F in data.items():
-        if k.startswith("s=p"):
-            if not k == "s=p_0":
-                continue
-        which_freqs = P.which_freqs[k]
-        labs = [f"{f}" for f in which_freqs]
-        cols = {"All":cm.gray(0.4)}; cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/10) for f in which_freqs])})    
-        INFO(f"Plotting correlation decomposition for {k}.")
-        slices = {"All":slice(1,10000)}
-        freq_inds = F.freqs2inds(which_freqs)
-        INFO(f"Mapped frequencies {which_freqs} to indices {freq_inds}.")
-        slices.update({l:slice(fi, fi+1) for l, fi in zip(labs, freq_inds)})
-        ax = fpf.plot_correlations(F.rho[iprb], F.pitch.to("um").magnitude, slices=slices, cols=cols, n_rows = 2, plot_order = ["All"] + labs)
-        [(axi.set_xlabel(f"Intersource distance ({fpf.pitch_sym})"),
-          not isdefault(P.xlims[k])  and axi.set_xlim(P.xlims[k]),
-          not isdefault(P.xticks[k]) and axi.set_xticks(P.xticks[k])) for axi in ax]    
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/corr_components_{k}.pdf"
-        fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
-        ax[-1].set_ylim(-0.5,1)
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
-        sys.stdout.flush(); plt.show()
+class FigCorrDecomp():
+    def __init__(self):
+        self.xlims = defaultdict(lambda: DEFAULT)
+        self.xticks = defaultdict(lambda: DEFAULT)
+        self.which_freqs = defaultdict(lambda: [1,2,5,10] * UNITS.Hz)
 
-("corr_decomp" in plots_list) and fig__corr_decomp()
+    def plot(self):
+        print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
+        for k, F in data.items():
+            if k.startswith("s=p"):
+                if not k == "s=p_0":
+                    continue
+            which_freqs = self.which_freqs[k]
+            labs = [f"{f}" for f in which_freqs]
+            cols = {"All":cm.gray(0.4)}; cols.update({l:col for l,col in zip(labs, [cm.cool(1 - f.magnitude/10) for f in which_freqs])})    
+            INFO(f"Plotting correlation decomposition for {k}.")
+            slices = {"All":slice(1,10000)}
+            freq_inds = F.freqs2inds(which_freqs)
+            INFO(f"Mapped frequencies {which_freqs} to indices {freq_inds}.")
+            slices.update({l:slice(fi, fi+1) for l, fi in zip(labs, freq_inds)})
+            ax = fpf.plot_correlations(F.rho[iprb], F.pitch.to("um").magnitude, slices=slices, cols=cols, n_rows = 2, plot_order = ["All"] + labs)
+            [(axi.set_xlabel(f"Intersource distance ({fpf.pitch_sym})"),
+              not isdefault(self.xlims[k])  and axi.set_xlim(self.xlims[k]),
+              not isdefault(self.xticks[k]) and axi.set_xticks(self.xticks[k])) for axi in ax]    
+            file_name = f"{fig_dir_wnd_shp_len}/corr_components_{k}.pdf"
+            fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
+            ax[-1].set_ylim(-0.5,1)
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
+            sys.stdout.flush(); plt.show()
+    
+("corr_decomp" in plots_list) and FigCorrDecomp().plot()
 
-def fig__phase_example():
-    print("\nPLOTTING PHASE RELATIONSHIPS EXAMPLE.")
-    P = FigParams.phase_example
-    for name, F in data.items():
-        #if name != "bw" or not "16" in name: continue
-        if surrQ(name): continue
-        plt.figure(figsize=P.fig_size)
-        which_freq = P.which_freq[name]
-        ifreq = F.freqs2inds([which_freq])[0]
-        idist = P.which_idists[name]
-        axes = [plt.subplot(1,4,i+1) for i in range(4)]
-        plt.sca(axes[0])
-        fpf.plot_gm(sc=4.5, scale=[0.1,0.125],dxy=[0,0])    
-        axes[0].axis("square")
-        axes[0].set_ylim([0.41,0.59])
-        ax_ = fpf.plot_a_vs_bcd(F, ifreq, idist, cols = [cm.cool(0.2), cm.cool(0.8), cm.cool(0.4)], al=[-0.5,0.5], ax = axes[1:])
-        plt.tight_layout()
-        fpft.label_axes(axes, "ABCD", fontsize=12, fontweight="bold", dy=-0.01, align_y=[0,1,2,3])            
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/a_vs_bcd_{name}_{which_freq.magnitude}Hz_{idist=}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
+class FigPhaseExample:
+    def __init__(self):
+        self.which_freq   = defaultdict(lambda: 5 * UNITS.Hz)
+        self.which_idists = defaultdict(lambda: 1)
+        self.fig_size = (8,3)
 
-("phase_example" in plots_list) and fig__phase_example()        
+    def plot(self):
+        print("\nPLOTTING PHASE RELATIONSHIPS EXAMPLE.")
+        for name, F in data.items():
+            #if name != "bw" or not "16" in name: continue
+            if surrQ(name): continue
+            plt.figure(figsize=self.fig_size)
+            which_freq = self.which_freq[name]
+            ifreq = F.freqs2inds([which_freq])[0]
+            idist = self.which_idists[name]
+            axes = [plt.subplot(1,4,i+1) for i in range(4)]
+            plt.sca(axes[0])
+            fpf.plot_gm(sc=4.5, scale=[0.1,0.125],dxy=[0,0])    
+            axes[0].axis("square")
+            axes[0].set_ylim([0.41,0.59])
+            ax_ = fpf.plot_a_vs_bcd(F, ifreq, idist, cols = [cm.cool(0.2), cm.cool(0.8), cm.cool(0.4)], al=[-0.5,0.5], ax = axes[1:])
+            plt.tight_layout()
+            fpft.label_axes(axes, "ABCD", fontsize=12, fontweight="bold", dy=-0.01, align_y=[[0,1,2,3]])            
+            file_name = f"{fig_dir_wnd_shp_len}/a_vs_bcd_{name}_{which_freq.magnitude}Hz_{idist=}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+    
+("phase_example" in plots_list) and FigPhaseExample().plot()
 
 def fig__mvg_fits():
     print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
     P = FigParams.mvg_fits
     for name, F in sorted(data.items()):
         if surr_trialsQ(name): continue
-        for which_freq in P.which_freqs[name]:
+        for which_freq in self.which_freqs[name]:
             ifreq = F.freqs2inds([which_freq])[0]
             INFO(f"Mapped {which_freq} to index {ifreq}.")
             
-            plt.figure(figsize=(12, 3 * len(P.configs)))
+            plt.figure(figsize=(12, 3 * len(self.configs)))
             axes = []
-            for i, config in enumerate(P.configs):
-                idists = P.which_idists[name]
-                ax = [plt.subplot(len(P.configs), len(idists), i*len(idists) + j+1) for j in range(len(idists))]
+            for i, config in enumerate(self.configs):
+                idists = self.which_idists[name]
+                ax = [plt.subplot(len(self.configs), len(idists), i*len(idists) + j+1) for j in range(len(idists))]
                 ax_ = fpf.plot_coef1_vs_coef2(F,
                                               ifreq,
                                               config=config,
                                               iprb=iprb,
-                                              i_pos_dists_to_plot = P.which_idists[name],
-                                              col = P.cols[i],
+                                              i_pos_dists_to_plot = self.which_idists[name],
+                                              col = self.cols[i],
                                               axes = ax,
                                               do_corr = True,
                 )
@@ -326,7 +336,7 @@ def fig__mvg_fits():
                             
                 axes.extend(ax)
             fpft.label_axes(axes, "ABCDEFGH", fontsize=12, fontweight="bold", dy=-0.01)            
-            file_name = f"{FigParams.fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(P.configs)}.pdf"
+            file_name = f"{FigParams.fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(self.configs)}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
 
@@ -338,11 +348,11 @@ def fig__mvg_supp_fits():
     for k, F in sorted(data.items()):
         if surrQ(k): continue
         plt.figure(figsize=(12,6))
-        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, P.freq[k], P.idists[k],
+        coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, self.freq[k], self.idists[k],
                                                              which_probe = iprb, n_per_row = 2,
                                                              y_lim=[0,5] if k[:2]!="su" else [-3,3],
-                                                             t_lim = P.t_lim[k],
-                                                             dt = P.dt[k])
+                                                             t_lim = self.t_lim[k],
+                                                             dt = self.dt[k])
         for ax in coef_ax:
             ax.set_xlabel("")
             ax.set_ylabel("")
@@ -355,7 +365,7 @@ def fig__mvg_supp_fits():
                         align_x = [list(range(i,n_ax,4)) for i in range(4)],
                         align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
                         fontsize=12, fontweight="bold", dy=-0.01)
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{P.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
+        file_name = f"{FigParams.fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{self.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show()
 ("mvg_supp_fits" in plots_list) and fig__mvg_supp_fits()
@@ -365,14 +375,14 @@ def fit__scattergrams():
     P = FigParams.scattergrams
     for name, F in sorted(data.items()):
         if surr_trialsQ(name): continue
-        for which_freq in P.which_freqs[name]:
+        for which_freq in self.which_freqs[name]:
             ifreq = F.freqs2inds([which_freq])[0]
             INFO(f"Mapped {which_freq} to index {ifreq}.")
             ax = fpf.plot_scattergram(F,
                                       ifreq,
                                       iprb,
                                       figsize=(8,8),
-                                      dist_col_scale = P.dcol_scales[name],
+                                      dist_col_scale = self.dcol_scales[name],
                                       markersize = 0.2,
                                       cols = ["royalblue","crimson", "seagreen", "magenta"],
                                       coef_names = {0:"Sin", 1:"Cos"},
@@ -411,18 +421,18 @@ def fig__alap_fits():
         for f, xl in zip([1,5,10] * UNITS.hertz, [[-0.25, 1.0], [-0.02, 0.05], [-0.02, 0.05]]):
             if f != 5 * UNITS.hertz: continue
             which_freq = defaultdict(lambda: f)
-            ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[P.idist[name]],
+            ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[self.idist[name]],
                                                             which_probe = iprb,
-                                                            ifreq_lim = [1, F.freqs2inds([P.freq_max[name]])[0]],
+                                                            ifreq_lim = [1, F.freqs2inds([self.freq_max[name]])[0]],
                                                             which_ifreq = F.freqs2inds([which_freq[name]])[0],
                                                             figsize=(9,4),
                                                             fit_color="gray",
-                                                            vmax=P.vmax[name],
-                                                            vmin=P.vmin[name],
+                                                            vmax=self.vmax[name],
+                                                            vmin=self.vmin[name],
                                                             plot_dvals=True,
                                                             expansion = 1.0,
                                                             xl = xl,
-                                                            fit_corrs = P.fit_corrs[name],
+                                                            fit_corrs = self.fit_corrs[name],
                                                             leg_loc = None,
                                                             leg_loc2 = "lower right",
                                                             cdf_mode = "even")
@@ -446,7 +456,7 @@ def fig__rho_decay_fits():
                                               log_scale = True,
                                               scatter_size=1.5,
                                               max_bs = 10,
-                                              which_ifreqs = F.freqs2inds(P.freqs[k]))
+                                              which_ifreqs = F.freqs2inds(self.freqs[k]))
         [((i>1) and axi.set_xlabel(f"Intersource Distance $s$ ({fpf.pitch_sym})")) for i, axi in enumerate(ax[:4])]
         plt.tight_layout(h_pad=1,w_pad=0.5)
         fpft.label_axes(ax, "ABCDEFGHIJK",
@@ -468,16 +478,16 @@ def fig__fisher_info():
         plt.figure(figsize=(6,7))
         ax_fisher, ax_best_freq, ax_d = fpf.plot_fisher_information(F,
                                                                     which_probe = iprb,
-                                                                    d_lim_um   = P.d_lim_um[k],
-                                                                    d_vals_um  = np.array(P.d_vals_um[k])*1000,
+                                                                    d_lim_um   = self.d_lim_um[k],
+                                                                    d_vals_um  = np.array(self.d_vals_um[k])*1000,
                                                                     d_space_fun  = lambda d0,d1,n:np.logspace(np.log10(d0),np.log10(d1),n),
-                                                                    which_ifreqs = F.freqs2inds(P.freqs[k]),
+                                                                    which_ifreqs = F.freqs2inds(self.freqs[k]),
                                                                     x_stagger = lambda x, i: x*(1.02**i),
                                                                     plot_fun = plt.loglog,
                                                                     log_scale = True,
-                                                                    plot_param_fits = P.plot_param_fits,
-                                                                    freq_max  = P.freq_max[k],
-                                                                    colfun    = lambda f: cm.cool_r(f/P.colscale[k]),
+                                                                    plot_param_fits = self.plot_param_fits,
+                                                                    freq_max  = self.freq_max[k],
+                                                                    colfun    = lambda f: cm.cool_r(f/self.colscale[k]),
                                                                     info_heatmap = True,
                                                                     heatmap_range =[-2, np.log10(500)],
                                                                     heatmap_cm    =cm.Spectral_r,
@@ -486,7 +496,7 @@ def fig__fisher_info():
         plt.tight_layout(h_pad=2,w_pad=0)
         fpft.label_axes([ax_fisher, ax_best_freq] + ax_d , "ABCDEFGHIJK",
                         #align_y = [[2,3,4]],
-                        align_x = [[0,1,2] if P.plot_param_fits else [0,1]],
+                        align_x = [[0,1,2] if self.plot_param_fits else [0,1]],
                         fontsize=12, fontweight="bold", dy=-0.02)
 
         file_name = f"{FigParams.fig_dir_full}/fisher_info_{k}.pdf"
@@ -515,9 +525,9 @@ def fig__length_vs_frequency():
         if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
             continue
         
-        paired_ds = get_paired_ds(P.paired_ds[k], data)
+        paired_ds = get_paired_ds(self.paired_ds[k], data)
         which_ds = [k] + paired_ds
-        ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = P.which_corr_freqs_Hz[k])
+        ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = self.which_corr_freqs_Hz[k])
         fpft.label_axes(ax + [ax_γ], "ABCDE",
                         fontsize=12, fontweight="bold",
                         dx = -0.01, dy=0.01,
@@ -534,7 +544,7 @@ def fig__elbow():
     P = FigParams.elbow
     for k, F in sorted(data.items()):
         if surrQ(k): continue
-        which_ds = bsum([get_paired_ds(ods, data) for ods in P.other_ds[k]],[])
+        which_ds = bsum([get_paired_ds(ods, data) for ods in self.other_ds[k]],[])
         names = {ki:ki for ki in which_ds}
         names[k] = k
         # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
