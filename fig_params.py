@@ -33,31 +33,6 @@ infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
          "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
 }
 
-class PlumesDemo:
-    def __init__(self, UNITS, su_ds = []):
-        self.which_srcs   = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
-                                                    "bw_X": [1, -2], # [-48750, 48750],
-                                                    "bw_45":[1,-2], #[-48749, 48749],
-                                                    "16Ts":[7,-8], #[496000,504000],
-                                                    "16Ts_X":[7,-8], #[16000,104000],
-                                                    "16Ts_45":[7,-8], #[16000, 104000],
-                                                    },       
-                                      su_ds, "bw")
-
-        self.t_wnd        = dict_update_from_field({"bw":[-4,4]*UNITS.sec}, su_ds + all_but_bw, "bw")
-        self.which_idists = dict_update_from_field({"bw":[0,2,3]}, su_ds + all_but_bw, "bw")
-        self.tticks       = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
-        self.xticks       = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
-        self.yticks       = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
-        self.snapshot_time = defaultdict(lambda: 40000*UNITS.ms, {"16Ts":40010*UNITS.ms, "16Ts_X":40010*UNITS.ms, "16Ts_45":40010*UNITS.ms})
-        self.snapshots_dir = defaultdict(lambda: None,
-                                         {"bw": os.path.join(boulder.data_root, "original", "saved-snapshots"),
-                                          "bw_X": os.path.join(boulder.data_root, "streamwise", "saved-snapshots"),
-                                          "bw_45": os.path.join(boulder.data_root, "45deg", "saved-snapshots"),
-                                          "16Ts": None,
-                                          "16Ts_X": None,
-                                          "16Ts_45": None,
-                                          })
 
 class CorrDecomp:
     def __init__(self, UNITS):
@@ -86,7 +61,6 @@ class MVGaussianSuppFits:
         self.idists    = dict_update_from_field({"bw":[0,1,2,3,4,6,7,12]},  su_ds + all_but_bw, "bw") 
         self.t_lim     = dict_update_from_field({"bw":[35, 45]*UNITS.sec},  su_ds + all_but_bw, "bw")
         self.dt        = dict_update_from_field({"bw":1*UNITS.sec},         su_ds + all_but_bw, "bw")
-
 
 class Scattergrams:
     def __init__(self, UNITS, su_ds):
@@ -132,27 +106,27 @@ class Elbow:
         self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(4)])
         
 class FigParams:
-    def __init__(self, UNITS, compute_filter, su_ds = []):
-        window_shape  = compute_filter["window_shape"]
-        window_length = compute_filter["window_length"]
-        fit_k         = compute_filter["fit_k"]
+     def __init__(self, UNITS, compute_filter, su_ds = []):
+         window_shape  = compute_filter["window_shape"]
+         window_length = compute_filter["window_length"]
+         fit_k         = compute_filter["fit_k"]
         
-        self.fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, create = True); DEBUG(f"{self.fig_dir_full=}")
-        self.fig_dir_wnd_shp_len = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = None,  create = True); DEBUG(f"{self.fig_dir_wnd_shp_len=}")
-        self.fig_dir_wnd_shp     = fpft.get_fig_dir(window_shape = window_shape, window_length = None,          fit_k = None,  create = True); DEBUG(f"{self.fig_dir_wnd_shp=}")
-        self.fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = None,  create = True); DEBUG(f"{self.fig_dir_top=}")
-        self.fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{self.fig_dir_fitk=}")
+#         self.fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, create = True); DEBUG(f"{self.fig_dir_full=}")
+#         self.fig_dir_wnd_shp_len = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = None,  create = True); DEBUG(f"{self.fig_dir_wnd_shp_len=}")
+#         self.fig_dir_wnd_shp     = fpft.get_fig_dir(window_shape = window_shape, window_length = None,          fit_k = None,  create = True); DEBUG(f"{self.fig_dir_wnd_shp=}")
+#         self.fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = None,  create = True); DEBUG(f"{self.fig_dir_top=}")
+#         self.fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{self.fig_dir_fitk=}")
 
 
-        self.plumes_demo   = PlumesDemo(UNITS, su_ds = su_ds)
-        self.corr_decomp   = CorrDecomp(UNITS)
-        self.phase_example = PhaseExample(UNITS)
-        self.mvg_fits      = MVGaussianFits(UNITS, su_ds = su_ds)
-        self.mvg_supp_fits = MVGaussianSuppFits(UNITS, su_ds = su_ds)
-        self.scattergrams  = Scattergrams(UNITS, su_ds)
-        self.alap_fits     = AlapFits(UNITS, su_ds)
-        self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
-        self.fisher_info   = FisherInfo(UNITS, su_ds)
-        self.length_vs_freq= LengthVsFreq(UNITS, su_ds)
-        self.elbow         = Elbow()
+#         self.plumes_demo   = PlumesDemo(UNITS, su_ds = su_ds)
+#         self.corr_decomp   = CorrDecomp(UNITS)
+#         self.phase_example = PhaseExample(UNITS)
+#         self.mvg_fits      = MVGaussianFits(UNITS, su_ds = su_ds)
+#         self.mvg_supp_fits = MVGaussianSuppFits(UNITS, su_ds = su_ds)
+#         self.scattergrams  = Scattergrams(UNITS, su_ds)
+#         self.alap_fits     = AlapFits(UNITS, su_ds)
+#         self.rho_decay_fits= RhoDecayFits(UNITS, su_ds)
+#         self.fisher_info   = FisherInfo(UNITS, su_ds)
+#         self.length_vs_freq= LengthVsFreq(UNITS, su_ds)
+#         self.elbow         = Elbow()
         

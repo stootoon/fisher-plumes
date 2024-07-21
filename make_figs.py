@@ -12,7 +12,8 @@ DEBUG = logger.debug
 WARN = logger.warning
 
 parser = ArgumentParser()
-parser.add_argument('datasets', help="CSV file listing datasets to plot.")
+parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot.")
+parser.add_argument('--datasets', help="CSV file listing datasets to plot.")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
 parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="('kaiser',9)")
@@ -20,31 +21,31 @@ parser.add_argument("--fitk", action="store_true", help="Fit k.")
 parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
-parser.add_argument("--plot_only", type=lambda x: x.split(","), default=[], help="Plot only these figures.")
 args = parser.parse_args()
 
-if len(args.plot_only):
-    plots_list = args.plot_only
-else:
-    plots_list = ["plumes_demo"]
+
+plots_list = args.which_figs
 
 INFO(f"Plots to make: {plots_list}")
 
 iprb = args.iprb
 INFO(f"Using probe {iprb}.")
 
-assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
 to_use = {}
-with open(args.datasets, "r") as f:
-    for line in f:
-        if line.startswith("#"):
-            continue
-        line = [l.strip() for l in line.strip().split(",")]
-        if len(line)==4:
-            key, sim_name, probe_x, probe_y = line
-            to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
 
-if args.surrogates is not None:            
+if args.datasets is not None:
+    assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
+    with open(args.datasets, "r") as f:
+        for line in f:
+            if line.startswith("#"):
+                continue
+            line = [l.strip() for l in line.strip().split(",")]
+            if len(line)==4:
+                key, sim_name, probe_x, probe_y = line
+                to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
+INFO(f"Datasets = {to_use}.")
+
+if args.surrogates is not None:                              
     assert os.path.exists(args.surrogates), f"Surrogate file {args.surrogates} does not exist."
     for line in open(args.surrogates, "r"):
         if line.startswith("#"):
@@ -59,16 +60,16 @@ surrQ = lambda x: x in su_ds
 surr_trialsQ = lambda x: any([x.startswith(s) for s in ["s=p_", "s=w_"]])
 INFO(f"Surrogate datasets = {su_ds}.")
 
-
-compute_basic = {"window_shape": eval(args.window_shape),
-                "window_length": eval(args.window_length),
-                "fit_k": args.fitk,
-                "fit_b": not args.dontfitb,
-           }
+fit_k = args.fitk
+fit_b = not args.dontfitb
+compute_basic = {
+    "window_shape": eval(args.window_shape),
+    "window_length": eval(args.window_length),
+    "fit_k": fit_k,
+    "fit_b": fit_b,
+}
 compute_surr = dict(**compute_basic)
-compute = dict(**compute_basic, **{"dmax_um":"1 * PITCH"})
-
-        
+compute      = dict(**compute_basic, **{"dmax_um":"1 * PITCH"})
 
 INFO(f"Datasets: {to_use}")
 INFO(f"Compute: {compute}")
@@ -117,41 +118,134 @@ data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 [f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
 
 SAVEPLOTS = True # Whether to actually make the plots
+window_shape  = args.window_shape
+window_length = args.window_length
+fit_k         = args.fitk
+
+fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, create = True); DEBUG(f"{fig_dir_full=}")
+fig_dir_wnd_shp_len = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = None,  create = True); DEBUG(f"{fig_dir_wnd_shp_len=}")
+fig_dir_wnd_shp     = fpft.get_fig_dir(window_shape = window_shape, window_length = None,          fit_k = None,  create = True); DEBUG(f"{fig_dir_wnd_shp=}")
+fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = None,  create = True); DEBUG(f"{fig_dir_top=}")
+fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{fig_dir_fitk=}")
+fig_dir_fitkb       = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, fit_b = fit_b, create = True); DEBUG(f"{fig_dir_fitkb=}")
+
 FigParams = fig_params.FigParams(UNITS, compute, su_ds)
 
-isdefault = fig_params.isdefault
+DEFAULT   = "default"
+isdefault = lambda x: type(x) is str and x == DEFAULT
+all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
 
-def fig__plumes_demo():
-    INFO("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
-    P = FigParams.plumes_demo
-    for k, F in sorted(data.items()):
-        if surrQ(k): continue
-        ax_plume, ax_traces, ax_corr = fpf.plot_plumes_demo(F,
-                                                            P.snapshot_time[k],
-                                                            P.which_srcs[k],
-                                                            t_center = (P.snapshot_time[k].to(UNITS.ms).magnitude//1000)*1000 * UNITS.ms,
-                                                            y_lim = (0,5.01) if not surrQ(k) else (-3.01,3.01),
-                                                            y_ticks = [-3,0,3] if surrQ(k) else None,
-                                                            data_dir = P.snapshots_dir[k],
-                                                            mean_subtract_y_coords = "16" in k,
-                                                            t_wnd = P.t_wnd[k],
-                                                            dt = 1 * UNITS.sec,
-                                                            which_idists=P.which_idists[k],
-                                                            plot_source_locations = {"s":20, "edgecolor":"k", "c":"w","marker":"o", "which_sources":P.which_srcs[k]},
-                                                        )
-        
-        not isdefault(P.tticks[k]) and ax_traces[-1].set_xticks(P.tticks[k])    
-        not isdefault(P.xticks[k]) and ax_plume.set_xticks(P.xticks[k])
-        not isdefault(P.yticks[k]) and ax_plume.set_yticks(P.yticks[k])
-        if surrQ(k) or k  in ["bw"]: ax_corr.set_xticks(np.arange(5))
-        if surrQ(k): [ax_corr.set_ylim(-0.85,1.05), ax_corr.set_ylabel("Correlation",labelpad=-8)]
-        fpft.label_axes([ax_plume, ax_traces[0], ax_corr], "ABC", y = [0.99]*3, fontsize=12, fontweight="bold")
-        file_name = f"{FigParams.fig_dir_wnd_shp_len}/plumes_demo_{k}.pdf"
-        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
+class FigPlumesDemo:
+    def __init__(self, data):
+        self.data = data
+        self.which_srcs    = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
+                                                    "bw_X": [1, -2], # [-48750, 48750],
+                                                    "bw_45":[1,-2], #[-48749, 48749],
+                                                    "16Ts":[7,-8], #[496000,504000],
+                                                    "16Ts_X":[7,-8], #[16000,104000],
+                                                    "16Ts_45":[7,-8], #[16000, 104000],
+                                                    },       
+                                      su_ds, "bw")
+
+        self.t_wnd         = dict_update_from_field({"bw":[-4,4]*UNITS.sec}, su_ds + all_but_bw, "bw")
+        self.which_idists  = dict_update_from_field({"bw":[0,2,3]}, su_ds + all_but_bw, "bw")
+        self.tticks        = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
+        self.xticks        = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
+        self.yticks        = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
+        self.snapshot_time = defaultdict(lambda: 40000*UNITS.ms, {"16Ts":40010*UNITS.ms, "16Ts_X":40010*UNITS.ms, "16Ts_45":40010*UNITS.ms})
+        self.snapshots_dir = defaultdict(lambda: None,
+                                         {"bw": os.path.join(boulder.data_root, "original", "saved-snapshots"),
+                                          "bw_X": os.path.join(boulder.data_root, "streamwise", "saved-snapshots"),
+                                          "bw_45": os.path.join(boulder.data_root, "45deg", "saved-snapshots"),
+                                          "16Ts": None,
+                                          "16Ts_X": None,
+                                          "16Ts_45": None,
+                                          })
     
-("plumes_demo" in plots_list) and fig__plumes_demo()
+    def plot(self):
+        INFO("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
+        P = FigParams.plumes_demo
+        for k, F in sorted(self.data.items()):
+            if surrQ(k): continue
+            ax_plume, ax_traces, ax_corr = fpf.plot_plumes_demo(F,
+                                                                self.snapshot_time[k],
+                                                                self.which_srcs[k],
+                                                                t_center = (self.snapshot_time[k].to(UNITS.ms).magnitude//1000)*1000 * UNITS.ms,
+                                                                y_lim = (0,5.01) if not surrQ(k) else (-3.01,3.01),
+                                                                y_ticks = [-3,0,3] if surrQ(k) else None,
+                                                                data_dir = self.snapshots_dir[k],
+                                                                mean_subtract_y_coords = "16" in k,
+                                                                t_wnd = self.t_wnd[k],
+                                                                dt = 1 * UNITS.sec,
+                                                                which_idists=self.which_idists[k],
+                                                                plot_source_locations = {"s":20, "edgecolor":"k", "c":"w","marker":"o", "which_sources":self.which_srcs[k]},
+                                                            )
+            
+            not isdefault(self.tticks[k]) and ax_traces[-1].set_xticks(self.tticks[k])    
+            not isdefault(self.xticks[k]) and ax_plume.set_xticks(self.xticks[k])
+            not isdefault(self.yticks[k]) and ax_plume.set_yticks(self.yticks[k])
+            if surrQ(k) or k  in ["bw"]: ax_corr.set_xticks(np.arange(5))
+            if surrQ(k): [ax_corr.set_ylim(-0.85,1.05), ax_corr.set_ylabel("Correlation",labelpad=-8)]
+            fpft.label_axes([ax_plume, ax_traces[0], ax_corr], "ABC", y = [0.99]*3, fontsize=12, fontweight="bold")
+            file_name = f"{FigParams.fig_dir_wnd_shp_len}/plumes_demo_{k}.pdf"
+            SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+            sys.stdout.flush(); plt.show()
+        
+("plumes_demo" in plots_list) and FigPlumesDemo(data).plot()
 
+class FigWindowing:
+    def __init__(self):
+        self.order = ["bw", "s=p_0", "shp", "bw"]
+        self.which_wnd = [(1 * UNITS.s, 'hann')] * 3 + [(1 * UNITS.s, 'boxcar')]
+        self.init_filter = {"bw": {"sim_name": "boulder16", "which_coords": (0.45 * UNITS.m, 0.5 * UNITS.m)},
+                       "s=p_0":{"sim_name": "surr_all_equal", "surrogate_k":4, "random_seed":0},
+                       "shp":{"sim_name": "surr_high",
+                              "surrogate_k":4,
+                              "random_seed":0
+                              },
+                       }
+        compute_filter = []
+        for i, (o,w) in enumerate(zip(self.order, self.which_wnd)):
+            c = dict(**compute) if o == "bw" else dict(**compute_surr)
+            c["window_length"], c["window_shape"] = w[0], w[1]
+            compute_filter.append(c)
+
+            
+        
+        self.data_wnd = [FisherPlumes(proc.load_data(strict = True,
+                                                init_filter=self.init_filter[o],
+                                                compute_filter = cf,
+                                                     )[0],
+                                      load_sims=False) for cf,o,wnd in zip(compute_filter, self.order,self.which_wnd)]        
+
+    def plot(self):
+        plt.figure(figsize=(8,5))
+        gs = GridSpec(2,2)
+        axes, cbs = [], []
+        for (o, gsi, datai) in zip(self.order, gs, self.data_wnd):
+            axes.append(plt.subplot(gsi))
+            axes[-1], cbi = fpf.plot_fisher_information_heatmap(datai, 0, ax = axes[-1], freq_max = 25 * UNITS.Hz,
+                                                                heatmap_range =[-2, np.log10(500)],
+                                                                heatmap_cm    =cm.Spectral_r,
+                                                                do_colorbar   = gsi.is_last_col(),
+            )
+            if gsi.is_first_row():
+                axes[-1].tick_params(labelbottom=False)
+                axes[-1].set_xlabel("")
+        
+            if not gsi.is_first_col():
+                axes[-1].tick_params(labelleft = False)
+                axes[-1].set_ylabel("")
+        plt.tight_layout(w_pad = 1.5, h_pad=1.5)
+        fpft.label_axes(axes, "ABCD",
+                        align_y = [[0,1],[2,3]],
+                        align_x = [[0,2],[1,3]],
+                        fontsize=12, fontweight="bold", dy=0.01, dx = -0.01)
+        file_name = f"{fig_dir_fitkb}/fisher_info_heatmaps.pdf"
+        SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight', pad_inches=0), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show()
+
+("windowing" in plots_list) and FigWindowing().plot()        
 
 def fig__corr_decomp():
     print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
