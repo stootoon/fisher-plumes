@@ -584,7 +584,8 @@ class FigFisherInfo:
 
     def plot(self):
         print("\nPLOTTING FISHER INFORMATION.")
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("__")[0]
             prefix = k.split(".")[0]
             if prefix not in ["bw","16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45"]: continue
             plt.figure(figsize=(6,7))
@@ -611,7 +612,7 @@ class FigFisherInfo:
                             align_x = [[0,1,2] if self.plot_param_fits else [0,1]],
                             fontsize=12, fontweight="bold", dy=-0.02)
     
-            file_name = f"{fig_dir_full}/fisher_info_{k}.pdf"
+            file_name = f"{fig_dir_full}/fisher_info_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show(); plt.close();
 ("fisher_info" in plots_list) and FigFisherInfo().plot()
