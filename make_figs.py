@@ -784,10 +784,7 @@ class FigMultiCorrDecay:
                 first_row = ii == 0
                 last_row = ii == n_rows[ds] - 1
                 first_col = jj == 0
-                if last_row:
-                    new_ax.set_xlabel(f"Inter. dist. ({fpf.pitch_sym})", fontsize=8)
-                else:
-                    new_ax.set_xlabel("")
+                new_ax.set_xlabel("")
 
                 # Set the xtics fontsize
                 new_ax.tick_params(axis='x', labelsize=6)
@@ -797,8 +794,9 @@ class FigMultiCorrDecay:
                 new_ax.set_yticks(np.arange(0,1.1,0.5))
                 if first_row and first_col:
                     new_ax.set_ylabel("Correlations", fontsize=8)
+                    new_ax.set_xlabel(f"Inter. dist. ({fpf.pitch_sym})", fontsize=8)
                     # Make the legend as tight as possible
-                    new_ax.legend(loc="upper right", fontsize=4, ncol=1, frameon=False, labelspacing=0, handlelength=0.5)
+                    new_ax.legend(loc="upper right", fontsize=5, ncol=1, frameon=False, labelspacing=0, handlelength=0.5)
                     ax.append(new_ax)
                 else:
                     new_ax.set_ylabel("")
