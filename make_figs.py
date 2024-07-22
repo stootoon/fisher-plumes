@@ -799,13 +799,14 @@ class FigMultiElbow:
 class FigIls:
     def plot(self):
         print("\nPLOTTING ILS.")    
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("_")[0]
             if surrQ(k): continue
             if not hasattr(F, "sim0"):
-                WARN(f"Skipping {k} because it doesn't have a sim0 attribute.")
+                WARN(f"Skipping {kfull} because it doesn't have a sim0 attribute.")
                 continue
             if not hasattr(F.sim0, "integral_length_scales"):
-                WARN(f"Skipping {k} because it doesn't have an integral_length_scales attribute.")
+                WARN(f"Skipping {kfull} because it doesn't have an integral_length_scales attribute.")
                 continue
     
             ils = F.sim0.integral_length_scales
@@ -835,7 +836,7 @@ class FigIls:
             fpft.label_axes(ax, "AB",
                                 fontsize=12, fontweight="bold",
                                 align_y = [[0,1]])
-            file_name = f"figs/ils_supp_{k}.pdf"
+            file_name = f"figs/ils_supp_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show(); plt.close();
 ("ils" in plots_list) and FigIls().plot()
