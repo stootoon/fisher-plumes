@@ -348,7 +348,8 @@ class FigPhaseExample:
 
     def plot(self):
         print("\nPLOTTING PHASE RELATIONSHIPS EXAMPLE.")
-        for name, F in data.items():
+        for fname, F in data.items():
+            name = fname.split("__")[0]
             #if name != "bw" or not "16" in name: continue
             if surrQ(name): continue
             plt.figure(figsize=self.fig_size)
@@ -363,7 +364,7 @@ class FigPhaseExample:
             ax_ = fpf.plot_a_vs_bcd(F, ifreq, idist, cols = [cm.cool(0.2), cm.cool(0.8), cm.cool(0.4)], al=[-0.5,0.5], ax = axes[1:])
             plt.tight_layout()
             fpft.label_axes(axes, "ABCD", fontsize=12, fontweight="bold", dy=-0.01, align_y=[[0,1,2,3]])            
-            file_name = f"{fig_dir_wnd_shp_len}/a_vs_bcd_{name}_{which_freq.magnitude}Hz_{idist=}.pdf"
+            file_name = f"{fig_dir_wnd_shp_len}/a_vs_bcd_{fname}_{which_freq.magnitude}Hz_{idist=}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
     
