@@ -14,6 +14,7 @@ WARN = logger.warning
 parser = ArgumentParser()
 parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot.")
 parser.add_argument('--datasets', help="CSV file listing datasets to plot.")
+parser.add_argument('--which_ds', type=lambda x: x.split(","), default=[], help="Which datasets to plot (for multi elbow only).")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
 parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="('kaiser',9)")
@@ -62,17 +63,17 @@ INFO(f"Surrogate datasets = {su_ds}.")
 
 fit_k = args.fitk
 fit_b = not args.dontfitb
-compute_basic = {
+compute_filter = {
     "window_shape": eval(args.window_shape),
     "window_length": eval(args.window_length),
     "fit_k": fit_k,
     "fit_b": fit_b,
+    "dmax_um": "1 * PITCH",
 }
-compute_surr = dict(**compute_basic)
-compute      = dict(**compute_basic, **{"dmax_um":"1 * PITCH"})
+compute_surr = dict(**compute_filter); del compute_surr["dmax_um"]
 
 INFO(f"Datasets: {to_use}")
-INFO(f"Compute: {compute}")
+INFO(f"Compute filter: {compute_filter}")
 
 import numpy as np
 import re,pickle
@@ -96,9 +97,6 @@ import fisher_plumes as fp
 from utils import dict_update, dict_update_from_field
 import proc
 
-import fig_params
-fig_params.logger.setLevel(logging.DEBUG)
-
 FisherPlumes = fp.FisherPlumes
 crick.logger.setLevel(logging.DEBUG)
 fp.logger.setLevel(logging.INFO)
@@ -107,7 +105,7 @@ fp.logger.setLevel(logging.INFO)
 [f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
 loaded = {k:utils.safe_load(proc.load_data(strict = True,
                                      init_filter = v,
-                                     compute_filter = compute if not surrQ(k) else compute_surr,
+                                     compute_filter = compute_filter if not surrQ(k) else compute_surr,
                                      # fit_corrs = ["search.1"],
                                      fit_corrs = [],                                     
                                      ))          
@@ -129,6 +127,15 @@ fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_lengt
 fig_dir_fitk        = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, create = True); DEBUG(f"{fig_dir_fitk=}")
 fig_dir_fitkb       = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = fit_k, fit_b = fit_b, create = True); DEBUG(f"{fig_dir_fitkb=}")
 
+snapshots_dir = defaultdict(lambda: None,
+                            {"bw": os.path.join(boulder.data_root, "original", "saved-snapshots"),
+                             "bw_X": os.path.join(boulder.data_root, "streamwise", "saved-snapshots"),
+                             "bw_45": os.path.join(boulder.data_root, "45deg", "saved-snapshots"),
+                             "16Ts": None,
+                             "16Ts_X": None,
+                             "16Ts_45": None,
+                             })
+
 DEFAULT   = "default"
 isdefault = lambda x: type(x) is str and x == DEFAULT
 all_but_bw = ["bw_X", "bw_45", "16Ts", "16Ts_X", "16Ts_45"]
@@ -148,17 +155,18 @@ infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
          "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
 }
 
+which_srcs    = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
+                                        "bw_X": [1, -2], # [-48750, 48750],
+                                        "bw_45":[1,-2], #[-48749, 48749],
+                                        "16Ts":[7,-8], #[496000,504000],
+                                        "16Ts_X":[7,-8], #[16000,104000],
+                                        "16Ts_45":[7,-8], #[16000, 104000],
+                                        },       
+                                       su_ds, "bw")
+
 class FigPlumesDemo:
     def __init__(self, data):
         self.data = data
-        self.which_srcs    = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
-                                                    "bw_X": [1, -2], # [-48750, 48750],
-                                                    "bw_45":[1,-2], #[-48749, 48749],
-                                                    "16Ts":[7,-8], #[496000,504000],
-                                                    "16Ts_X":[7,-8], #[16000,104000],
-                                                    "16Ts_45":[7,-8], #[16000, 104000],
-                                                    },       
-                                      su_ds, "bw")
 
         self.t_wnd         = dict_update_from_field({"bw":[-4,4]*UNITS.sec}, su_ds + all_but_bw, "bw")
         self.which_idists  = dict_update_from_field({"bw":[0,2,3]}, su_ds + all_but_bw, "bw")
@@ -166,14 +174,6 @@ class FigPlumesDemo:
         self.xticks        = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
         self.yticks        = dict_update_from_field({"bw":DEFAULT}, su_ds + all_but_bw, "bw")
         self.snapshot_time = defaultdict(lambda: 40000*UNITS.ms, {"16Ts":40010*UNITS.ms, "16Ts_X":40010*UNITS.ms, "16Ts_45":40010*UNITS.ms})
-        self.snapshots_dir = defaultdict(lambda: None,
-                                         {"bw": os.path.join(boulder.data_root, "original", "saved-snapshots"),
-                                          "bw_X": os.path.join(boulder.data_root, "streamwise", "saved-snapshots"),
-                                          "bw_45": os.path.join(boulder.data_root, "45deg", "saved-snapshots"),
-                                          "16Ts": None,
-                                          "16Ts_X": None,
-                                          "16Ts_45": None,
-                                          })
     
     def plot(self):
         INFO("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
@@ -182,16 +182,16 @@ class FigPlumesDemo:
             if surrQ(k): continue
             ax_plume, ax_traces, ax_corr = fpf.plot_plumes_demo(F,
                                                                 self.snapshot_time[k],
-                                                                self.which_srcs[k],
+                                                                which_srcs[k],
                                                                 t_center = (self.snapshot_time[k].to(UNITS.ms).magnitude//1000)*1000 * UNITS.ms,
                                                                 y_lim = (0,5.01) if not surrQ(k) else (-3.01,3.01),
                                                                 y_ticks = [-3,0,3] if surrQ(k) else None,
-                                                                data_dir = self.snapshots_dir[k],
+                                                                data_dir = snapshots_dir(k),
                                                                 mean_subtract_y_coords = "16" in k,
                                                                 t_wnd = self.t_wnd[k],
                                                                 dt = 1 * UNITS.sec,
                                                                 which_idists=self.which_idists[k],
-                                                                plot_source_locations = {"s":20, "edgecolor":"k", "c":"w","marker":"o", "which_sources":self.which_srcs[k]},
+                                                                plot_source_locations = {"s":20, "edgecolor":"k", "c":"w","marker":"o", "which_sources":which_srcs[k]},
                                                             )
             
             not isdefault(self.tticks[k]) and ax_traces[-1].set_xticks(self.tticks[k])    
@@ -484,7 +484,7 @@ class FigAlapFits:
                 file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
                 sys.stdout.flush(); plt.show()
-                
+
 ("alap_fits" in plots_list) and FigAlapFits().plot()
 
 class FigRhoDecayFits:
@@ -628,6 +628,115 @@ class FigElbow:
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
 ("elbow" in plots_list) and FigElbow().plot()
+
+class FigMultiElbow:
+    def __init__(self):
+        self.sim_names = {"bw":"boulder16", "bw_X":"boulder16streamwise", "bw_45":"boulder16_45deg",
+                     "16Ts":"n16Tslow", "16Ts_X":"n16Tslow_X", "16Ts_45":"n16Tslow_45deg"}
+        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+        self.probe0 = {"bw":(0.45, 0.5) * UNITS.m,
+                       "16Ts":(1.0, 0.50) * UNITS.m}
+        self.probe_name = lambda ds, coords: "0" if str(coords) == str(self.probe0[ds]) else (f"{coords[0].magnitude:.2f}" + "_" + f"{coords[1].magnitude:.2f}")
+
+    def get_xylims(self, ds):
+        ylims= [-0.06, 0.06]
+        if ds == "bw_X":
+            ylims = [0, 0.06]
+            if window_length == 0.5 * UNITS.sec:
+                ylims = [0.01, 0.06]
+    
+        xlims = [1e-3, 5] if "16" in ds else [4e-3, 1e1]
+        return xlims, ylims
+
+        
+    def plot(self, which_ds):
+        n_ds = len(which_ds)
+        
+        plt.figure(figsize=(8, 2.2 * n_ds))
+        loaded = {}
+        gs = GridSpec(n_ds, 2, width_ratios=[1, 1])
+        ax = []
+        for i, ds in enumerate(which_ds):            
+            # Load the data for this compute_filter, and for all the coords in the probe_locs
+            init_filter = {"sim_name":self.sim_names[ds]}
+            matches = proc.find_registry_matches(init_filter = {"sim_name":self.sim_names[ds]},
+                                                 compute_filter = compute_filter)
+            print(f"Found {len(matches)} matches for {ds}.")
+
+            ds_base = ds.split("_")[0]
+            loaded[ds] = {}
+            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            for m in matches:
+                print(m)
+                if "which_coords" not in m["init"]:
+                    continue
+                coords = m["init"]["which_coords"][0]
+                probe_name = self.probe_name(ds_base, coords)
+                print(f"Loading data for {ds} at {probe_name}.")
+                loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
+                                                                        init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
+                                                                        compute_filter = compute_filter,
+                                                                        load_sims = srcs if probe_name == "0" else [0],
+                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'reg_coefs', 'I_dists', 'pitch_string', 'pitch'],
+                                                                    ))
+            assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
+                
+            D = {}
+            for k, d in loaded[ds].items():
+                D[k] = FisherPlumes(d)
+                D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
+                D[k].y_lim = D[k].sim0.y_lim
+                if k != "0":
+                    del D[k].sim0
+            
+            ax_plume = plt.subplot(gs[i,0])
+            ax.append(ax_plume)
+
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+    
+            (i < n_ds - 1) and ax_plume.set_xlabel(None)
+            
+            ax_elbow = plt.subplot(gs[i,1])
+            ax.append(ax_elbow)
+
+            xlims, ylims = self.get_xylims(ds)
+        
+            for j,(k,F) in enumerate(sorted(D.items())):
+                x,y = F.used_probe_coords[0]
+                x_p = x.to(F.pitch).magnitude
+                y_p = y.to(F.pitch).magnitude
+                dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
+                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
+                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
+                fpf.plot_elbow(F, ax = ax_elbow, error_bars = False, markerstyle = "-", col=col, lw=2)
+                ax_elbow.axvline(x=1, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+                ax_elbow.axhline(y=0, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+    
+            ax_elbow.set_ylim(ylims[0]-0.01, ylims[1]+0.01)
+            ax_elbow.set_yticks([ylims[0],0,ylims[1]])
+            ax_elbow.set_xlim(xlims)
+            
+            ytlabs = ax_elbow.get_yticklabels()
+            ytlabs[1] = "0"
+            ax_elbow.set_yticklabels(ytlabs)
+            # Set the top and right spines invisible
+            [ax_elbow.spines[spine].set_visible(False) for spine in ["top", "right"]]
+            ax_elbow.set_ylabel("$\\beta$", fontsize=12, labelpad=-20)
+    
+            (i == n_ds - 1) and ax_elbow.set_xlabel(f"Intersource distance ({fpf.pitch_sym})",    labelpad=0,   fontsize=10)
+    
+            plt.tight_layout()
+
+        fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
+        
+        name = "_".join([d.replace("_","") for d in which_ds])
+        fig_name = f"all_elbows_{name}.pdf"
+        fig_full_path = os.path.join(fig_dir_fitkb, fig_name)
+        print(f"Saving figure to {fig_full_path}")
+        plt.savefig(fig_full_path, bbox_inches="tight")
+            
+        return ax
+("multi_elbow" in plots_list) and FigMultiElbow().plot(args.which_ds)
 
 class FigIls:
     def plot(self):
