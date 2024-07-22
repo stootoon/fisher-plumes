@@ -660,13 +660,18 @@ class FigElbow:
 
     def plot(self):
         print("\nPLOTTING ELBOW.")
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("__")[0]
             if surrQ(k): continue
             which_ds = bsum([get_paired_ds(ods, data) for ods in self.other_ds[k]],[])
             names = {ki:ki for ki in which_ds}
             names[k] = k
             # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
-            ax, ax_coef = fpf.plot_information_regression(data,
+            datai = {}
+            datai[k] = F
+            for ki in which_ds:
+                datai[ki] = data[ki]
+            ax, ax_coef = fpf.plot_information_regression(datai,
                                                           [k] + which_ds,
                                                           iprb,
                                                           plot_ils = True,
@@ -679,7 +684,7 @@ class FigElbow:
                             align_x = [[0,1]],
                             align_y = [[0,2]])
         
-            file_name = f"{fig_dir_full}/reg_coefs_{k}.pdf"
+            file_name = f"{fig_dir_full}/reg_coefs_{kfull}.pdf"
             #tight_layout(pad=0,w_pad=0, h_pad=0)
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show(); plt.close();
