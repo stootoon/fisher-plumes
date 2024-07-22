@@ -154,7 +154,7 @@ for k, v in to_use.items():
             coords = m["init"]["which_coords"][0]
             name = probe_name_(k, coords)
             if args.datasets in sim_names:
-                name = f"{args.datasets}_{name}"
+                name = f"{args.datasets}__{name}"
             loaded[name] = p
             INFO(f"Loaded {name}.")
 
@@ -224,8 +224,8 @@ class FigPlumesDemo:
     
     def plot(self):
         INFO("\nPLOTTING FIGURES SHOWING EXAMPLE PLUME AND CORRELATIONS.")
-        P = FigParams.plumes_demo
-        for k, F in sorted(self.data.items()):
+        for kfull, F in sorted(self.data.items()):
+            k = kfull.split("__")[0] # Probe locations are tacked on to the name as "__probe_locs"
             if surrQ(k): continue
             ax_plume, ax_traces, ax_corr = fpf.plot_plumes_demo(F,
                                                                 self.snapshot_time[k],
@@ -233,7 +233,7 @@ class FigPlumesDemo:
                                                                 t_center = (self.snapshot_time[k].to(UNITS.ms).magnitude//1000)*1000 * UNITS.ms,
                                                                 y_lim = (0,5.01) if not surrQ(k) else (-3.01,3.01),
                                                                 y_ticks = [-3,0,3] if surrQ(k) else None,
-                                                                data_dir = snapshots_dir(k),
+                                                                data_dir = snapshots_dir[k],
                                                                 mean_subtract_y_coords = "16" in k,
                                                                 t_wnd = self.t_wnd[k],
                                                                 dt = 1 * UNITS.sec,
@@ -247,7 +247,7 @@ class FigPlumesDemo:
             if surrQ(k) or k  in ["bw"]: ax_corr.set_xticks(np.arange(5))
             if surrQ(k): [ax_corr.set_ylim(-0.85,1.05), ax_corr.set_ylabel("Correlation",labelpad=-8)]
             fpft.label_axes([ax_plume, ax_traces[0], ax_corr], "ABC", y = [0.99]*3, fontsize=12, fontweight="bold")
-            file_name = f"{fig_dir_wnd_shp_len}/plumes_demo_{k}.pdf"
+            file_name = f"{fig_dir_wnd_shp_len}/plumes_demo_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show()
         
