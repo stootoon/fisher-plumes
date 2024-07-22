@@ -24,10 +24,22 @@ parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
 args = parser.parse_args()
 
+available_single = ["plumes_demo", "corr_decomp", "phase_example", "mvg_fits", "mvg_supp_fits", "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay", "fisher_info", "length_vs_freq", "elbow", "spectrum"]
 
-plots_list = args.which_figs
+available_plots = available_single + ["windowing", "ils", "multi_elbow"]
+
+if args.which_figs == "all"
+    plots_list = available_single
+
+for p in plots_list:
+    if p not in available_plots:
+        WARN(f"Plot '{p}' not available. Available plots: {available_plots}.")
+        plots_list.remove(p)
 
 INFO(f"Plots to make: {plots_list}")
+if len(plots_list)==0:
+    INFO("No plots to make. Exiting.")
+    sys.exit(0)
 
 iprb = args.iprb
 INFO(f"Using probe {iprb}.")
@@ -63,9 +75,20 @@ INFO(f"Surrogate datasets = {su_ds}.")
 
 fit_k = args.fitk
 fit_b = not args.dontfitb
+window_shape  = args.window_shape
+if "_" in window_shape:
+    name, size = window_shape.split("_")
+    window_shape = (name, int(size))
+window_length = eval(args.window_length)
+
+INFO(f"Window shape: {window_shape}")
+INFO(f"Window length: {window_length}")
+INFO(f"Fit k: {fit_k}")
+INFO(f"Fit b: {fit_b}")
+
 compute_filter = {
-    "window_shape": eval(args.window_shape),
-    "window_length": eval(args.window_length),
+    "window_shape": window_shape,
+    "window_length": window_length,
     "fit_k": fit_k,
     "fit_b": fit_b,
     "dmax_um": "1 * PITCH",
@@ -116,11 +139,9 @@ data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 [f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
 
 SAVEPLOTS = True # Whether to actually make the plots
-window_shape  = args.window_shape
-window_length = eval(args.window_length)
 fit_k         = args.fitk
 
-fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, create = True); DEBUG(f"{fig_dir_full=}")
+fig_dir_full        = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = fit_k, fit_b = fit_b, create = True); DEBUG(f"{fig_dir_full=}")
 fig_dir_wnd_shp_len = fpft.get_fig_dir(window_shape = window_shape, window_length = window_length, fit_k = None,  create = True); DEBUG(f"{fig_dir_wnd_shp_len=}")
 fig_dir_wnd_shp     = fpft.get_fig_dir(window_shape = window_shape, window_length = None,          fit_k = None,  create = True); DEBUG(f"{fig_dir_wnd_shp=}")
 fig_dir_top         = fpft.get_fig_dir(window_shape = None,         window_length = None,          fit_k = None,  create = True); DEBUG(f"{fig_dir_top=}")
@@ -661,6 +682,8 @@ class FigMultiElbow:
             init_filter = {"sim_name":self.sim_names[ds]}
             matches = proc.find_registry_matches(init_filter = {"sim_name":self.sim_names[ds]},
                                                  compute_filter = compute_filter)
+
+            assert len(matches) > 0, f"Found no matches for {ds}."
             print(f"Found {len(matches)} matches for {ds}.")
 
             ds_base = ds.split("_")[0]
@@ -731,7 +754,7 @@ class FigMultiElbow:
         
         name = "_".join([d.replace("_","") for d in which_ds])
         fig_name = f"all_elbows_{name}.pdf"
-        fig_full_path = os.path.join(fig_dir_fitkb, fig_name)
+        fig_full_path = os.path.join(fig_dir_full, fig_name)
         print(f"Saving figure to {fig_full_path}")
         plt.savefig(fig_full_path, bbox_inches="tight")
             
@@ -808,4 +831,5 @@ class FigSpectrum:
         file_name = f"{fig_dir}/spectra.pdf"
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
 ("spectrum" in plots_list) and FigSpectrum().plot()
-exit(0)
+
+print("ALLDONE")

@@ -1,0 +1,6 @@
+s=p_0, surr_all_equal, 4, 0
+s=p_1, surr_all_equal, 4, 1
+s=p_2, surr_all_equal, 4, 2
+s=p_3, surr_all_equal, 4, 3
+s=p_4, surr_all_equal, 4, 4
+shp_0, surr_high,      4, 0
