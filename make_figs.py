@@ -47,7 +47,12 @@ sim_names = {"bw":"boulder16", "bw_X":"boulder16streamwise", "bw_45":"boulder16_
              "16Ts":"n16Tslow", "16Ts_X":"n16Tslow_X", "16Ts_45":"n16Tslow_45deg"}
 
 probe0 = {"bw":(0.45, 0.5) * UNITS.m,
-          "16Ts":(1.0, 0.50) * UNITS.m}
+          "bw_45":(0.45, 0.5) * UNITS.m,
+          "bw_X":(0.45, 0.5) * UNITS.m,
+          "16Ts":(1.0, 0.50) * UNITS.m,
+          "16Ts_X":(1.0, 0.50) * UNITS.m,
+          "16Ts_45":(1.0, 0.50) * UNITS.m,
+          }
 probe_name_ = lambda ds, coords: "0" if str(coords) == str(probe0[ds]) else (f"{coords[0].magnitude:.2f}" + "_" + f"{coords[1].magnitude:.2f}")
     
 to_use = {}
@@ -664,6 +669,10 @@ class FigElbow:
             k = kfull.split("__")[0]
             if surrQ(k): continue
             which_ds = bsum([get_paired_ds(ods, data) for ods in self.other_ds[k]],[])
+            if len(which_ds) == 0:
+                WARN(f"No paired datasets for {k}. Skipping plot.")
+                continue
+
             names = {ki:ki for ki in which_ds}
             names[k] = k
             # cols = {k:cm.hsv(i/(len(which_ds))) for i,k in enumerate(which_ds)}
@@ -678,7 +687,7 @@ class FigElbow:
                                                           do_label = [True]*2 + [False]*(len(which_ds)-1),
                                                           yl=(-0.06,0.06))
         
-    
+            
             fpft.label_axes([ax[0][0], ax[1][0], ax_coef], "ABC",
                             fontsize=12, fontweight="bold",
                             align_x = [[0,1]],
