@@ -845,7 +845,10 @@ class FigSpectrum:
     def plot(self):
         print("\nPLOTTING SPECTRA.")
         plt.figure(figsize=(8,5))
-        for ki, (k, F) in enumerate(sorted(data.items(), key=lambda x: infos[x].name if x in infos else x)):    
+        for ki, (kfull, F) in enumerate(sorted(data.items(), key=lambda x: infos[x].name if x in infos else x)):
+            kall = kfull.split("__")
+            k = kall[0]
+            k1 = f"({kall[1]})" if len(kall) > 1 else ""
             if k not in infos: continue
             f = []
             for _, s in F.stft.items():
@@ -856,7 +859,7 @@ class FigSpectrum:
             f = np.array(f)
             a = np.mean(f,axis=-1).mean(axis=0)    
             plt.loglog(fr[fr<fs/2][1:],a[fr<fs/2][1:]/a[1] * (10**0),
-                   label=infos[k].name,
+                   label=infos[k].name + k1,
                    color=infos[k].color)
         plt.legend(borderpad=0)
         plt.xlabel("Frequency (Hz)")
@@ -864,7 +867,8 @@ class FigSpectrum:
         plt.title("Plume spectra averaged over windows and source locations")
         plt.grid(True, which='both', linestyle=":")
         fig_dir = fig_dir_wnd_shp_len
-        file_name = f"{fig_dir}/spectra.pdf"
+        name = "_".join(args.datasets)
+        file_name = f"{fig_dir}/spectra_{name}.pdf"
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
         sys.stdout.flush(); plt.show(); plt.close();
 ("spectrum" in plots_list) and FigSpectrum().plot()
