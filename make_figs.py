@@ -1,7 +1,7 @@
 import os, sys, yaml, logging
 from importlib import reload
 from argparse import ArgumentParser
-
+import pdb
 
 import utils
 import units; reload(units); UNITS = units.UNITS;
@@ -17,7 +17,7 @@ parser.add_argument('--datasets', help="CSV file listing datasets to plot.")
 parser.add_argument('--which_ds', type=lambda x: x.split(","), default=[], help="Which datasets to plot (for multi elbow only).")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
-parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="('kaiser',9)")
+parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="kaiser_9")
 parser.add_argument("--fitk", action="store_true", help="Fit k.")
 parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
@@ -29,6 +29,7 @@ available_single = ["plumes_demo", "corr_decomp", "phase_example", "mvg_fits", "
 available_plots = available_single + ["windowing", "ils", "multi_elbow"]
 
 plots_list = available_single if args.which_figs == "all" else args.which_figs
+
 for p in plots_list:
     if p not in available_plots:
         WARN(f"Plot '{p}' not available. Available plots: {available_plots}.")
@@ -42,18 +43,28 @@ if len(plots_list)==0:
 iprb = args.iprb
 INFO(f"Using probe {iprb}.")
 
+sim_names = {"bw":"boulder16", "bw_X":"boulder16streamwise", "bw_45":"boulder16_45deg",
+             "16Ts":"n16Tslow", "16Ts_X":"n16Tslow_X", "16Ts_45":"n16Tslow_45deg"}
+
+probe0 = {"bw":(0.45, 0.5) * UNITS.m,
+          "16Ts":(1.0, 0.50) * UNITS.m}
+probe_name_ = lambda ds, coords: "0" if str(coords) == str(probe0[ds]) else (f"{coords[0].magnitude:.2f}" + "_" + f"{coords[1].magnitude:.2f}")
+    
 to_use = {}
 
 if args.datasets is not None:
-    assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
-    with open(args.datasets, "r") as f:
-        for line in f:
-            if line.startswith("#"):
-                continue
-            line = [l.strip() for l in line.strip().split(",")]
-            if len(line)==4:
-                key, sim_name, probe_x, probe_y = line
-                to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
+    if args.datasets in sim_names:
+        to_use[args.datasets] = {"sim_name": sim_names[args.datasets]}
+    else:
+        assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
+        with open(args.datasets, "r") as f:
+            for line in f:
+                if line.startswith("#"):
+                    continue
+                line = [l.strip() for l in line.strip().split(",")]
+                if len(line)==4:
+                    key, sim_name, probe_x, probe_y = line
+                    to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
 INFO(f"Datasets = {to_use}.")
 
 if args.surrogates is not None:                              
@@ -124,17 +135,34 @@ fp.logger.setLevel(logging.INFO)
 
 # Load datasets
 [f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
-loaded = {k:utils.safe_load(proc.load_data(strict = True,
-                                     init_filter = v,
-                                     compute_filter = compute_filter if not surrQ(k) else compute_surr,
-                                     # fit_corrs = ["search.1"],
-                                     fit_corrs = [],                                     
-                                     ))          
-          for k,v in to_use.items()}
+proc.logger.setLevel(logging.INFO)
+loaded = {}
+for k, v in to_use.items():
+    payload, matches = proc.load_data(strict = surrQ(k),
+                             init_filter = v,
+                             compute_filter = compute_filter if not surrQ(k) else compute_surr,
+                             # fit_corrs = ["search.1"],
+                             fit_corrs = [],
+                                      return_matches = True,
+                             )
+    assert payload is not None, f"No data loaded for {k}."
+    if len(payload) == 1:
+        loaded[k] = payload[0]
+        INFO(f"Loaded {k}.")
+    else:
+        for p,m in zip(payload, matches):
+            coords = m["init"]["which_coords"][0]
+            name = probe_name_(k, coords)
+            if args.datasets in sim_names:
+                name = f"{args.datasets}_{name}"
+            loaded[name] = p
+            INFO(f"Loaded {name}.")
 
 data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
 
-[f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp]];
+[f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp, proc]];
+
+INFO(f"Loaded keys: {list(data.keys())}")
 
 SAVEPLOTS = True # Whether to actually make the plots
 fit_k         = args.fitk
@@ -650,12 +678,7 @@ class FigElbow:
 
 class FigMultiElbow:
     def __init__(self):
-        self.sim_names = {"bw":"boulder16", "bw_X":"boulder16streamwise", "bw_45":"boulder16_45deg",
-                     "16Ts":"n16Tslow", "16Ts_X":"n16Tslow_X", "16Ts_45":"n16Tslow_45deg"}
         self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
-        self.probe0 = {"bw":(0.45, 0.5) * UNITS.m,
-                       "16Ts":(1.0, 0.50) * UNITS.m}
-        self.probe_name = lambda ds, coords: "0" if str(coords) == str(self.probe0[ds]) else (f"{coords[0].magnitude:.2f}" + "_" + f"{coords[1].magnitude:.2f}")
 
     def get_xylims(self, ds):
         ylims= [-0.06, 0.06]
@@ -677,8 +700,8 @@ class FigMultiElbow:
         ax = []
         for i, ds in enumerate(which_ds):            
             # Load the data for this compute_filter, and for all the coords in the probe_locs
-            init_filter = {"sim_name":self.sim_names[ds]}
-            matches = proc.find_registry_matches(init_filter = {"sim_name":self.sim_names[ds]},
+            init_filter = {"sim_name":sim_names[ds]}
+            matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
                                                  compute_filter = compute_filter)
 
             assert len(matches) > 0, f"Found no matches for {ds}."
@@ -692,7 +715,7 @@ class FigMultiElbow:
                 if "which_coords" not in m["init"]:
                     continue
                 coords = m["init"]["which_coords"][0]
-                probe_name = self.probe_name(ds_base, coords)
+                probe_name = probe_name_(ds_base, coords)
                 print(f"Loading data for {ds} at {probe_name}.")
                 loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
                                                                         init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
