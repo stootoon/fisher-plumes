@@ -28,9 +28,7 @@ available_single = ["plumes_demo", "corr_decomp", "phase_example", "mvg_fits", "
 
 available_plots = available_single + ["windowing", "ils", "multi_elbow"]
 
-if args.which_figs == "all"
-    plots_list = available_single
-
+plots_list = available_single if args.which_figs == "all" else args.which_figs
 for p in plots_list:
     if p not in available_plots:
         WARN(f"Plot '{p}' not available. Available plots: {available_plots}.")
@@ -661,10 +659,10 @@ class FigMultiElbow:
 
     def get_xylims(self, ds):
         ylims= [-0.06, 0.06]
-        if ds == "bw_X":
-            ylims = [0, 0.06]
-            if window_length == 0.5 * UNITS.sec:
-                ylims = [0.01, 0.06]
+        # if ds == "bw_X":
+        #     ylims = [0, 0.06]
+        #     if window_length == 0.5 * UNITS.sec:
+        #         ylims = [0.01, 0.06]
     
         xlims = [1e-3, 5] if "16" in ds else [4e-3, 1e1]
         return xlims, ylims
