@@ -315,7 +315,8 @@ class FigCorrDecomp():
 
     def plot(self):
         print("\nPLOTTING FIGURES SHOWING THE CORRELATION DECOMPOSITION.")
-        for k, F in data.items():
+        for kfull, F in data.items():
+            k = kfull.split("_")[0]
             if k.startswith("s=p"):
                 if not k == "s=p_0":
                     continue
@@ -331,7 +332,7 @@ class FigCorrDecomp():
             [(axi.set_xlabel(f"Intersource distance ({fpf.pitch_sym})"),
               not isdefault(self.xlims[k])  and axi.set_xlim(self.xlims[k]),
               not isdefault(self.xticks[k]) and axi.set_xticks(self.xticks[k])) for axi in ax]    
-            file_name = f"{fig_dir_wnd_shp_len}/corr_components_{k}.pdf"
+            file_name = f"{fig_dir_wnd_shp_len}/corr_components_{kfull}.pdf"
             fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
             ax[-1].set_ylim(-0.5,1)
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
