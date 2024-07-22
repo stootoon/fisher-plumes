@@ -505,7 +505,8 @@ class FigAlapFits:
     
     def plot(self):
         print("\nPLOTTING ASYMMETRIC LAPLACIAN FITS.")
-        for name, F in sorted(data.items()):
+        for fname, F in sorted(data.items()):
+            name = fname.split("__")[0]
             if surrQ(name): continue
             if surr_trialsQ(name): continue
             d = np.array(list(F.rho[iprb].keys()))
@@ -533,7 +534,7 @@ class FigAlapFits:
                                 align_y = [[0,1,2,6],[3,4,5,7]],
                                 align_x = [[0,3],[1,4],[2,5],[6,7]],
                                 fontsize=12, fontweight="bold", dy=0)
-                file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
+                file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{fname}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
                 sys.stdout.flush(); plt.show(); plt.close();
 
