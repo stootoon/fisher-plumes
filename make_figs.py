@@ -550,7 +550,8 @@ class FigRhoDecayFits:
     
     def plot(self):
         print("\nPLOTTING RHO DECAY FITS.")
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("__")[0]
             if surrQ(k): continue
             ax = fpf.plot_la_gen_fits_vs_distance(F, 
                                                   figsize=(8,4), legloc = 'right',
@@ -564,7 +565,7 @@ class FigRhoDecayFits:
                             align_y = [[0,1,4],[2,3]],
                             align_x = [[0,2],[1,3]],
                             fontsize=12, fontweight="bold", dy=-0.02)                        
-            file_name = f"{fig_dir_full}/rho_vs_s_fits_{k}.pdf"
+            file_name = f"{fig_dir_full}/rho_vs_s_fits_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show(); plt.close();
     
