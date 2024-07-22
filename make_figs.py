@@ -28,7 +28,7 @@ available_single = ["plumes_demo", "corr_decomp", "phase_example", "mvg_fits", "
 
 available_plots = available_single + ["windowing", "ils", "multi_elbow"]
 
-plots_list = available_single if args.which_figs == "all" else args.which_figs
+plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
 for p in plots_list:
     if p not in available_plots:
