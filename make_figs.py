@@ -13,8 +13,7 @@ WARN = logger.warning
 
 parser = ArgumentParser()
 parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot.")
-parser.add_argument('--datasets', type=lambda x: x.split(","), help="CSV file listing datasets to plot, or comma separated list of aliases.")
-parser.add_argument('--which_ds', type=lambda x: x.split(","), default=[], help="Which datasets to plot (for multi elbow only).")
+parser.add_argument('--datasets', type=lambda x: x.split(","), default=[], help="CSV file listing datasets to plot, or comma separated list of aliases.")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
 parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="kaiser_9")
@@ -24,9 +23,12 @@ parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
 args = parser.parse_args()
 
-available_single = ["plumes_demo", "corr_decomp", "phase_example", "mvg_fits", "mvg_supp_fits", "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay", "fisher_info", "length_vs_freq", "elbow", "spectrum"]
+available_single = ["plumes_demo", "corr_decomp", "phase_example",
+                    "mvg_fits", "mvg_supp_fits",
+                    "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay",
+                    "fisher_info", "length_vs_freq", "elbow", "spectrum"]
 
-available_plots = available_single + ["windowing", "ils", "multi_elbow"]
+available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_corr_decay"]
 
 plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
@@ -35,6 +37,10 @@ for p in plots_list:
         WARN(f"Plot '{p}' not available. Available plots: {available_plots}.")
         plots_list.remove(p)
 
+if ("multi_elbow" in plots_list) and len(args.datasets)==0:
+    raise ValueError("Need to specify datasets for multi_elbow plot.")
+
+        
 INFO(f"Plots to make: {plots_list}")
 if len(plots_list)==0:
     INFO("No plots to make. Exiting.")
@@ -659,6 +665,142 @@ class FigLengthVsFreq:
             sys.stdout.flush(); plt.show(); plt.close();
 ("length_vs_freq" in plots_list) and FigLengthVsFreq().plot()    
 
+class FigMultiCorrDecay:
+    def __init__(self):
+        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+
+    def map_coords_to_grid(self, ds):
+        init_filter = {"sim_name":sim_names[ds]}
+        matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
+                                             compute_filter = compute_filter)
+        assert len(matches) > 0, f"No matches found for {ds}."
+        assert "init" in matches[0], f"No init data found for {ds}."
+        assert "which_coords" in matches[0]["init"], f"No which_coords found for {ds}."
+        
+        coords = [m["init"]["which_coords"][0] for m in matches]
+        x_coords = [c[0] for c in coords]
+        y_coords = [c[1] for c in coords]
+        x_set = sorted(list(set(x_coords)))
+        y_set = sorted(list(set(y_coords)))
+        n_rows = len(y_set)
+        n_cols = len(x_set)
+        gs_index = {}
+        for c in coords:
+            row = len(y_set) - 1 - y_set.index(c[1])
+            col = x_set.index(c[0])
+            key = str(c)
+            gs_index[key] = (row, col)
+            INFO(f"Mapping {c} to {gs_index[key]}")
+        return n_rows, n_cols, gs_index
+        
+    def plot(self, which_ds):
+        n_ds = len(which_ds)
+
+        n_rows, n_cols, gs_index = {}, {}, {}
+        for ds in which_ds:
+            n_rows[ds], n_cols[ds], gs_index[ds] = self.map_coords_to_grid(ds)
+
+        total_rows = sum(n_rows.values())
+        total_cols = max(n_cols.values()) * 2
+            
+        plt.figure(figsize=(8, 2.2 * n_ds))
+        loaded = {}
+        gs = GridSpec(total_rows, total_cols)
+        ax = []
+        irow, icol = 0, 0
+        for i, ds in enumerate(which_ds):            
+            # Load the data for this compute_filter, and for all the coords in the probe_locs
+            init_filter = {"sim_name":sim_names[ds]}
+            matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
+                                                 compute_filter = compute_filter)
+
+            assert len(matches) > 0, f"Found no matches for {ds}."
+            print(f"Found {len(matches)} matches for {ds}.")
+
+            ds_base = ds.split("_")[0]
+            loaded[ds] = {}
+            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            coords_for_probe = {}
+            for m in matches:
+                print(m)
+                if "which_coords" not in m["init"]:
+                    continue
+                coords = m["init"]["which_coords"][0]                
+                probe_name = probe_name_(ds_base, coords)
+                coords_for_probe[probe_name] = coords
+                print(f"Loading data for {ds} at {probe_name}.")
+                loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
+                                                                        init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
+                                                                        compute_filter = compute_filter,
+                                                                        load_sims = srcs if probe_name == "0" else [0],
+                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'reg_coefs', 'I_dists', 'pitch_string', 'pitch'],
+                                                                    ))
+            assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
+                
+            D = {}
+            for k, d in loaded[ds].items():
+                D[k] = FisherPlumes(d)
+                D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
+                D[k].y_lim = D[k].sim0.y_lim
+                if k != "0":
+                    del D[k].sim0
+            
+            ax_plume = plt.subplot(gs[irow:irow+n_rows[ds],:total_cols//2])
+            ax.append(ax_plume)
+
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+    
+            (i < n_ds - 1) and ax_plume.set_xlabel(None)
+            
+            # ax_elbow = plt.subplot(gs[i,1])
+            # ax.append(ax_elbow)
+
+            # xlims, ylims = self.get_xylims(ds)
+        
+            for j,(k,F) in enumerate(sorted(D.items())):
+                x,y = F.used_probe_coords[0]
+                x_p = x.to(F.pitch).magnitude
+                y_p = y.to(F.pitch).magnitude
+                dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
+                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
+                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
+                #fpf.plot_elbow(F, ax = ax_elbow, error_bars = False, markerstyle = "-", col=col, lw=2)
+                #ax_elbow.axvline(x=1, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+                #ax_elbow.axhline(y=0, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+                key = str(coords_for_probe[k])
+                ii, jj = gs_index[ds][key]
+                new_ax = plt.subplot(gs[ii + irow, jj + total_cols//2])
+                j == 0 and ax.append(new_ax)
+                new_ax.plot(np.arange(10), color=col)
+    
+            # ax_elbow.set_ylim(ylims[0]-0.01, ylims[1]+0.01)
+            # ax_elbow.set_yticks([ylims[0],0,ylims[1]])
+            # ax_elbow.set_xlim(xlims)
+            
+            # ytlabs = ax_elbow.get_yticklabels()
+            # ytlabs[1] = "0"
+            # ax_elbow.set_yticklabels(ytlabs)
+            # # Set the top and right spines invisible
+            # [ax_elbow.spines[spine].set_visible(False) for spine in ["top", "right"]]
+            # ax_elbow.set_ylabel("$\\beta$", fontsize=12, labelpad=-20)
+    
+            # (i == n_ds - 1) and ax_elbow.set_xlabel(f"Intersource distance ({fpf.pitch_sym})",    labelpad=0,   fontsize=10)
+
+            irow += n_rows[ds]
+    
+        plt.tight_layout()
+
+        #fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
+        
+        name = "_".join([d.replace("_","") for d in which_ds])
+        fig_name = f"all_corr_decays_{name}.pdf"
+        fig_full_path = os.path.join(fig_dir_full, fig_name)
+        print(f"Saving figure to {fig_full_path}")
+        plt.savefig(fig_full_path, bbox_inches="tight")
+            
+        return ax
+("multi_corr_decay" in plots_list) and FigMultiCorrDecay().plot(args.datasets)
+
 class FigElbow:
     def __init__(self):
         self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(4)])
@@ -803,7 +945,7 @@ class FigMultiElbow:
         plt.savefig(fig_full_path, bbox_inches="tight")
             
         return ax
-("multi_elbow" in plots_list) and FigMultiElbow().plot(args.which_ds)
+("multi_elbow" in plots_list) and FigMultiElbow().plot(args.datasets)
 
 class FigIls:
     def plot(self):
