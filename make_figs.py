@@ -481,7 +481,8 @@ class FigScattergrams:
 class FigPhaseHeatmaps:
     def plot(self):
         print("\nPLOTTING PHASE HEATMAPS.")
-        for name, F in sorted(data.items()):
+        for fname, F in sorted(data.items()):
+            name = fname.split("__")[0]
             if surr_trialsQ(name): continue
             ax = fpf.plot_phase_heatmap(F, max_phi = np.pi/3, plot_which="all", max_corr=0.1,figsize=(8,6))
             plt.tight_layout()
@@ -489,7 +490,7 @@ class FigPhaseHeatmaps:
                             align_y = [[0,1],[2,3]],
                             align_x = [[0,2],[1,3]],
                             fontsize=12, fontweight="bold", dy=-0.025)
-            file_name = f"{fig_dir_wnd_shp_len}/phase_heatmap_{name}.pdf"
+            file_name = f"{fig_dir_wnd_shp_len}/phase_heatmap_{fname}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
     
 ("phase_heatmaps" in plots_list) and FigPhaseHeatmaps().plot()
