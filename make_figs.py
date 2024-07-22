@@ -635,12 +635,13 @@ class FigLengthVsFreq:
 
     def plot(self):
         print("\nPLOTTING LENGTH CONSTANTS VS FREQUENCY.")                
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("__")[0]
             prefix = k.split(".")[0]
             if prefix not in ["16Ts", "16Ts_X", "16Ts_45", "bw_X","bw_45", "bw"]:
                 continue            
             paired_ds = get_paired_ds(self.paired_ds[k], data)
-            which_ds = [k] + paired_ds
+            which_ds = [kfull] + paired_ds
             ax, ax_γ = fpf.plot_length_constants_vs_frequency(data, which_ds, iprb, which_corr_freqs_Hz = self.which_corr_freqs_Hz[k])
             fpft.label_axes(ax + [ax_γ], "ABCDE",
                             fontsize=12, fontweight="bold",
@@ -648,7 +649,7 @@ class FigLengthVsFreq:
                             align_x = [[0,2],[1,3]],
                             align_y = [[0,1,4]])
             
-            file_name = f"{fig_dir_full}/length_vs_freq_{which_ds[0]}.pdf"
+            file_name = f"{fig_dir_full}/length_vs_freq_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
             sys.stdout.flush(); plt.show(); plt.close();
 ("length_vs_freq" in plots_list) and FigLengthVsFreq().plot()    

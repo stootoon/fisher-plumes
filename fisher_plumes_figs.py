@@ -1257,21 +1257,21 @@ def plot_length_constants_vs_frequency(data, which_ds, which_probe,
         ind_use  = (freqs_γ > freq_min) & (freqs_γ <= freq_max)
         lo,md,hi = np.percentile(γbs, [5,50,95], axis = 0) / d_scale
         
-        ax[-1].plot(freqs_γ[ind_use].to(UNITS.Hz).magnitude, md[ind_use], "o",color=cols[ds], markersize=4)
-        ax[-1].plot([freqs_γ[ind_use].to(UNITS.Hz).magnitude]*2, [lo[ind_use], hi[ind_use]], color=cols[ds],linewidth=1)
+        ax[-1].plot(freqs_γ[ind_use].to(UNITS.Hz).magnitude, md[ind_use], "o",color=cols[ds.split("__")[0]], markersize=4)
+        ax[-1].plot([freqs_γ[ind_use].to(UNITS.Hz).magnitude]*2, [lo[ind_use], hi[ind_use]], color=cols[ds.split("__")[0]],linewidth=1)
         ax[-1].set_xlabel("Frequency (Hz)")
         ax[-1].set_ylabel(f"Length constant ({pitch_sym})")
         fpft.spines_off(ax[-1])
     
     ax_γ = plt.subplot(gs[:,-1])
     box = ax_γ.boxplot(np.vstack([coef_γ_vs_freq[ds][:,-1] for ds in which_ds]).T, patch_artist=True,
-                       widths=0.25, labels = [labels[dsi] for dsi in which_ds],
+                       widths=0.25, labels = [labels[dsi.split("__")[0]] for dsi in which_ds],
                        whis = [5,95],
                        
     )
     ax_γ.set_ylabel("$\Delta \gamma / \Delta f$", fontsize=11,labelpad=-1)
-    [plt.setp(b, color = fpft.set_alpha(cols[ds],0.5), facecolor=fpft.set_alpha(cols[ds],0.5)) for ds, b in zip(which_ds, box["boxes"])]
-    [plt.setp(b, color = cols[ds], linewidth=1) for ds, b in zip(which_ds, box["medians"])]
+    [plt.setp(b, color = fpft.set_alpha(cols[ds.split("__")[0]],0.5), facecolor=fpft.set_alpha(cols[ds.split("__")[0]],0.5)) for ds, b in zip(which_ds, box["boxes"])]
+    [plt.setp(b, color = cols[ds.split("__")[0]], linewidth=1) for ds, b in zip(which_ds, box["medians"])]
     fpft.spines_off(ax_γ)
     plt.tight_layout(w_pad=0)
     return ax, ax_γ
