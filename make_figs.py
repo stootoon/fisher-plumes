@@ -13,7 +13,7 @@ WARN = logger.warning
 
 parser = ArgumentParser()
 parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot.")
-parser.add_argument('--datasets', help="CSV file listing datasets to plot.")
+parser.add_argument('--datasets', type=lambda x: x.split(","), help="CSV file listing datasets to plot, or comma separated list of aliases.")
 parser.add_argument('--which_ds', type=lambda x: x.split(","), default=[], help="Which datasets to plot (for multi elbow only).")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
@@ -53,18 +53,19 @@ probe_name_ = lambda ds, coords: "0" if str(coords) == str(probe0[ds]) else (f"{
 to_use = {}
 
 if args.datasets is not None:
-    if args.datasets in sim_names:
-        to_use[args.datasets] = {"sim_name": sim_names[args.datasets]}
-    else:
-        assert os.path.exists(args.datasets), f"Dataset file {args.dataset} does not exist."
-        with open(args.datasets, "r") as f:
-            for line in f:
-                if line.startswith("#"):
-                    continue
-                line = [l.strip() for l in line.strip().split(",")]
-                if len(line)==4:
-                    key, sim_name, probe_x, probe_y = line
-                    to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
+    for ds in args.datasets:
+        if ds in sim_names:
+            to_use[ds] = {"sim_name": sim_names[ds]}
+        else:
+            assert os.path.exists(ds), f"Dataset file {ds} does not exist."
+            with open(ds, "r") as f:
+                for line in f:
+                    if line.startswith("#"):
+                        continue
+                    line = [l.strip() for l in line.strip().split(",")]
+                    if len(line)==4:
+                        key, sim_name, probe_x, probe_y = line
+                        to_use[key] = {"sim_name": sim_name, "which_coords": (float(probe_x) * UNITS.m, float(probe_y) * UNITS.m)}
 INFO(f"Datasets = {to_use}.")
 
 if args.surrogates is not None:                              
@@ -152,9 +153,7 @@ for k, v in to_use.items():
     else:
         for p,m in zip(payload, matches):
             coords = m["init"]["which_coords"][0]
-            name = probe_name_(k, coords)
-            if args.datasets in sim_names:
-                name = f"{args.datasets}__{name}"
+            name = f"{k}__{probe_name_(k, coords)}"
             loaded[name] = p
             INFO(f"Loaded {name}.")
 
@@ -249,7 +248,7 @@ class FigPlumesDemo:
             fpft.label_axes([ax_plume, ax_traces[0], ax_corr], "ABC", y = [0.99]*3, fontsize=12, fontweight="bold")
             file_name = f"{fig_dir_wnd_shp_len}/plumes_demo_{kfull}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
         
 ("plumes_demo" in plots_list) and FigPlumesDemo(data).plot()
 
@@ -303,7 +302,7 @@ class FigWindowing:
                         fontsize=12, fontweight="bold", dy=0.01, dx = -0.01)
         file_name = f"{fig_dir_fitkb}/fisher_info_heatmaps.pdf"
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight', pad_inches=0), flush(f"Wrote {file_name}."));
-        sys.stdout.flush(); plt.show()
+        sys.stdout.flush(); plt.show(); plt.close();
 
 ("windowing" in plots_list) and FigWindowing().plot()        
 
@@ -336,7 +335,7 @@ class FigCorrDecomp():
             fpft.label_axes(ax, "ABCDEF", fontsize=12, fontweight="bold", dy=-0.01)
             ax[-1].set_ylim(-0.5,1)
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."))
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
     
 ("corr_decomp" in plots_list) and FigCorrDecomp().plot()
 
@@ -366,7 +365,7 @@ class FigPhaseExample:
             fpft.label_axes(axes, "ABCD", fontsize=12, fontweight="bold", dy=-0.01, align_y=[[0,1,2,3]])            
             file_name = f"{fig_dir_wnd_shp_len}/a_vs_bcd_{fname}_{which_freq.magnitude}Hz_{idist=}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
     
 ("phase_example" in plots_list) and FigPhaseExample().plot()
 
@@ -381,7 +380,8 @@ class FigMvgFits:
 
     def plot(self):
         print("\nPLOTTING FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-        for name, F in sorted(data.items()):
+        for fname, F in sorted(data.items()):
+            name = fname.split("__")[0]
             if surr_trialsQ(name): continue
             for which_freq in self.which_freqs[name]:
                 ifreq = F.freqs2inds([which_freq])[0]
@@ -406,9 +406,9 @@ class FigMvgFits:
                                 
                     axes.extend(ax)
                 fpft.label_axes(axes, "ABCDEFGH", fontsize=12, fontweight="bold", dy=-0.01)            
-                file_name = f"{fig_dir_wnd_shp_len}/coef_vs_coef_{name}_{which_freq.magnitude}Hz_{'__'.join(self.configs)}.pdf"
+                file_name = f"{fig_dir_wnd_shp_len}/coef_vs_coef_{fname}_{which_freq.magnitude}Hz_{'__'.join(self.configs)}.pdf"
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-                sys.stdout.flush(); plt.show()
+                sys.stdout.flush(); plt.show(); plt.close();
     
 ("mvg_fits" in plots_list) and FigMvgFits().plot()
 
@@ -421,7 +421,8 @@ class FigMvgSuppFits:
 
     def plot(self):
         print("\nPLOTTING SUPPLEMENTARY FIGURES SHOWING THE MULTIVARIATE GAUSSIAN FITS.")
-        for k, F in sorted(data.items()):
+        for kfull, F in sorted(data.items()):
+            k = kfull.split("__")[0]
             if surrQ(k): continue
             plt.figure(figsize=(12,6))
             coef_ax, trace_ax = fpf.plot_coef_vs_coef_and_traces(F, self.freq[k], self.idists[k],
@@ -441,9 +442,9 @@ class FigMvgSuppFits:
                             align_x = [list(range(i,n_ax,4)) for i in range(4)],
                             align_y = [list(range(i,i+4)) for i in range(0,n_ax,4)],
                             fontsize=12, fontweight="bold", dy=-0.01)
-            file_name = f"{fig_dir_wnd_shp_len}/coefs_and_traces_{k}_{self.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
+            file_name = f"{fig_dir_wnd_shp_len}/coefs_and_traces_{kfull}_{self.freq[k].to(UNITS.hertz).magnitude}Hz.png" # Use png as these figures have lots of points
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
 ("mvg_supp_fits" in plots_list) and FigMvgSuppFits().plot()
 
 class FigScattergrams:
@@ -454,7 +455,8 @@ class FigScattergrams:
 
     def plot(self):
         print("\nPLOTTING SCATTERGRAMS.")
-        for name, F in sorted(data.items()):
+        for fname, F in sorted(data.items()):
+            name = fname.split("__")[0]
             if surr_trialsQ(name): continue
             for which_freq in self.which_freqs[name]:
                 ifreq = F.freqs2inds([which_freq])[0]
@@ -470,9 +472,9 @@ class FigScattergrams:
                                           lim_scale = 2.,
                                           print_fun = np.corrcoef,
                                           )
-                file_name = f"{fig_dir_wnd_shp_len}/scattergram_{name}_{which_freq.magnitude}Hz.pdf"
+                file_name = f"{fig_dir_wnd_shp_len}/scattergram_{fname}_{which_freq.magnitude}Hz.pdf"
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-                sys.stdout.flush(); plt.show()
+                sys.stdout.flush(); plt.show(); plt.close();
     
 ("scattergrams" in plots_list) and FigScattergrams().plot()
 
@@ -532,7 +534,7 @@ class FigAlapFits:
                                 fontsize=12, fontweight="bold", dy=0)
                 file_name = f"{fig_dir_wnd_shp_len}/alap_fits_{name}_{which_freq[name].to(UNITS.hertz).magnitude}Hz.pdf"
                 SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-                sys.stdout.flush(); plt.show()
+                sys.stdout.flush(); plt.show(); plt.close();
 
 ("alap_fits" in plots_list) and FigAlapFits().plot()
 
@@ -562,7 +564,7 @@ class FigRhoDecayFits:
                             fontsize=12, fontweight="bold", dy=-0.02)                        
             file_name = f"{fig_dir_full}/rho_vs_s_fits_{k}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
     
 ("rho_decay" in plots_list) and FigRhoDecayFits().plot()    
 
@@ -608,7 +610,7 @@ class FigFisherInfo:
     
             file_name = f"{fig_dir_full}/fisher_info_{k}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
 ("fisher_info" in plots_list) and FigFisherInfo().plot()
 
 def get_paired_ds(paired_ds, data):
@@ -644,7 +646,7 @@ class FigLengthVsFreq:
             
             file_name = f"{fig_dir_full}/length_vs_freq_{which_ds[0]}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
 ("length_vs_freq" in plots_list) and FigLengthVsFreq().plot()    
 
 class FigElbow:
@@ -675,7 +677,7 @@ class FigElbow:
             file_name = f"{fig_dir_full}/reg_coefs_{k}.pdf"
             #tight_layout(pad=0,w_pad=0, h_pad=0)
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
 ("elbow" in plots_list) and FigElbow().plot()
 
 class FigMultiElbow:
@@ -825,7 +827,7 @@ class FigIls:
                                 align_y = [[0,1]])
             file_name = f"figs/ils_supp_{k}.pdf"
             SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
-            sys.stdout.flush(); plt.show()
+            sys.stdout.flush(); plt.show(); plt.close();
 ("ils" in plots_list) and FigIls().plot()
 
 class FigSpectrum:
@@ -853,6 +855,7 @@ class FigSpectrum:
         fig_dir = fig_dir_wnd_shp_len
         file_name = f"{fig_dir}/spectra.pdf"
         SAVEPLOTS and (plt.savefig(file_name, bbox_inches='tight'), flush(f"Wrote {file_name}."));
+        sys.stdout.flush(); plt.show(); plt.close();
 ("spectrum" in plots_list) and FigSpectrum().plot()
 
 print("ALLDONE")
