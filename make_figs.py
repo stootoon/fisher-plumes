@@ -668,6 +668,11 @@ class FigLengthVsFreq:
 class FigMultiCorrDecay:
     def __init__(self):
         self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+        self.which_corr_freqs_Hz = [2, 5, 10, 15, 20]
+        self.which_corr_freqs = self.which_corr_freqs_Hz * UNITS.Hz
+        self.labs = [f"{f}" for f in self.which_corr_freqs]
+        self.cols = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw.1_3":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)})
+        self.cols.update({l:col for l,col in zip(self.labs, [cm.cool(1 - f.magnitude/20) for f in self.which_corr_freqs])})
 
     def map_coords_to_grid(self, ds):
         init_filter = {"sim_name":sim_names[ds]}
@@ -703,7 +708,7 @@ class FigMultiCorrDecay:
         total_rows = sum(n_rows.values())
         total_cols = max(n_cols.values()) * 2
             
-        plt.figure(figsize=(8, 2.2 * n_ds))
+        plt.figure(figsize=(8, 4 * n_ds))
         loaded = {}
         gs = GridSpec(total_rows, total_cols)
         ax = []
@@ -733,7 +738,7 @@ class FigMultiCorrDecay:
                                                                         init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
                                                                         compute_filter = compute_filter,
                                                                         load_sims = srcs if probe_name == "0" else [0],
-                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'reg_coefs', 'I_dists', 'pitch_string', 'pitch'],
+                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd'],
                                                                     ))
             assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
                 
@@ -751,12 +756,7 @@ class FigMultiCorrDecay:
             fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
     
             (i < n_ds - 1) and ax_plume.set_xlabel(None)
-            
-            # ax_elbow = plt.subplot(gs[i,1])
-            # ax.append(ax_elbow)
-
-            # xlims, ylims = self.get_xylims(ds)
-        
+                    
             for j,(k,F) in enumerate(sorted(D.items())):
                 x,y = F.used_probe_coords[0]
                 x_p = x.to(F.pitch).magnitude
@@ -764,34 +764,55 @@ class FigMultiCorrDecay:
                 dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
                 col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
                 ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
-                #fpf.plot_elbow(F, ax = ax_elbow, error_bars = False, markerstyle = "-", col=col, lw=2)
-                #ax_elbow.axvline(x=1, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
-                #ax_elbow.axhline(y=0, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
-                key = str(coords_for_probe[k])
+
+                key    = str(coords_for_probe[k])
                 ii, jj = gs_index[ds][key]
+                # Set the padding the subplots to 0
                 new_ax = plt.subplot(gs[ii + irow, jj + total_cols//2])
-                j == 0 and ax.append(new_ax)
-                new_ax.plot(np.arange(10), color=col)
-    
-            # ax_elbow.set_ylim(ylims[0]-0.01, ylims[1]+0.01)
-            # ax_elbow.set_yticks([ylims[0],0,ylims[1]])
-            # ax_elbow.set_xlim(xlims)
-            
-            # ytlabs = ax_elbow.get_yticklabels()
-            # ytlabs[1] = "0"
-            # ax_elbow.set_yticklabels(ytlabs)
-            # # Set the top and right spines invisible
-            # [ax_elbow.spines[spine].set_visible(False) for spine in ["top", "right"]]
-            # ax_elbow.set_ylabel("$\\beta$", fontsize=12, labelpad=-20)
-    
-            # (i == n_ds - 1) and ax_elbow.set_xlabel(f"Intersource distance ({fpf.pitch_sym})",    labelpad=0,   fontsize=10)
+
+                
+                freq_min = F.fs/F.wnd #(1/window_length.to(UNITS.s).magnitude) * UNITS.Hz        
+                coef_γ_vs_freq = F.coef_γ_vs_freq[iprb]
+                d_scale   = F.pitch.to(UNITS.um).magnitude
+                freq_inds = F.freqs2inds(self.which_corr_freqs)
+                slices    = {}    
+                slices.update({l:slice(fi, fi+1) for l, fi in zip(self.labs, freq_inds)})    
+                fpf.plot_correlations(F.rho[0], F.pitch.to(UNITS.um).magnitude, slices = slices, cols = self.cols,
+                          plot_slices = False, plot_overlay=True, ax = [new_ax],
+                                      plot_legend = False,
+                                      )
+                first_row = ii == 0
+                last_row = ii == n_rows[ds] - 1
+                first_col = jj == 0
+                if last_row:
+                    new_ax.set_xlabel(f"Inter. dist. ({fpf.pitch_sym})", fontsize=8)
+                else:
+                    new_ax.set_xlabel("")
+
+                # Set the xtics fontsize
+                new_ax.tick_params(axis='x', labelsize=6)
+                new_ax.tick_params(axis='y', labelsize=6)
+
+                new_ax.set_title("")
+                new_ax.set_yticks(np.arange(0,1.1,0.5))
+                if first_row and first_col:
+                    new_ax.set_ylabel("Correlations", fontsize=8)
+                    # Make the legend as tight as possible
+                    new_ax.legend(loc="upper right", fontsize=4, ncol=1, frameon=False, labelspacing=0, handlelength=0.5)
+                    ax.append(new_ax)
+                else:
+                    new_ax.set_ylabel("")
+
+                # Set the axis colors to col
+                #[sp.set_color(col) for sp in new_ax.spines.values()]
+                # Set the axis background color to col, but with alpha=0.5
+                new_ax.set_facecolor(list(col)[:3] + [0.2])
 
             irow += n_rows[ds]
     
-        plt.tight_layout()
-
-        #fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
-        
+        plt.tight_layout(w_pad=0.1, h_pad=0.1)
+        fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
+        #plt.subplots_adjust(wspace=0.1, hspace=0.1)
         name = "_".join([d.replace("_","") for d in which_ds])
         fig_name = f"all_corr_decays_{name}.pdf"
         fig_full_path = os.path.join(fig_dir_full, fig_name)
