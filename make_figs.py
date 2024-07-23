@@ -2,6 +2,7 @@ import os, sys, yaml, logging
 from importlib import reload
 from argparse import ArgumentParser
 from builtins import sum as bsum
+import gc,resource
 
 import utils
 import units; reload(units); UNITS = units.UNITS;
@@ -21,14 +22,20 @@ parser.add_argument("--fitk", action="store_true", help="Fit k.")
 parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
+parser.add_argument("--x_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these x coordinates in meters.")
 args = parser.parse_args()
+
+if len(args.x_coords)>0:
+    INFO(f"Only loading probes with x coordinates {args.x_coords}.")
+else:
+    INFO("Loading all available probes regardless of x-coordinates.")
 
 available_single = ["plumes_demo", "corr_decomp", "phase_example",
                     "mvg_fits", "mvg_supp_fits",
                     "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay",
                     "fisher_info", "length_vs_freq", "elbow", "spectrum"]
 
-available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_corr_decay"]
+available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_decay_elbow"]
 
 plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
@@ -146,32 +153,37 @@ crick.logger.setLevel(logging.DEBUG)
 fp.logger.setLevel(logging.INFO)
 
 # Load datasets
-[f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
-proc.logger.setLevel(logging.INFO)
-loaded = {}
-for k, v in to_use.items():
-    payload, matches = proc.load_data(strict = surrQ(k),
-                             init_filter = v,
-                             compute_filter = compute_filter if not surrQ(k) else compute_surr,
-                             # fit_corrs = ["search.1"],
-                             fit_corrs = [],
-                                      return_matches = True,
-                             )
-    assert payload is not None, f"No data loaded for {k}."
-    if len(payload) == 1:
-        loaded[k] = payload[0]
-        INFO(f"Loaded {k}.")
-    else:
-        for p,m in zip(payload, matches):
-            coords = m["init"]["which_coords"][0]
-            name = f"{k}__{probe_name_(k, coords)}"
-            loaded[name] = p
-            INFO(f"Loaded {name}.")
+if not all(["multi" in k for k in plots_list]):
+    [f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
+    proc.logger.setLevel(logging.INFO)
+    loaded = {}
+    for k, v in to_use.items():
+        payload, matches = proc.load_data(strict = surrQ(k),
+                                 init_filter = v,
+                                 compute_filter = compute_filter if not surrQ(k) else compute_surr,
+                                 # fit_corrs = ["search.1"],
+                                 fit_corrs = [],
+                                          return_matches = True,
+                                          x_coords = args.x_coords,
+                                 )
+        assert payload is not None, f"No data loaded for {k}."
+        if len(payload) == 1:
+            loaded[k] = payload[0]
+            INFO(f"Loaded {k}.")
+        else:
+            for p,m in zip(payload, matches):
+                coords = m["init"]["which_coords"][0]
+                name = f"{k}__{probe_name_(k, coords)}"
+                loaded[name] = p
+                INFO(f"Loaded {name}.")
+    
+    data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
+    
+else:
+    INFO(f"Plotting multi plots only, so not loading data.")
+    data = {}
 
-data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
-
-[f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp, proc]];
-
+[f.logger.setLevel(logging.INFO) for f in [crick, boulder,fp, proc]];    
 INFO(f"Loaded keys: {list(data.keys())}")
 
 SAVEPLOTS = True # Whether to actually make the plots
@@ -761,7 +773,9 @@ class FigMultiElbow:
             # Load the data for this compute_filter, and for all the coords in the probe_locs
             init_filter = {"sim_name":sim_names[ds]}
             matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
-                                                 compute_filter = compute_filter)
+                                                 compute_filter = compute_filter,
+                                                 x_coords = args.x_coords,
+                                                 )
 
             assert len(matches) > 0, f"Found no matches for {ds}."
             print(f"Found {len(matches)} matches for {ds}.")
@@ -817,7 +831,7 @@ class FigMultiElbow:
         return ax
 ("multi_elbow" in plots_list) and FigMultiElbow.plot(args.datasets)
 
-class FigMultiCorrDecay:
+class FigMultiDecayElbow:
     def __init__(self):
         self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
         self.which_corr_freqs_Hz = [2, 5, 10, 15, 20]
@@ -830,7 +844,9 @@ class FigMultiCorrDecay:
     def map_coords_to_grid(ds):
         init_filter = {"sim_name":sim_names[ds]}
         matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
-                                             compute_filter = compute_filter)
+                                             compute_filter = compute_filter,
+                                             x_coords = args.x_coords,                                             
+                                             )
         assert len(matches) > 0, f"No matches found for {ds}."
         assert "init" in matches[0], f"No init data found for {ds}."
         assert "which_coords" in matches[0]["init"], f"No which_coords found for {ds}."
@@ -872,40 +888,43 @@ class FigMultiCorrDecay:
             # Load the data for this compute_filter, and for all the coords in the probe_locs
             init_filter = {"sim_name":sim_names[ds]}
             matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
-                                                 compute_filter = compute_filter)
+                                                 compute_filter = compute_filter,
+                                                 x_coords = args.x_coords,
+                                                 )
 
             assert len(matches) > 0, f"Found no matches for {ds}."
             print(f"Found {len(matches)} matches for {ds}.")
 
             
             ds_base = ds.split("_")[0]
-            loaded[ds] = {}
+            loaded = {}
             srcs = [np.mod(w,16) for w in which_srcs[ds]]
             coords_for_probe = {}
             for m in matches:
-                print(m)
                 if "which_coords" not in m["init"]:
                     continue
                 coords = m["init"]["which_coords"][0]                
                 probe_name = probe_name_(ds_base, coords)
                 coords_for_probe[probe_name] = coords
                 print(f"Loading data for {ds} at {probe_name}.")
-                loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
+                loaded[probe_name] = utils.safe_load(proc.load_data(strict = True,
                                                                         init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
                                                                         compute_filter = compute_filter,
                                                                         load_sims = srcs if probe_name == "0" else [0],
                                                                         load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd', 'reg_coefs', 'I_dists',],
                                                                     ))
-            assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
+                print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
+            assert "0" in loaded, f"Could not find data for {ds} at probe location 0, found only {list(loaded.keys())}."
                 
             D = {}
-            for k, d in loaded[ds].items():
+            for k, d in loaded.items():
+                print(f"Initializing FisherPlumes for {k}.")
                 D[k] = FisherPlumes(d)
                 D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
                 D[k].y_lim = D[k].sim0.y_lim
                 if k != "0":
                     del D[k].sim0
-
+                print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
 
             ax_plume = plt.subplot(gs[irow:irow+n_rows[ds],:col_width])
             ax.append(ax_plume)
@@ -977,6 +996,7 @@ class FigMultiCorrDecay:
             #ax_elbow.yaxis.set_label_position("right")
             ax.append(ax_elbow)
             irow += n_rows[ds]
+            print(f"Memory usage after plotting {ds}: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
     
         plt.tight_layout(w_pad=0, h_pad=0, pad = 0)
         # Increase the width of the axes in ax_corr using set_position
@@ -993,7 +1013,7 @@ class FigMultiCorrDecay:
         plt.savefig(fig_full_path, bbox_inches="tight")
             
         return ax
-("multi_corr_decay" in plots_list) and FigMultiCorrDecay().plot(args.datasets)
+("multi_decay_elbow" in plots_list) and FigMultiDecayElbow().plot(args.datasets)
 
 class FigIls:
     def plot(self):
