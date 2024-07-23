@@ -861,10 +861,10 @@ class FigElbow:
 ("elbow" in plots_list) and FigElbow().plot()
 
 class FigMultiElbow:
-    def __init__(self):
-        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+    t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
 
-    def get_xylims(self, ds):
+    @staticmethod
+    def get_xylims(ds):
         ylims= [-0.06, 0.06]
         # if ds == "bw_X":
         #     ylims = [0, 0.06]
@@ -874,8 +874,37 @@ class FigMultiElbow:
         xlims = [1e-3, 5] if "16" in ds else [4e-3, 1e1]
         return xlims, ylims
 
+    @staticmethod
+    def plot_elbows(D, ax_elbow, ax_plume = None):
+        xlims, ylims = FigMultiElbow.get_xylims(ds)
+    
+        for j,(k,F) in enumerate(sorted(D.items())):
+            x,y = F.used_probe_coords[0]
+            x_p = x.to(F.pitch).magnitude
+            y_p = y.to(F.pitch).magnitude
+            dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
+            col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
+            (ax_plume is not None) and ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
+            fpf.plot_elbow(F, ax = ax_elbow, error_bars = False, markerstyle = "-", col=col, lw=2)
+            ax_elbow.axvline(x=1, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+            ax_elbow.axhline(y=0, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
+
+            ax_elbow.set_ylim(ylims[0]-0.01, ylims[1]+0.01)
+        ax_elbow.set_yticks([ylims[0],0,ylims[1]])
+        ax_elbow.set_xlim(xlims)
         
-    def plot(self, which_ds):
+        ytlabs = ax_elbow.get_yticklabels()
+        ytlabs[1] = "0"
+        ax_elbow.set_yticklabels(ytlabs)
+        # Set the top and right spines invisible
+        [ax_elbow.spines[spine].set_visible(False) for spine in ["top", "right"]]
+        ax_elbow.set_ylabel("$\\beta$", fontsize=12, labelpad=-20)
+        ax_elbow.set_xlabel(f"Intersource distance ({fpf.pitch_sym})",    labelpad=0,   fontsize=10)
+
+        return ax_elbow    
+       
+    @classmethod
+    def plot(cls, which_ds, ax_elbow = None):
         n_ds = len(which_ds)
         
         plt.figure(figsize=(8, 2.2 * n_ds))
@@ -920,40 +949,16 @@ class FigMultiElbow:
             ax_plume = plt.subplot(gs[i,0])
             ax.append(ax_plume)
 
-            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+            fpf.plot_plumes_snapshot(D["0"], FigMultiElbow.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
     
             (i < n_ds - 1) and ax_plume.set_xlabel(None)
-            
             ax_elbow = plt.subplot(gs[i,1])
             ax.append(ax_elbow)
-
-            xlims, ylims = self.get_xylims(ds)
-        
-            for j,(k,F) in enumerate(sorted(D.items())):
-                x,y = F.used_probe_coords[0]
-                x_p = x.to(F.pitch).magnitude
-                y_p = y.to(F.pitch).magnitude
-                dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
-                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
-                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
-                fpf.plot_elbow(F, ax = ax_elbow, error_bars = False, markerstyle = "-", col=col, lw=2)
-                ax_elbow.axvline(x=1, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
-                ax_elbow.axhline(y=0, color="gray", linestyle="dotted", lw=0.5, zorder=-1)
-    
-            ax_elbow.set_ylim(ylims[0]-0.01, ylims[1]+0.01)
-            ax_elbow.set_yticks([ylims[0],0,ylims[1]])
-            ax_elbow.set_xlim(xlims)
             
-            ytlabs = ax_elbow.get_yticklabels()
-            ytlabs[1] = "0"
-            ax_elbow.set_yticklabels(ytlabs)
-            # Set the top and right spines invisible
-            [ax_elbow.spines[spine].set_visible(False) for spine in ["top", "right"]]
-            ax_elbow.set_ylabel("$\\beta$", fontsize=12, labelpad=-20)
-    
-            (i == n_ds - 1) and ax_elbow.set_xlabel(f"Intersource distance ({fpf.pitch_sym})",    labelpad=0,   fontsize=10)
-    
-            plt.tight_layout()
+            FigMultiElbow.plot_elbows(D, ax_elbow, ax_plume)
+            (i != n_ds - 1) and ax_elbow.set_xlabel(None)
+
+        plt.tight_layout()
 
         fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
         
@@ -964,7 +969,7 @@ class FigMultiElbow:
         plt.savefig(fig_full_path, bbox_inches="tight")
             
         return ax
-("multi_elbow" in plots_list) and FigMultiElbow().plot(args.datasets)
+("multi_elbow" in plots_list) and FigMultiElbow.plot(args.datasets)
 
 class FigIls:
     def plot(self):
