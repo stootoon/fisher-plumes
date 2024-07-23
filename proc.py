@@ -73,7 +73,7 @@ def get_registry(registry_loc, build=False, write=False):
 
 # This function will take a registry and key-value pairs to look for in the init and compute fields.
 # It will return a list of all the registry items that match the given key-value pairs.
-def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}, x_coords = []):
+def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}, x_coords = [], y_coords = []):
     if registry is None:
         INFO("No registry given. Loading registry from proc/registry.p.")
         registry = pickle.load(open("proc/registry.p", "rb"))
@@ -94,6 +94,7 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
         item_x_m = item["init"]["which_coords"][0][0].to("m").magnitude
         item_y_m = item["init"]["which_coords"][0][1].to("m").magnitude
         if (len(x_coords) > 0) and (item_x_m not in x_coords): continue
+        if (len(y_coords) > 0) and (item_y_m not in y_coords): continue
         for k,v in init_filter.items():
             if k not in item["init"]:
                 init_match = False
