@@ -106,6 +106,9 @@ def compute_pairs(yvals, pairs_mode="signed", pair_resolution = 0):
         pairs[0] = [(i,i) for i in range(yvals)]
     else:
         raise ValueError(f"Don't know what to do for {pairs_mode=}.")
+    #DEBUG(f"Pairs before pooling:")
+    #for k, p in sorted(pairs.items()):
+    #    DEBUG(f"pairs[{k}] = {p}")
     INFO(f"Pooling data across pair distances that are <= {pair_resolution} apart.")
     d = sorted(list(pairs.keys()))
     dd = pool_sorted_keys(d, pair_resolution) # Returns grouped distances

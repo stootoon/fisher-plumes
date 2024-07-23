@@ -100,6 +100,8 @@ class FisherPlumes:
                                                                                                        units = UNITS.m,
                                                                                                        pitch_units = UNITS(self.pitch_string),
                                                                                                        max_time = max_time,
+                                                                                            pair_resolution_um = 1500 if "_45deg" in "sim_name" else 100,
+                                                                            
                                                                                                        **kwargs)
             elif sim_name.startswith("surr_"):
                 which_coords, kwargs = utils.get_args(["which_coords"], kwargs)            

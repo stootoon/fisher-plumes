@@ -240,6 +240,7 @@ def plot_correlations(rho,
                       plot_overlay = True,
                       plot_legend = True,
                       nneg_dists = True,
+                      tight_layout = True,
                       ax = [],
                       legend_args = {},
 ):
@@ -290,7 +291,7 @@ def plot_correlations(rho,
         plt.title("Overlayed and Scaled")
 
     if plot_slices or plot_overlay:
-        plt.tight_layout(w_pad=0)
+        tight_layout and plt.tight_layout(w_pad=0)
 
     return ax
 
