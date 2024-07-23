@@ -1,7 +1,7 @@
 import os, sys, yaml, logging
 from importlib import reload
 from argparse import ArgumentParser
-import pdb
+from builtins import sum as bsum
 
 import utils
 import units; reload(units); UNITS = units.UNITS;
@@ -665,160 +665,6 @@ class FigLengthVsFreq:
             sys.stdout.flush(); plt.show(); plt.close();
 ("length_vs_freq" in plots_list) and FigLengthVsFreq().plot()    
 
-class FigMultiCorrDecay:
-    def __init__(self):
-        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
-        self.which_corr_freqs_Hz = [2, 5, 10, 15, 20]
-        self.which_corr_freqs = self.which_corr_freqs_Hz * UNITS.Hz
-        self.labs = [f"{f}" for f in self.which_corr_freqs]
-        self.cols = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw.1_3":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)})
-        self.cols.update({l:col for l,col in zip(self.labs, [cm.cool(1 - f.magnitude/20) for f in self.which_corr_freqs])})
-
-    def map_coords_to_grid(self, ds):
-        init_filter = {"sim_name":sim_names[ds]}
-        matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
-                                             compute_filter = compute_filter)
-        assert len(matches) > 0, f"No matches found for {ds}."
-        assert "init" in matches[0], f"No init data found for {ds}."
-        assert "which_coords" in matches[0]["init"], f"No which_coords found for {ds}."
-        
-        coords = [m["init"]["which_coords"][0] for m in matches]
-        x_coords = [c[0] for c in coords]
-        y_coords = [c[1] for c in coords]
-        x_set = sorted(list(set(x_coords)))
-        y_set = sorted(list(set(y_coords)))
-        n_rows = len(y_set)
-        n_cols = len(x_set)
-        gs_index = {}
-        for c in coords:
-            row = len(y_set) - 1 - y_set.index(c[1])
-            col = x_set.index(c[0])
-            key = str(c)
-            gs_index[key] = (row, col)
-            INFO(f"Mapping {c} to {gs_index[key]}")
-        return n_rows, n_cols, gs_index
-        
-    def plot(self, which_ds):
-        n_ds = len(which_ds)
-
-        n_rows, n_cols, gs_index = {}, {}, {}
-        for ds in which_ds:
-            n_rows[ds], n_cols[ds], gs_index[ds] = self.map_coords_to_grid(ds)
-
-        total_rows = sum(n_rows.values())
-        total_cols = max(n_cols.values()) * 2
-            
-        plt.figure(figsize=(8, 4 * n_ds))
-        loaded = {}
-        gs = GridSpec(total_rows, total_cols)
-        ax = []
-        irow, icol = 0, 0
-        for i, ds in enumerate(which_ds):            
-            # Load the data for this compute_filter, and for all the coords in the probe_locs
-            init_filter = {"sim_name":sim_names[ds]}
-            matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
-                                                 compute_filter = compute_filter)
-
-            assert len(matches) > 0, f"Found no matches for {ds}."
-            print(f"Found {len(matches)} matches for {ds}.")
-
-            ds_base = ds.split("_")[0]
-            loaded[ds] = {}
-            srcs = [np.mod(w,16) for w in which_srcs[ds]]
-            coords_for_probe = {}
-            for m in matches:
-                print(m)
-                if "which_coords" not in m["init"]:
-                    continue
-                coords = m["init"]["which_coords"][0]                
-                probe_name = probe_name_(ds_base, coords)
-                coords_for_probe[probe_name] = coords
-                print(f"Loading data for {ds} at {probe_name}.")
-                loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
-                                                                        init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
-                                                                        compute_filter = compute_filter,
-                                                                        load_sims = srcs if probe_name == "0" else [0],
-                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd'],
-                                                                    ))
-            assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
-                
-            D = {}
-            for k, d in loaded[ds].items():
-                D[k] = FisherPlumes(d)
-                D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
-                D[k].y_lim = D[k].sim0.y_lim
-                if k != "0":
-                    del D[k].sim0
-            
-            ax_plume = plt.subplot(gs[irow:irow+n_rows[ds],:total_cols//2])
-            ax.append(ax_plume)
-
-            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
-    
-            (i < n_ds - 1) and ax_plume.set_xlabel(None)
-                    
-            for j,(k,F) in enumerate(sorted(D.items())):
-                x,y = F.used_probe_coords[0]
-                x_p = x.to(F.pitch).magnitude
-                y_p = y.to(F.pitch).magnitude
-                dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
-                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
-                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
-
-                key    = str(coords_for_probe[k])
-                ii, jj = gs_index[ds][key]
-                # Set the padding the subplots to 0
-                new_ax = plt.subplot(gs[ii + irow, jj + total_cols//2])
-
-                
-                freq_min = F.fs/F.wnd #(1/window_length.to(UNITS.s).magnitude) * UNITS.Hz        
-                coef_γ_vs_freq = F.coef_γ_vs_freq[iprb]
-                d_scale   = F.pitch.to(UNITS.um).magnitude
-                freq_inds = F.freqs2inds(self.which_corr_freqs)
-                slices    = {}    
-                slices.update({l:slice(fi, fi+1) for l, fi in zip(self.labs, freq_inds)})    
-                fpf.plot_correlations(F.rho[0], F.pitch.to(UNITS.um).magnitude, slices = slices, cols = self.cols,
-                          plot_slices = False, plot_overlay=True, ax = [new_ax],
-                                      plot_legend = False,
-                                      )
-                first_row = ii == 0
-                last_row = ii == n_rows[ds] - 1
-                first_col = jj == 0
-                new_ax.set_xlabel("")
-
-                # Set the xtics fontsize
-                new_ax.tick_params(axis='x', labelsize=6)
-                new_ax.tick_params(axis='y', labelsize=6)
-
-                new_ax.set_title("")
-                new_ax.set_yticks(np.arange(0,1.1,0.5))
-                if first_row and first_col:
-                    new_ax.set_ylabel("Correlations", fontsize=8)
-                    new_ax.set_xlabel(f"Inter. dist. ({fpf.pitch_sym})", fontsize=8)
-                    # Make the legend as tight as possible
-                    new_ax.legend(loc="upper right", fontsize=5, ncol=1, frameon=False, labelspacing=0, handlelength=0.5)
-                    ax.append(new_ax)
-                else:
-                    new_ax.set_ylabel("")
-
-                # Set the axis colors to col
-                #[sp.set_color(col) for sp in new_ax.spines.values()]
-                # Set the axis background color to col, but with alpha=0.5
-                new_ax.set_facecolor(list(col)[:3] + [0.2])
-
-            irow += n_rows[ds]
-    
-        plt.tight_layout(w_pad=0.1, h_pad=0.1)
-        fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(0,len(ax),2)), list(range(1,len(ax),2))], align_y=list([i,i+1] for i in range(0,len(ax),2)), fontsize=12, fontweight="bold", dy=0.01)
-        #plt.subplots_adjust(wspace=0.1, hspace=0.1)
-        name = "_".join([d.replace("_","") for d in which_ds])
-        fig_name = f"all_corr_decays_{name}.pdf"
-        fig_full_path = os.path.join(fig_dir_full, fig_name)
-        print(f"Saving figure to {fig_full_path}")
-        plt.savefig(fig_full_path, bbox_inches="tight")
-            
-        return ax
-("multi_corr_decay" in plots_list) and FigMultiCorrDecay().plot(args.datasets)
 
 class FigElbow:
     def __init__(self):
@@ -970,6 +816,184 @@ class FigMultiElbow:
             
         return ax
 ("multi_elbow" in plots_list) and FigMultiElbow.plot(args.datasets)
+
+class FigMultiCorrDecay:
+    def __init__(self):
+        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+        self.which_corr_freqs_Hz = [2, 5, 10, 15, 20]
+        self.which_corr_freqs = self.which_corr_freqs_Hz * UNITS.Hz
+        self.labs = [f"{f}" for f in self.which_corr_freqs]
+        self.cols = defaultdict(lambda: cm.gray(0.4), {"s=p":cm.gray(0.4), "bw":cm.GnBu(0.75), "bw.1_3":cm.GnBu(0.75), "bw_45":cm.GnBu(0.75),"bw_X":cm.GnBu(0.75), "16Ts":cm.GnBu(0.35), "16Ts_X":cm.GnBu(0.25), "16Ts_45":cm.GnBu(0.2)})
+        self.cols.update({l:col for l,col in zip(self.labs, [cm.cool(1 - f.magnitude/20) for f in self.which_corr_freqs])})
+
+    @staticmethod
+    def map_coords_to_grid(ds):
+        init_filter = {"sim_name":sim_names[ds]}
+        matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
+                                             compute_filter = compute_filter)
+        assert len(matches) > 0, f"No matches found for {ds}."
+        assert "init" in matches[0], f"No init data found for {ds}."
+        assert "which_coords" in matches[0]["init"], f"No which_coords found for {ds}."
+        
+        coords = [m["init"]["which_coords"][0] for m in matches]
+        x_coords = [c[0] for c in coords]
+        y_coords = [c[1] for c in coords]
+        x_set = sorted(list(set(x_coords)))
+        y_set = sorted(list(set(y_coords)))
+        n_rows = len(y_set)
+        n_cols = len(x_set)
+        gs_index = {}
+        for c in coords:
+            row = len(y_set) - 1 - y_set.index(c[1])
+            col = x_set.index(c[0])
+            key = str(c)
+            gs_index[key] = (row, col)
+            INFO(f"Mapping {c} to {gs_index[key]}")
+        return n_rows, n_cols, gs_index
+        
+    def plot(self, which_ds, D = None):
+        n_ds = len(which_ds)
+
+        n_rows, n_cols, gs_index = {}, {}, {}
+        for ds in which_ds:
+            n_rows[ds], n_cols[ds], gs_index[ds] = self.map_coords_to_grid(ds)
+
+        total_rows = sum(n_rows.values())
+        col_width  = max(n_cols.values())
+        total_cols = col_width * 3
+            
+        plt.figure(figsize=(8, 2.5 * n_ds))
+        gs = GridSpec(total_rows, total_cols)
+        loaded = {}
+        ax = []
+        irow, icol = 0, 0
+        ax_corr = []
+        for i, ds in enumerate(which_ds):            
+            # Load the data for this compute_filter, and for all the coords in the probe_locs
+            init_filter = {"sim_name":sim_names[ds]}
+            matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
+                                                 compute_filter = compute_filter)
+
+            assert len(matches) > 0, f"Found no matches for {ds}."
+            print(f"Found {len(matches)} matches for {ds}.")
+
+            
+            ds_base = ds.split("_")[0]
+            loaded[ds] = {}
+            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            coords_for_probe = {}
+            for m in matches:
+                print(m)
+                if "which_coords" not in m["init"]:
+                    continue
+                coords = m["init"]["which_coords"][0]                
+                probe_name = probe_name_(ds_base, coords)
+                coords_for_probe[probe_name] = coords
+                print(f"Loading data for {ds} at {probe_name}.")
+                loaded[ds][probe_name] = utils.safe_load(proc.load_data(strict = True,
+                                                                        init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
+                                                                        compute_filter = compute_filter,
+                                                                        load_sims = srcs if probe_name == "0" else [0],
+                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd', 'reg_coefs', 'I_dists',],
+                                                                    ))
+            assert "0" in loaded[ds], f"Could not find data for {ds} at probe location 0, found only {list(loaded[ds].keys())}."
+                
+            D = {}
+            for k, d in loaded[ds].items():
+                D[k] = FisherPlumes(d)
+                D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
+                D[k].y_lim = D[k].sim0.y_lim
+                if k != "0":
+                    del D[k].sim0
+
+
+            ax_plume = plt.subplot(gs[irow:irow+n_rows[ds],:col_width])
+            ax.append(ax_plume)
+
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+    
+            (i < n_ds - 1) and ax_plume.set_xlabel(None)
+                    
+            for j,(k,F) in enumerate(sorted(D.items())):
+                x,y = F.used_probe_coords[0]
+                x_p = x.to(F.pitch).magnitude
+                y_p = y.to(F.pitch).magnitude
+                dy = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
+                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
+                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
+
+                key    = str(coords_for_probe[k])
+                ii, jj = gs_index[ds][key]
+                # Set the padding the subplots to 0
+                new_ax = plt.subplot(gs[ii + irow, jj + col_width])
+                ax_corr.append((new_ax,ii,jj)) # Collect these for adjustment later
+                
+                freq_min = F.fs/F.wnd #(1/window_length.to(UNITS.s).magnitude) * UNITS.Hz        
+                coef_γ_vs_freq = F.coef_γ_vs_freq[iprb]
+                d_scale   = F.pitch.to(UNITS.um).magnitude
+                freq_inds = F.freqs2inds(self.which_corr_freqs)
+                slices    = {}    
+                slices.update({l:slice(fi, fi+1) for l, fi in zip(self.labs, freq_inds)})    
+                fpf.plot_correlations(F.rho[0], F.pitch.to(UNITS.um).magnitude, slices = slices, cols = self.cols,
+                          plot_slices = False, plot_overlay=True, ax = [new_ax],
+                                      plot_legend = False,
+                                      tight_layout = False,
+                                      )
+                first_row = ii == 0
+                last_row = ii == n_rows[ds] - 1
+                first_col = jj == 0
+                new_ax.set_xlabel("")
+
+                # Set the xtics fontsize
+                new_ax.tick_params(axis='x', labelsize=6)
+                new_ax.tick_params(axis='y', labelsize=6)
+
+                new_ax.set_title("")
+                new_ax.set_yticks(np.arange(0,1.1,0.5))
+                (not (first_col and last_row)) and new_ax.set_yticklabels([])
+                (not (first_col and last_row)) and new_ax.set_xticklabels([])
+                if first_row and first_col:
+                    ax.append(new_ax)
+                    
+                if last_row and first_col:
+                    new_ax.set_ylabel("Correlations", fontsize=8)
+                    new_ax.set_xlabel(f"Intersource distance ({fpf.pitch_sym})", fontsize=8)
+                    # Make the legend as tight as possible
+                    new_ax.legend(loc="upper right", fontsize=5, ncol=1, frameon=False, labelspacing=0, handlelength=0.5)
+                else:
+                    new_ax.set_ylabel("")
+
+                # Set the axis colors to col
+                #[sp.set_color(col) for sp in new_ax.spines.values()]
+                # Set the axis background color to col, but with alpha=0.5
+                new_ax.set_facecolor(list(col)[:3] + [0.2])
+                new_ax.axis("auto")
+
+            left, bottom, width, height = 2*col_width/total_cols, (irow+n_rows[ds])/total_rows, col_width/total_cols, n_rows[ds]/total_rows
+            ax_elbow = plt.subplot(gs[irow:irow+n_rows[ds],2*col_width:])
+            #ax_elbow = plt.axes([left, bottom, width, height])
+            FigMultiElbow.plot_elbows(D, ax_elbow)
+            #ax_elbow.yaxis.tick_right()
+            #ax_elbow.yaxis.set_label_position("right")
+            ax.append(ax_elbow)
+            irow += n_rows[ds]
+    
+        plt.tight_layout(w_pad=0, h_pad=0, pad = 0)
+        # Increase the width of the axes in ax_corr using set_position
+        for i, (a,ii,jj) in enumerate(ax_corr):
+            x0, y0, dx, dy = a.get_position().bounds
+            a.set_position([x0 - 0.02*jj, y0-0.02*(n_rows[ds]-1-ii), dx*1.8, dy*1.5])
+
+        fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", align_x = [list(range(i,len(ax),3)) for i in range(3)], align_y=list([i,i+1,i+2] for i in range(0,len(ax),3)), fontsize=12, fontweight="bold", dy=0, dx = bsum([[0, -0.025,0]]*len(which_ds), []))
+
+        name = "_".join([d.replace("_","") for d in which_ds])
+        fig_name = f"all_corr_decays_{name}.pdf"
+        fig_full_path = os.path.join(fig_dir_full, fig_name)
+        print(f"Saving figure to {fig_full_path}")
+        plt.savefig(fig_full_path, bbox_inches="tight")
+            
+        return ax
+("multi_corr_decay" in plots_list) and FigMultiCorrDecay().plot(args.datasets)
 
 class FigIls:
     def plot(self):
