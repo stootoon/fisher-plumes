@@ -23,12 +23,18 @@ parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
 parser.add_argument("--x_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these x coordinates in meters.")
+parser.add_argument("--y_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these y coordinates in meters.")
 args = parser.parse_args()
 
 if len(args.x_coords)>0:
     INFO(f"Only loading probes with x coordinates {args.x_coords}.")
 else:
     INFO("Loading all available probes regardless of x-coordinates.")
+
+if len(args.y_coords)>0:
+    INFO(f"Only loading probes with y coordinates {args.y_coords}.")
+else:
+    INFO("Loading all available probes regardless of y-coordinates.")
 
 available_single = ["plumes_demo", "corr_decomp", "phase_example",
                     "mvg_fits", "mvg_supp_fits",
@@ -165,6 +171,7 @@ if not all(["multi" in k for k in plots_list]):
                                  fit_corrs = [],
                                           return_matches = True,
                                           x_coords = args.x_coords,
+                                          y_coords = args.y_coords,
                                  )
         assert payload is not None, f"No data loaded for {k}."
         if len(payload) == 1:
@@ -224,12 +231,12 @@ infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
          "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
 }
 
-which_srcs    = dict_update_from_field({"bw":[7,-8], #[-3750, 3750],                                       
-                                        "bw_X": [1, -2], # [-48750, 48750],
-                                        "bw_45":[1,-2], #[-48749, 48749],
-                                        "16Ts":[7,-8], #[496000,504000],
-                                        "16Ts_X":[7,-8], #[16000,104000],
-                                        "16Ts_45":[7,-8], #[16000, 104000],
+which_srcs    = dict_update_from_field({"bw":[0,15], #[-3750, 3750],                                       
+                                        "bw_X": [0, 15], # [-48750, 48750],
+                                        "bw_45":[0, 15], #[-48749, 48749],
+                                        "16Ts":[0,15], #[496000,504000],
+                                        "16Ts_X":[0,15], #[16000,104000],
+                                        "16Ts_45":[0,15], #[16000, 104000],
                                         },       
                                        su_ds, "bw")
 
@@ -775,6 +782,7 @@ class FigMultiElbow:
             matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
                                                  compute_filter = compute_filter,
                                                  x_coords = args.x_coords,
+                                                 y_coords = args.y_coords,
                                                  )
 
             assert len(matches) > 0, f"Found no matches for {ds}."
@@ -845,7 +853,8 @@ class FigMultiDecayElbow:
         init_filter = {"sim_name":sim_names[ds]}
         matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
                                              compute_filter = compute_filter,
-                                             x_coords = args.x_coords,                                             
+                                             x_coords = args.x_coords,
+                                             y_coords = args.y_coords,
                                              )
         assert len(matches) > 0, f"No matches found for {ds}."
         assert "init" in matches[0], f"No init data found for {ds}."
@@ -890,6 +899,7 @@ class FigMultiDecayElbow:
             matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
                                                  compute_filter = compute_filter,
                                                  x_coords = args.x_coords,
+                                                 y_coords = args.y_coords,
                                                  )
 
             assert len(matches) > 0, f"Found no matches for {ds}."
@@ -997,6 +1007,8 @@ class FigMultiDecayElbow:
             ax.append(ax_elbow)
             irow += n_rows[ds]
             print(f"Memory usage after plotting {ds}: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
+            gc.collect()
+            print(f"After forcing garbage collection: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
     
         plt.tight_layout(w_pad=0, h_pad=0, pad = 0)
         # Increase the width of the axes in ax_corr using set_position
