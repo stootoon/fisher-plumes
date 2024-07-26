@@ -236,7 +236,7 @@ if __name__ == "__main__":
     parser.add_argument("--set", help="Field (e.g. 'compute.window_length') and value (e.g. '[1*SEC,2*SEC]') to set in spec file.", nargs=2, action="append", default=None)
 
     parser.add_argument("--test_assm", help="Single YAML file, generated elsewhere, specifying the tests to perform.", type=str)
-    parser.add_argument("--test_assm_spec", hel = "YAML file specifying the tests to perform.", type=str)
+    parser.add_argument("--test_assm_spec", help = "YAML file specifying the tests to perform.", type=str)
 
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
@@ -261,10 +261,10 @@ if __name__ == "__main__":
         if args.fp_data: # Generate yaml files to fit correlations for the fisher plumes data in this file.
             
             assert args.search_spec or args.test_assm_spec, "Must specify a search spec file with --search_spec, or a test assembly spec file with --test_assm_spec."
-            mode = "corr_fits" if args.search_sec else "test_assm"
+            mode = "corr_fits" if args.search_spec else "test_assm"
             spec_file = args.search_spec if args.search_spec else args.test_assm_spec
             INFO(f"Generating {mode=} spec files for {args.fp_data} using {spec_file}.")
-            
+
             # Get the search spec filename without the extension
             spec_file = os.path.splitext(spec_file)[0]
                         
@@ -274,6 +274,8 @@ if __name__ == "__main__":
             else:
                 # Otherwise, it's a single file.
                 fp_files = [args.fp_data]
+
+            INFO(f"Found {len(fp_files)} files to process.")
 
             # Now, for each file, we need to split it into jobs.
             for fp_file in fp_files:
@@ -313,15 +315,14 @@ if __name__ == "__main__":
                     cmd = f"rm -f {os.path.join(job_dir, f'{os.path.splitext(os.path.basename(fp_file))[0]}.*.yaml')}"
                     INFO(cmd)
                     os.system(cmd)
-                                  
-                    
+                                                      
                 os.makedirs(job_dir, exist_ok=True)
                 INFO(f"Created directory {job_dir}.")
                 # Now, for each job, create a spec file.
                 for i, job in enumerate(jobs):
                     # Create a spec file for this job.
                     # The name of the spec file will be fp_file with .p removed and the job number appended.
-                    spec_file = os.path.join(job_dir, f"{os.path.splitext(os.path.basename(fp_file))[0]}.{i}.yaml")
+                    job_spec_file = os.path.join(job_dir, f"{os.path.splitext(os.path.basename(fp_file))[0]}.{i}.yaml")
                     # The spec file will contain the fp_file, the search_spec, and the job.
                     spec = {"fp_file": fp_file}
                     
@@ -334,8 +335,8 @@ if __name__ == "__main__":
                     else:
                         raise ValueError(f"Unknown mode {mode}.")
                     # Write the spec file to a human-readable yaml file.
-                    yaml.dump(spec, open(spec_file, "w"), default_flow_style=True)
-                    INFO(f"Wrote spec file {spec_file}.")
+                    yaml.dump(spec, open(job_spec_file, "w"), default_flow_style=True)
+                    INFO(f"Wrote spec file {job_spec_file}.")
         elif args.test_assm:
             # If we're testing assumptions, then we need to load the spec file.
             spec = yaml.load(open(args.test_assm, "r"), Loader=yaml.FullLoader)
