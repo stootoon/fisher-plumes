@@ -71,6 +71,7 @@ class TestAssumptions:
         self.valid_tests = ["location_independence"]
         
     def run(self, ifreqs = None):
+        results = {}
         for fld in self.assm_spec:
             if fld in self.valid_tests:
                 if not self.assm_spec[fld]["run"]:
@@ -78,7 +79,9 @@ class TestAssumptions:
                     continue
                 
                 if fld == "location_independence":
-                    self.location_independence(ifreqs)
+                    results["location_independence"] = self.location_independence(ifreqs)
+
+        return results
 
     def location_independence(self, ifreqs = None):
         spec = self.assm_spec["location_independence"]
@@ -122,8 +125,6 @@ class TestAssumptions:
                     result = LocIndependenceResult(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq, estat=estat)
                     DEBUG(result)
                     results.append(result)
-                    if ii > 0:
-                        break
                     
         return results
         
