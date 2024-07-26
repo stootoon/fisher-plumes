@@ -25,6 +25,8 @@ import warnings
 import corr_models
 corr_models.logger.setLevel("INFO")
 
+import assumptions as assm
+
 import units; UNITS = units.UNITS
 HZ = UNITS.Hz
 SEC= UNITS.s
@@ -348,10 +350,10 @@ if __name__ == "__main__":
             fp_data   =  pickle.load(open(fp_file, "rb"))["results"]
             results = assm.TestAssumptions(assm_spec, fp_data).run(ifreqs)
             # The output file will be the same as the input file, but with yaml replaced with p.
-            output_file = os.path.splitext(args.test_assumptions)[0] + ".p"
+            output_file = os.path.splitext(args.test_assm)[0] + ".p"
             # Write the results to a pickle file.            
             pickle.dump({"results": results,
-                         "assm_spec": assm_spec,
+                         "test_assm_spec": assm_spec,
                          "ifreqs": ifreqs,
                          "fp_file": fp_file},
                         open(output_file, "wb"))

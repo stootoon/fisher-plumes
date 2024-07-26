@@ -3,7 +3,7 @@ import yaml
 from scipy.spatial.distance import pdist, squareform
 from sklearn.preprocessing import KBinsDiscretizer
 from collections import namedtuple
-import utils
+import logging, utils
 
 logger = utils.create_logger("assumptions")
 logger.setLevel(logging.DEBUG)
@@ -73,44 +73,57 @@ class TestAssumptions:
     def run(self, ifreqs = None):
         for fld in self.assm_spec:
             if fld in self.valid_tests:
+                if not self.assm_spec[fld]["run"]:
+                    DEBUG(f"Skipping {fld} test.")
+                    continue
+                
                 if fld == "location_independence":
                     self.location_independence(ifreqs)
 
     def location_independence(self, ifreqs = None):
-        spec = self.asmm_spec["location_independence"]
-        DEBUG(f"Testing location independence for {spec=}")
-        iprb = spec.iprb
-        
-        F = self.fp_data
+        spec = self.assm_spec["location_independence"]
+        DEBUG(f"Testing location independence for {spec=} and {ifreqs=}")
+        iprb = spec["iprb"]
 
-        ss = F.ss[iprb]
+        ss = self.fp_data["ss"]
+        cc = self.fp_data["cc"]
+
+        assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
+
+        ss, cc = ss[iprb], cc[iprb]
+        
         srcs = sorted(list(ss.keys()))
         assert len(srcs)>1, f"Need at least 2 sources to test location independence, found {len(srcs)}."
 
-        cc = F.cc[iprb]
-
+        
         n_freqs = ss[srcs[0]].shape[-1]
         if ifreqs is None:
             ifreqs = list(range(n_freqs))
         else:
+            ifreqs = [i[0] for i in ifreqs]
             assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
         
         DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
         DEBUG(f"{ifreqs=}")
 
+        results = []
         np.random.seed(spec["seed"])
-        for i, src1 in enumerate(srcs):
+        for i1, s1 in enumerate(srcs):
             for i2 in range(i1, len(srcs)):
                 s2 = srcs[i2]
-                for ifreq in ifreqs:
+                for ii, ifreq in enumerate(ifreqs):
                     a = cc[s1][0,:,ifreq]
                     b = ss[s1][0,:,ifreq]
                     c = cc[s2][0,:,ifreq]
                     d = ss[s2][0,:,ifreq]
                     X = np.array([a,b]).T
                     Y = np.array([c,d]).T
-                    estat = Energy.test(X,Y,spec["n_perm"])
-                    result = LocIndependenceResult(i1=i1, i2=2, src=s1, src2=s2, ifreq=ifreq, estat=estat)
+                    estat  = Energy.test(X,Y,spec["n_perm"])
+                    result = LocIndependenceResult(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq, estat=estat)
+                    DEBUG(result)
                     results.append(result)
+                    if ii > 0:
+                        break
+                    
         return results
         
