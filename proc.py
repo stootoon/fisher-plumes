@@ -216,11 +216,11 @@ def get_last_mod_timestr(file_path):
     """ Get the last modification time of the given file as a string. """
     return datetime.datetime.fromtimestamp(os.path.getmtime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
 
-def hash_init_compute(init, compute, length=16):
+def hash_init_compute(init, compute, suffix="", length=16):
     """Stringify the init and compute dictionaries, concatenate them, and hash that using shake_128."""
     init_str = str(init)
     compute_str = str(compute)
-    combined = init_str + compute_str        
+    combined = init_str + compute_str + suffix
     hashed =  hashlib.shake_128(combined.encode("utf-8")).hexdigest(length//2)
     DEBUG(f"Hashed {combined} to {hashed}.")
     return hashed        
@@ -235,6 +235,8 @@ if __name__ == "__main__":
     parser.add_argument("--rebuild",   help="Whether to rebuild the registry from scratch. The directory of the --registry flag will be used.", action="store_true")
     parser.add_argument("--set", help="Field (e.g. 'compute.window_length') and value (e.g. '[1*SEC,2*SEC]') to set in spec file.", nargs=2, action="append", default=None)
 
+    parser.add_argument("--test_assumptions", help="YAML file specifying the tests to perform.", type=str)
+    
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
@@ -309,6 +311,27 @@ if __name__ == "__main__":
                     # Write the spec file to a human-readable yaml file.
                     yaml.dump(spec, open(spec_file, "w"), default_flow_style=True)
                     INFO(f"Wrote spec file {spec_file}.")
+        elif args.test_assumptions:
+            # If we're testing assumptions, then we need to load the spec file.
+            spec = yaml.load(open(args.test_assumptions, "r"), Loader=yaml.FullLoader)
+            fp_file          = spec["fp_file"]
+            assm_spec        = spec["assm_spec"]
+            ifreqs           = spec["ifreqs"] # List of (probe_id, dist, ifreq) tuples to fit.
+
+            # Load the correlations
+            fp_data   =  pickle.load(open(fp_file, "rb"))["results"]
+            results = assm.TestAssumptions(assm_spec, fp_data).run(ifreqs)
+            # The output file will be the same as the input file, but with yaml replaced with p.
+            output_file = os.path.splitext(args.test_assumptions)[0] + ".p"
+            # Write the results to a pickle file.            
+            pickle.dump({"results": results,
+                         "assm_spec": assm_spec,
+                         "ifreqs": ifreqs,
+                         "fp_file": fp_file},
+                        open(output_file, "wb"))
+            INFO(f"Wrote results to {output_file}.")
+            print(f"ALLDONE")
+
         elif args.fit_corrs:
             # If we're fitting correlations, then we need to load the spec file.
             spec = yaml.load(open(args.fit_corrs, "r"), Loader=yaml.FullLoader)

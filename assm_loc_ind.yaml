@@ -1,0 +1,6 @@
+location_independence:
+  test: True
+  seed: 0
+  n_perm: 1000
+  iprb: 0
+   

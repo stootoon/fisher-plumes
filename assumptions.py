@@ -1,0 +1,116 @@
+import numpy as np
+import yaml
+from scipy.spatial.distance import pdist, squareform
+from sklearn.preprocessing import KBinsDiscretizer
+from collections import namedtuple
+import utils
+
+logger = utils.create_logger("assumptions")
+logger.setLevel(logging.DEBUG)
+INFO  = logger.info
+WARN  = logger.warning
+DEBUG = logger.debug
+
+# Compute the Szekely's energy test 
+class Energy:
+    @staticmethod
+    def stat(X, Y):
+        n1 = X.shape[0]
+        n2 = Y.shape[0]
+        n = n1 + n2
+        XY = np.vstack([X,Y])
+        D = squareform(pdist(XY))
+        DXX = D[:n1, :n1]
+        DYY = D[n1:, n1:]
+        DXY = D[:n1, n1:]
+        E = 2 * np.mean(DXY) - np.mean(DXX) - np.mean(DYY)
+        return E * (n1 * n2) 
+
+    @staticmethod
+    def test(X, Y, n=100):
+        n1, n2 = X.shape[0], Y.shape[0]
+        XY = np.vstack([X,Y])
+        Eobs = Energy.stat(X, Y)
+        Eperm = np.zeros(n)
+        for i in range(n):
+            np.random.shuffle(XY)
+            Eperm[i] = Energy.stat(XY[:n1], XY[n1:])
+        pval = np.mean(Eperm > Eobs)
+        return pval
+
+    @staticmethod
+    def test_gaussian(X, n_rand = None, **kwargs):
+        if n_rand is None:
+            n_rand = len(X)
+    
+        Xm = np.mean(X, axis=0)
+        Xcov = np.cov(X.T)
+        Y = np.random.multivariate_normal(Xm, Xcov, n_rand)
+        return Energy.test(X,Y,**kwargs)
+    
+def squareform(vec, incl_diag=True):
+    # Len(vec) = n(n+1)/2
+    if not incl_diag:
+        n = int(np.sqrt(0.25 + 2*len(vec)) + 0.5)
+    else:
+        n = int(np.sqrt(0.25 + 2*len(vec)) - 0.5)
+    M = np.zeros((n,n))
+    M[np.triu_indices(n,1 - incl_diag)] = vec
+    M += M.T
+    if incl_diag:
+        M[np.diag_indices(n)] /= 2
+    return M.astype(type(vec[0]))
+
+
+LocIndependenceResult = namedtuple("LocIndependenceResult", ["i1", "i2", "src1", "src2", "ifreq", "estat"])
+
+class TestAssumptions:
+    def __init__(self, assm_yaml, fp_data):
+        self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
+        self.fp_data = fp_data
+        self.valid_tests = ["location_independence"]
+        
+    def run(self, ifreqs = None):
+        for fld in self.assm_spec:
+            if fld in self.valid_tests:
+                if fld == "location_independence":
+                    self.location_independence(ifreqs)
+
+    def location_independence(self, ifreqs = None):
+        spec = self.asmm_spec["location_independence"]
+        DEBUG(f"Testing location independence for {spec=}")
+        iprb = spec.iprb
+        
+        F = self.fp_data
+
+        ss = F.ss[iprb]
+        srcs = sorted(list(ss.keys()))
+        assert len(srcs)>1, f"Need at least 2 sources to test location independence, found {len(srcs)}."
+
+        cc = F.cc[iprb]
+
+        n_freqs = ss[srcs[0]].shape[-1]
+        if ifreqs is None:
+            ifreqs = list(range(n_freqs))
+        else:
+            assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
+        
+        DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
+        DEBUG(f"{ifreqs=}")
+
+        np.random.seed(spec["seed"])
+        for i, src1 in enumerate(srcs):
+            for i2 in range(i1, len(srcs)):
+                s2 = srcs[i2]
+                for ifreq in ifreqs:
+                    a = cc[s1][0,:,ifreq]
+                    b = ss[s1][0,:,ifreq]
+                    c = cc[s2][0,:,ifreq]
+                    d = ss[s2][0,:,ifreq]
+                    X = np.array([a,b]).T
+                    Y = np.array([c,d]).T
+                    estat = Energy.test(X,Y,spec["n_perm"])
+                    result = LocIndependenceResult(i1=i1, i2=2, src=s1, src2=s2, ifreq=ifreq, estat=estat)
+                    results.append(result)
+        return results
+        
