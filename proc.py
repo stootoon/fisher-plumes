@@ -235,8 +235,9 @@ if __name__ == "__main__":
     parser.add_argument("--rebuild",   help="Whether to rebuild the registry from scratch. The directory of the --registry flag will be used.", action="store_true")
     parser.add_argument("--set", help="Field (e.g. 'compute.window_length') and value (e.g. '[1*SEC,2*SEC]') to set in spec file.", nargs=2, action="append", default=None)
 
-    parser.add_argument("--test_assumptions", help="YAML file specifying the tests to perform.", type=str)
-    
+    parser.add_argument("--test_assm", help="Single YAML file, generated elsewhere, specifying the tests to perform.", type=str)
+    parser.add_argument("--test_assm_spec", hel = "YAML file specifying the tests to perform.", type=str)
+
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
@@ -253,12 +254,19 @@ if __name__ == "__main__":
         INFO("Setting corrmodels logging level to DEBUG.")
         corr_models.logger.setLevel("DEBUG")
         
-    if any([args.fit_corrs, args.fp_data, args.collect_fits]):
-        # Fitting correlation data
+    if any([args.fit_corrs, args.fp_data, args.collect_fits,
+            args.test_assm,
+            ]):
+        # Fitting correlation data or running tests of assumptions.
         if args.fp_data: # Generate yaml files to fit correlations for the fisher plumes data in this file.
-            assert args.search_spec, "Must specify a search spec file with --search_spec."
+            
+            assert args.search_spec or args.test_assm_spec, "Must specify a search spec file with --search_spec, or a test assembly spec file with --test_assm_spec."
+            mode = "corr_fits" if args.search_sec else "test_assm"
+            spec_file = args.search_spec if args.search_spec else args.test_assm_spec
+            INFO(f"Generating {mode=} spec files for {args.fp_data} using {spec_file}.")
+            
             # Get the search spec filename without the extension
-            search_spec_file = os.path.splitext(args.search_spec)[0]
+            spec_file = os.path.splitext(spec_file)[0]
                         
             if os.path.isdir(args.fp_data):
                 # If the fp_data is a directory, then we need to find all the files in it.
@@ -272,7 +280,7 @@ if __name__ == "__main__":
                 INFO(f"Splitting {fp_file} into {args.gen_jobs} jobs.")
                 # Load the file and figure out how many probes, frequencies, and distances there are.
                 fp_data = pickle.load(open(fp_file, "rb"))
-                assert "results" in fp_data, f"Correlation data {fp_file} does not contain 'results' key."
+                assert "results" in fp_data, f"Data file {fp_file} does not contain 'results' key."
                 assert "rho" in fp_data["results"], f"Correlation data {fp_file} does not contain 'rho' key."
                 rho = fp_data["results"]["rho"]
                 n_probes  = len(rho)
@@ -280,9 +288,16 @@ if __name__ == "__main__":
                 n_dists   = len(dists)
                 n_freqs   = rho[0][dists[0]].shape[1]
                 INFO(f"Found {n_probes} probes, {n_dists} distances, and {n_freqs} frequencies.")                
-                # Compute all possible combinations of probes, distances, and frequencies.
-                combos = list(itertools.product(range(n_probes), dists, range(n_freqs)))
-                INFO(f"There {len(combos)} combinations of probes, distances, and frequencies.")
+                if mode == "corr_fits":
+                    # Compute all possible combinations of probes, distances, and frequencies.
+                    combos = list(itertools.product(range(n_probes), dists, range(n_freqs)))
+                    INFO(f"There {len(combos)} combinations of probes, distances, and frequencies.")
+                elif mode == "test_assm":
+                    combos = list(itertools.product(range(n_freqs)))
+                    INFO(f"There {len(combos)} combinations of frequencies.")
+                else:
+                    raise ValueError(f"Unknown mode {mode}.")
+                    
                 # Randomly shuffle the combinations.
                 random.shuffle(combos)
                 # Split the combinations into jobs.
@@ -290,7 +305,7 @@ if __name__ == "__main__":
                 INFO(f"Split into {len(jobs)} jobs.")
                 # Now, create a directory for the jobs.
                 # The directory will be that of the file, with /fit_corrs/search_spec_file/ appended.
-                job_dir = os.path.join(os.path.dirname(fp_file), "fit_corrs", search_spec_file)
+                job_dir = os.path.join(os.path.dirname(fp_file), {"corr_fits":"fit_corrs","test_assm":"test_assm"}[mode], spec_file)
                 # Remove the directory if it already exists.
                 if os.path.exists(job_dir):
                     INFO(f"Removing any job files in {job_dir}.")
@@ -298,6 +313,7 @@ if __name__ == "__main__":
                     cmd = f"rm -f {os.path.join(job_dir, f'{os.path.splitext(os.path.basename(fp_file))[0]}.*.yaml')}"
                     INFO(cmd)
                     os.system(cmd)
+                                  
                     
                 os.makedirs(job_dir, exist_ok=True)
                 INFO(f"Created directory {job_dir}.")
@@ -307,15 +323,24 @@ if __name__ == "__main__":
                     # The name of the spec file will be fp_file with .p removed and the job number appended.
                     spec_file = os.path.join(job_dir, f"{os.path.splitext(os.path.basename(fp_file))[0]}.{i}.yaml")
                     # The spec file will contain the fp_file, the search_spec, and the job.
-                    spec = {"fp_file": fp_file, "search_spec": args.search_spec, "probe_dist_ifreq": job.tolist()}
+                    spec = {"fp_file": fp_file}
+                    
+                    if mode == "corr_fits":
+                        spec["search_spec"] = args.search_spec
+                        spec["probe_dist_ifreq"] =  job.tolist()
+                    elif mode == "test_assm":
+                        spec["test_assm_spec"] = args.test_assm_spec
+                        spec["ifreqs"] = job.tolist()
+                    else:
+                        raise ValueError(f"Unknown mode {mode}.")
                     # Write the spec file to a human-readable yaml file.
                     yaml.dump(spec, open(spec_file, "w"), default_flow_style=True)
                     INFO(f"Wrote spec file {spec_file}.")
-        elif args.test_assumptions:
+        elif args.test_assm:
             # If we're testing assumptions, then we need to load the spec file.
-            spec = yaml.load(open(args.test_assumptions, "r"), Loader=yaml.FullLoader)
+            spec = yaml.load(open(args.test_assm, "r"), Loader=yaml.FullLoader)
             fp_file          = spec["fp_file"]
-            assm_spec        = spec["assm_spec"]
+            assm_spec        = spec["test_assm_spec"]
             ifreqs           = spec["ifreqs"] # List of (probe_id, dist, ifreq) tuples to fit.
 
             # Load the correlations
