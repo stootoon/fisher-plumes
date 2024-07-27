@@ -242,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument("--collect_assm_tests", help="Directory containing assumption tests to combine.", type=check_file_exists)
 
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
+    parser.add_argument("--pass_file",   help="Text file containing the list of files to process.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
     parser.add_argument("--fit_corrs",    help="Spec of a fit to correlations to perform.", type=check_file_exists)
@@ -278,7 +279,13 @@ if __name__ == "__main__":
                 # Otherwise, it's a single file.
                 fp_files = [args.fp_data]
 
-            INFO(f"Found {len(fp_files)} files to process.")
+            INFO(f"Found {len(fp_files)} total files to process.")
+            if args.pass_file:
+                INFO(f"Using pass file {args.pass_file}.")
+                with open(args.pass_file, "r") as f:
+                    pass_files = [l.strip() for l in f.readlines()]
+                fp_files = [f for f in fp_files if f in pass_files]
+                INFO(f"Found {len(fp_files)} files to process after filtering by pass file.")
 
             # Now, for each file, we need to split it into jobs.
             for fp_file in fp_files:
