@@ -61,36 +61,18 @@ def squareform(vec, incl_diag=True):
         M[np.diag_indices(n)] /= 2
     return M.astype(type(vec[0]))
 
-
-LocIndependenceResult = namedtuple("LocIndependenceResult", ["i1", "i2", "src1", "src2", "ifreq", "estat"])
-
-class TestAssumptions:
-    valid_tests = ["location_independence"]
-    def __init__(self, assm_yaml, fp_data):
-        self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
-        self.fp_data = fp_data
-        self.valid_tests = ["location_independence"]
-        
-    def run(self, ifreqs = None):
-        results = {}
-        for fld in self.assm_spec:
-            if fld in self.valid_tests:
-                if not self.assm_spec[fld]["run"]:
-                    DEBUG(f"Skipping {fld} test.")
-                    continue
-                
-                if fld == "location_independence":
-                    results["location_independence"] = self.location_independence(ifreqs)
-
-        return results
-
-    def location_independence(self, ifreqs = None):
-        spec = self.assm_spec["location_independence"]
+# Need these outside the class to avoid pickling issues
+LocIndKey    = namedtuple("LocIndKey", ["i1", "i2", "src1", "src2", "ifreq"]) 
+LocIndResult = namedtuple("LocIndResult", ["pval"])
+class LocationIndependence:
+    @staticmethod
+    def run(fp_data, assm_spec, ifreqs):
+        spec = assm_spec["location_independence"]
         DEBUG(f"Testing location independence for {spec=} and {ifreqs=}")
         iprb = spec["iprb"]
 
-        ss = self.fp_data["ss"]
-        cc = self.fp_data["cc"]
+        ss = fp_data["ss"]
+        cc = fp_data["cc"]
 
         assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
 
@@ -110,7 +92,7 @@ class TestAssumptions:
         DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
         DEBUG(f"{ifreqs=}")
 
-        results = []
+        results = {}
         np.random.seed(spec["seed"])
         for i1, s1 in enumerate(srcs):
             for i2 in range(i1, len(srcs)):
@@ -122,10 +104,29 @@ class TestAssumptions:
                     d = ss[s2][0,:,ifreq]
                     X = np.array([a,b]).T
                     Y = np.array([c,d]).T
+                    key    = LocIndKey(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq)
                     estat  = Energy.test(X,Y,spec["n_perm"])
-                    result = LocIndependenceResult(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq, estat=estat)
-                    DEBUG(result)
-                    results.append(result)
+                    results[key] = LocIndResult(pval=estat)
+                    DEBUG(f'{key=}: {estat=}')
                     
+        return results
+
+class TestAssumptions:
+    valid_tests = ["location_independence"]
+    def __init__(self, assm_yaml, fp_data):
+        self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
+        self.fp_data = fp_data
+        
+    def run(self, ifreqs = None):
+        results = {}
+        for fld in self.assm_spec:
+            if fld in TestAssumptions.valid_tests:
+                if not self.assm_spec[fld]["run"]:
+                    DEBUG(f"Skipping {fld} test.")
+                    continue
+                
+                if fld == "location_independence":
+                    results["location_independence"] = LocationIndependence.run(self.fp_data, self.assm_spec, ifreqs)
+
         return results
         

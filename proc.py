@@ -455,14 +455,14 @@ if __name__ == "__main__":
                         # These will be sets, because we'll be doing multiple tests at each ifreq.
                         expected_ifreqs = {tuple(t) for t in resultsi["ifreqs"]}
                         for test_name, test_res in resultsi["results"].items():
-                            test_ifreqs = {tuple([test_res_i.ifreq]) for test_res_i in test_res}
+                            test_ifreqs = {tuple([test_key_i.ifreq]) for test_key_i in test_res.keys()}
                             assert expected_ifreqs == test_ifreqs, f"expected_ifreqs {expected_ifreqs} != test_ifreqs {test_ifreqs} for {test_name} in {file_name}"
 
                         # Now update the list of ifreqs
                         results["ifreqs"].extend(resultsi["ifreqs"])
                         for test_name, test_res in resultsi["results"].items():
                             # Append the array of results
-                            results["results"][test_name].append(test_res)
+                            results["results"][test_name].update(test_res)
                     else:
                         raise ValueError("Must specify either --collect-fits or --collect-assm-tests.")    
                 # The output file will be the same as the input file, but with yaml replaced with p.
