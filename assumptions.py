@@ -4,6 +4,7 @@ from scipy.spatial.distance import pdist, squareform
 from sklearn.preprocessing import KBinsDiscretizer
 from collections import namedtuple
 import logging, utils
+from scipy.stats import wilcoxon
 
 logger = utils.create_logger("assumptions")
 logger.setLevel(logging.DEBUG)
@@ -126,10 +127,10 @@ GaussCoefsKey    = namedtuple("GaussCoefsKey",    ["i1", "src1", "ifreq"])
 GaussCoefsResult = namedtuple("GaussCoefsResult", ["pvals"])
 class GaussianCoefs:
     @staticmethod
-    def results_to_vec(results):
+    def results_to_vec(results, summary = np.mean):
         keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i1*10**4)
         ifreqs = {k.ifreq for k in keys}
-        vec  = np.array([results[k].pval for k in keys])
+        vec  = np.array([summary(results[k].pvals) for k in keys])
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
         stride = len(vec) // len(ifreqs)
         keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
@@ -177,10 +178,71 @@ class GaussianCoefs:
                 results[key] = GaussCoefsResult(pvals=pvals) 
                     
         return results
+
+# Need these outside the class to avoid pickling issues
+StationarityKey    = namedtuple("StationarityKey",    ["i1", "src1", "ifreq"]) 
+StationarityResult = namedtuple("StationarityResult", ["same_dist", "sin_mean_0","cos_mean_0","sin_cos_corr"])
+class Stationarity:
+    @staticmethod
+    def results_to_vec(results, summary = np.mean):
+        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i1*10**4)
+        ifreqs = {k.ifreq for k in keys}
+        vec  = np.array([summary(results[k].pvals) for k in keys])
+        assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
+        stride = len(vec) // len(ifreqs)
+        keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
+        ifreqs = [k[0].ifreq for k in keys]
+        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+    @staticmethod
+    def run(fp_data, assm_spec, ifreqs):
+        spec = assm_spec["stationarity"]
+        iprb = spec["iprb"]
+        DEBUG(f"Testing stationarity for {spec=} and {ifreqs=} for probe {iprb} and {n_trials} trials.")
+
+        ss = fp_data["ss"]
+        cc = fp_data["cc"]
+
+        assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
+
+        ss, cc = ss[iprb], cc[iprb]
+        
+        srcs = sorted(list(ss.keys()))
+        
+        n_freqs = ss[srcs[0]].shape[-1]
+        if ifreqs is None:
+            ifreqs = list(range(n_freqs))
+        else:
+            ifreqs = [i[0] for i in ifreqs]
+            assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
+        
+        DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
+        DEBUG(f"{ifreqs=}")
+
+        results = {}
+        np.random.seed(spec["seed"])
+        for i1, s1 in enumerate(srcs):
+            for ii, ifreq in enumerate(ifreqs):
+                a = cc[s1][0,:,ifreq]
+                b = ss[s1][0,:,ifreq]
+                X = np.array([a,b]).T
+                key = StationarityKey(i1=i1, src1=s1, ifreq=ifreq)
+                
+                results[key] = StationarityResult(
+                    same_dist    = Energy.test(a,b,spec["n_perm"]),
+                    cos_mean_0   = wilcoxon(a).pvalue,
+                    sin_min_0    = wilcoxon(b).pvalue,
+                    sin_cos_corr = np.dot(a,b),
+                )
+
+                DEBUG(f'{key=}: {results[key]}')
+                    
+        return results
     
 class TestAssumptions:
     valid_tests = {"location_independence":LocationIndependence,
-                   "gaussian_coefs":GaussianCoefs}
+                   "gaussian_coefs":GaussianCoefs,
+                   "stationarity":Stationarity,
+                   }
     def __init__(self, assm_yaml, fp_data):
         self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
         self.fp_data = fp_data
