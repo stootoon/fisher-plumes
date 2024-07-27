@@ -65,6 +65,7 @@ def squareform(vec, incl_diag=True):
 LocIndependenceResult = namedtuple("LocIndependenceResult", ["i1", "i2", "src1", "src2", "ifreq", "estat"])
 
 class TestAssumptions:
+    valid_tests = ["location_independence"]
     def __init__(self, assm_yaml, fp_data):
         self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
         self.fp_data = fp_data

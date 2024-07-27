@@ -239,6 +239,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--test_assm", help="Single YAML file, generated elsewhere, specifying the tests to perform.", type=str)
     parser.add_argument("--test_assm_spec", help = "YAML file specifying the tests to perform.", type=str)
+    parser.add_argument("--collect_assm_tests", help="Directory containing assumption tests to combine.", type=check_file_exists)
 
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
@@ -257,7 +258,7 @@ if __name__ == "__main__":
         corr_models.logger.setLevel("DEBUG")
         
     if any([args.fit_corrs, args.fp_data, args.collect_fits,
-            args.test_assm,
+            args.test_assm, args.collect_assm_tests,
             ]):
         # Fitting correlation data or running tests of assumptions.
         if args.fp_data: # Generate yaml files to fit correlations for the fisher plumes data in this file.
@@ -399,12 +400,15 @@ if __name__ == "__main__":
                         open(output_file, "wb"))
             INFO(f"Wrote results to {output_file}.")
             print(f"ALLDONE")
-        elif args.collect_fits:
+        elif (args.collect_fits or args.collect_assm_tests):
             # The files in the directory have names XYZ.1.p, XYZ.2.p, etc.
             # We want to collect all of the results into a single file XYZ.p.
             # First, find all the pickle files in the directory that are named XYZ.*.p.
             to_combine = {}
-            for file_name in glob.glob(os.path.join(args.collect_fits, "*.p")):
+            mode = "corr_fits" if args.collect_fits else "test_assm"
+            source_dir = args.collect_fits if args.collect_fits else args.collect_assm_tests
+            INFO(f"Collecting files in {source_dir}.")
+            for file_name in glob.glob(os.path.join(source_dir, "*.p")):
                 # Check if the file name matches the pattern XYZ.[number].p.
                 match = re.match(r"(.*)\.(\d+)\.p", os.path.basename(file_name))
                 if match:
@@ -420,24 +424,53 @@ if __name__ == "__main__":
             # by merging the results dictionaries and the probe_dist_ifreq lists.
             for base_name, file_names in to_combine.items():
                 # Load the first file.
-                results = pickle.load(open(file_names[0], "rb"))
+                results = pickle.load(open(file_names[0], "rb"))                
                 # For each subsequent file, load the results and append the probe_dist_ifreq list.
                 for file_name in file_names[1:]:
                     resultsi = pickle.load(open(file_name, "rb"))
-                    # Check that there are results for each probe_dist_ifreq in the first file.
-                    expected_keys = sorted([tuple(t) for t in resultsi["probe_dist_ifreq"]])
-                    actual_keys   = sorted(resultsi["results"].keys())
-                    assert expected_keys == actual_keys, f"expected_keys {expected_keys} != actual_keys {actual_keys} in {file_name}"                    
-                    # Check that the fp_file and search_spec are the same in this file as in the first file.
-                    assert results["fp_file"]     == resultsi["fp_file"],     f"fp_file {results['fp_file']} != {resultsi['fp_file']} for {file_name}"
-                    assert results["search_spec"] == resultsi["search_spec"], f"search_spec {results['search_spec']} != {resultsi['search_spec']} for {file_name}"
-                    results["probe_dist_ifreq"].extend(resultsi["probe_dist_ifreq"])
-                    results["results"].update(resultsi["results"])
+                    if args.collect_fits:
+                        # Check that there are results for each probe_dist_ifreq in the first file.
+                        expected_keys = sorted([tuple(t) for t in resultsi["probe_dist_ifreq"]])
+                        actual_keys   = sorted(resultsi["results"].keys())
+                        assert expected_keys == actual_keys, f"expected_keys {expected_keys} != actual_keys {actual_keys} in {file_name}"                    
+                        # Check that the fp_file and search_spec are the same in this file as in the first file.
+                        assert results["fp_file"]     == resultsi["fp_file"],     f"fp_file {results['fp_file']} != {resultsi['fp_file']} for {file_name}"
+                        assert results["search_spec"] == resultsi["search_spec"], f"search_spec {results['search_spec']} != {resultsi['search_spec']} for {file_name}"
+                        results["probe_dist_ifreq"].extend(resultsi["probe_dist_ifreq"])
+                        results["results"].update(resultsi["results"])
+                    elif args.collect_assm_tests:
+                        # Check that the fp_file and search_spec are the same in this file as in the first file.
+                        assert results["fp_file"]        == resultsi["fp_file"],        f"fp_file {results['fp_file']} != {resultsi['fp_file']} for {file_name}"
+                        assert results["test_assm_spec"] == resultsi["test_assm_spec"], f"test_assm_spec {results['test_assm_spec']} != {resultsi['test_assm_spec']} for {file_name}"
+
+                        # Check that the results are for the same set of tests
+                        expected_tests = sorted(list(results["results"].keys()))
+                        actual_tests   = sorted(list(resultsi["results"].keys()))
+                        assert expected_tests == actual_tests, f"expected_tests {expected_tests} != actual_tests {actual_tests} in {file_name}"
+
+                        # Check that the tests are valid tests.
+                        assert all([test in assm.TestAssumptions.valid_tests for test in expected_tests]), f"Invalid test in {file_name}"
+
+                        # Check that the ifreqs in this file are the ones we actually have results for
+                        # These will be sets, because we'll be doing multiple tests at each ifreq.
+                        expected_ifreqs = {tuple(t) for t in resultsi["ifreqs"]}
+                        for test_name, test_res in resultsi["results"].items():
+                            test_ifreqs = {tuple([test_res_i.ifreq]) for test_res_i in test_res}
+                            assert expected_ifreqs == test_ifreqs, f"expected_ifreqs {expected_ifreqs} != test_ifreqs {test_ifreqs} for {test_name} in {file_name}"
+
+                        # Now update the list of ifreqs
+                        results["ifreqs"].extend(resultsi["ifreqs"])
+                        for test_name, test_res in resultsi["results"].items():
+                            # Append the array of results
+                            results["results"][test_name].append(test_res)
+                    else:
+                        raise ValueError("Must specify either --collect-fits or --collect-assm-tests.")    
                 # The output file will be the same as the input file, but with yaml replaced with p.
-                output_file = os.path.join(args.collect_fits, os.path.splitext(base_name)[0] + ".p")
+                
+                output_file = os.path.join(source_dir, os.path.splitext(base_name)[0] + ".p")
                 # Write the results to a pickle file.            
                 pickle.dump(results, open(output_file, "wb"))
-                INFO(f"Collect fits results to {output_file}.")
+                INFO(f"Collect results to {output_file}.")
 
         exit(0)
     
