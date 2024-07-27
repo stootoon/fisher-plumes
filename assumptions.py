@@ -197,7 +197,7 @@ class Stationarity:
     def run(fp_data, assm_spec, ifreqs):
         spec = assm_spec["stationarity"]
         iprb = spec["iprb"]
-        DEBUG(f"Testing stationarity for {spec=} and {ifreqs=} for probe {iprb} and {n_trials} trials.")
+        DEBUG(f"Testing stationarity for {spec=} and {ifreqs=} for probe {iprb}.")
 
         ss = fp_data["ss"]
         cc = fp_data["cc"]
@@ -224,13 +224,12 @@ class Stationarity:
             for ii, ifreq in enumerate(ifreqs):
                 a = cc[s1][0,:,ifreq]
                 b = ss[s1][0,:,ifreq]
-                X = np.array([a,b]).T
                 key = StationarityKey(i1=i1, src1=s1, ifreq=ifreq)
                 
                 results[key] = StationarityResult(
-                    same_dist    = Energy.test(a,b,spec["n_perm"]),
+                    same_dist    = Energy.test(a.reshape(-1,1),b.reshape(-1,1),spec["n_perm"]),
                     cos_mean_0   = wilcoxon(a).pvalue,
-                    sin_min_0    = wilcoxon(b).pvalue,
+                    sin_mean_0    = wilcoxon(b).pvalue,
                     sin_cos_corr = np.dot(a,b),
                 )
 
