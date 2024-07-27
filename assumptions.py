@@ -311,12 +311,74 @@ class ConditionalGaussian:
                     results[key] = CondGaussResult(counts=counts, pvals_per_bin=pvals_per_bin)
                     
         return results
+
+# Need these outside the class to avoid pickling issues
+JointDistKey    = namedtuple("JointDistKey", ["i1", "i2", "src1", "src2", "dist", "ifreq"]) 
+JointDistResult = namedtuple("JointDistResult", ["pval"])
+class JointDist:
+    @staticmethod
+    def results_to_vec(results):
+        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
+        ifreqs = {k.ifreq for k in keys}
+        vec  = np.array([results[k].pval for k in keys])
+        assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
+        stride = len(vec) // len(ifreqs)
+        keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
+        ifreqs = [k[0].ifreq for k in keys]
+        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+    @staticmethod
+    def run(fp_data, assm_spec, ifreqs):
+        spec = assm_spec["joint_dist"]
+        DEBUG(f"Testing distance dependence of joint distribution for {spec=} and {ifreqs=}")
+        iprb = spec["iprb"]
+
+        ss = fp_data["ss"]
+        cc = fp_data["cc"]
+
+        assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
+
+        ss, cc = ss[iprb], cc[iprb]
+        
+        srcs = sorted(list(ss.keys()))
+        assert len(srcs)>1, f"Need at least 2 sources to test conditional gaussianity, found {len(srcs)}."
+        
+        n_freqs = ss[srcs[0]].shape[-1]
+        if ifreqs is None:
+            ifreqs = list(range(n_freqs))
+        else:
+            ifreqs = [i[0] for i in ifreqs]
+            assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
+        
+        DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
+        DEBUG(f"{ifreqs=}")
+
+        pairs_um = fp_data["pairs_um"]
+        pos_keys = sorted([k for k in pairs_um.keys() if k>0 and len(v)>1])
+        DEBUG(f"{len(pos_keys)} positive distance keys with greater than one pair: {pos_keys}")a
+
+        results = {}
+        np.random.seed(spec["seed"])
+        for k in pos_keys:
+            k_pairs = pairs_um[k]
+            for ii, ifreq in enumerate(ifreqs):
+                for i1, (s11,s12) in enumerate(k_pairs):
+                    abcd1 = np.vstack([cc[s11][:,ifreq], ss[s11][:,ifreq], cc[s12][:,ifreq], ss[s12][:,ifreq]]).T
+                    for i2 in range(i1, len(k_pairs)):
+                        s21, s22 = k_pairs[i2]                    
+                        abcd2 = np.vstack([cc[s21][:,ifreq], ss[s21][:,ifreq], cc[s22][:,ifreq], ss[s22][:,ifreq]]).T
+                        key = JointDistKey(i1=i1, i2=i2, s11=s11, s12=s12, s21=s21, s22=s22, dist=k, ifreq=ifreq)
+                        pval = Energy.test_joint_dist(abcd1, abcd2, spec["n_perm"])
+                        results[key] = JointDistResult(pval=pval)
+                        DEBUG(f'{key=}: {pval}')
+                    
+        return results
     
 class TestAssumptions:
     valid_tests = {"location_independence":LocationIndependence,
                    "gaussian_coefs":GaussianCoefs,
                    "stationarity":Stationarity,
                    "cond_gauss":ConditionalGaussian,
+                   "joint_dist":JointDist,
                    }
     def __init__(self, assm_yaml, fp_data):
         self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
