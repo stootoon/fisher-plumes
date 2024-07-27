@@ -241,7 +241,7 @@ class Stationarity:
 
 # Need these outside the class to avoid pickling issues
 CondGaussKey    = namedtuple("CondGaussKey", ["i1", "i2", "src1", "src2", "ifreq"]) 
-CondGaussResult = namedtuple("CondGaussResult", ["pval"])
+CondGaussResult = namedtuple("CondGaussResult", ["counts", "pvals_per_bin"])
 class ConditionalGaussian:
     @staticmethod
     def results_to_vec(results):
@@ -309,7 +309,6 @@ class ConditionalGaussian:
                             DEBUG(f'{lab=}, {trial=}: {pval=}')
                 
                     results[key] = CondGaussResult(counts=counts, pvals_per_bin=pvals_per_bin)
-
                     
         return results
     
@@ -317,6 +316,7 @@ class TestAssumptions:
     valid_tests = {"location_independence":LocationIndependence,
                    "gaussian_coefs":GaussianCoefs,
                    "stationarity":Stationarity,
+                   "cond_gauss":ConditionalGaussian,
                    }
     def __init__(self, assm_yaml, fp_data):
         self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
