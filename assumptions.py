@@ -187,12 +187,12 @@ class Stationarity:
     def results_to_vec(results, summary = np.mean):
         keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i1*10**4)
         ifreqs = {k.ifreq for k in keys}
-        vec  = np.array([summary(results[k].pvals) for k in keys])
+        vec  = np.array([[results[k].same_dist, results[k].sin_mean_0, results[k].cos_mean_0, results[k].sin_cos_corr] for k in keys])
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
         stride = len(vec) // len(ifreqs)
         keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
         ifreqs = [k[0].ifreq for k in keys]
-        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+        return vec.reshape((len(ifreqs), -1, 4)), ifreqs, keys # 4 is the number of statistics
     @staticmethod
     def run(fp_data, assm_spec, ifreqs):
         spec = assm_spec["stationarity"]
@@ -228,8 +228,8 @@ class Stationarity:
                 
                 results[key] = StationarityResult(
                     same_dist    = Energy.test(a.reshape(-1,1),b.reshape(-1,1),spec["n_perm"]),
-                    cos_mean_0   = wilcoxon(a).pvalue,
-                    sin_mean_0    = wilcoxon(b).pvalue,
+                    cos_mean_0   = 1. if np.allclose(a,0) else wilcoxon(a).pvalue, # This is a hack to avoid the case where a is all zeros and the Wilcoxon test fails
+                    sin_mean_0   = 1. if np.allclose(b,0) else wilcoxon(b).pvalue,
                     sin_cos_corr = np.dot(a,b),
                 )
 
