@@ -1,0 +1,27 @@
+location_independence:
+  run: False
+  seed: 0
+  n_perm: 1000
+  iprb: 0
+gaussian_coefs:
+  run: False
+  seed: 0
+  n_perm: 1000
+  iprb: 0
+  n_trials: 3
+stationarity:
+  run: False
+  seed: 0
+  n_perm: 1000
+  iprb: 0
+cond_gauss:
+  run: False
+  seed: 0
+  n_perm: 1000
+  iprb: 0
+  strategy: quantile
+  n_bins: 3
+  n_trials: 3
+
+  
+   
