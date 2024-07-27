@@ -321,7 +321,7 @@ JointDistResult = namedtuple("JointDistResult", ["pval"])
 class JointDist:
     @staticmethod
     def results_to_vec(results):
-        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
+        keys = sorted(list(results.keys()),key=lambda x: (x.s22 + x.s21 * 10**2 + x.s12 * 10**4 + x.s11 * 10**6 + x.dist * 10**8 + x.ifreq*10**16))
         ifreqs = {k.ifreq for k in keys}
         vec  = np.array([results[k].pval for k in keys])
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
