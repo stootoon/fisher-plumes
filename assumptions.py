@@ -121,8 +121,66 @@ class LocationIndependence:
                     
         return results
 
+# Need these outside the class to avoid pickling issues
+GaussCoefsKey    = namedtuple("GaussCoefsKey",    ["i1", "src1", "ifreq"]) 
+GaussCoefsResult = namedtuple("GaussCoefsResult", ["pvals"])
+class GaussianCoefs:
+    @staticmethod
+    def results_to_vec(results):
+        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i1*10**4)
+        ifreqs = {k.ifreq for k in keys}
+        vec  = np.array([results[k].pval for k in keys])
+        assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
+        stride = len(vec) // len(ifreqs)
+        keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
+        ifreqs = [k[0].ifreq for k in keys]
+        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+    @staticmethod
+    def run(fp_data, assm_spec, ifreqs):
+        spec = assm_spec["gaussian_coefs"]
+        iprb = spec["iprb"]
+        n_trials = spec["n_trials"]
+        DEBUG(f"Testing gaussian coefficients for {spec=} and {ifreqs=} for probe {iprb} and {n_trials} trials.")
+
+        ss = fp_data["ss"]
+        cc = fp_data["cc"]
+
+        assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
+
+        ss, cc = ss[iprb], cc[iprb]
+        
+        srcs = sorted(list(ss.keys()))
+        
+        n_freqs = ss[srcs[0]].shape[-1]
+        if ifreqs is None:
+            ifreqs = list(range(n_freqs))
+        else:
+            ifreqs = [i[0] for i in ifreqs]
+            assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
+        
+        DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
+        DEBUG(f"{ifreqs=}")
+
+        results = {}
+        np.random.seed(spec["seed"])
+        for i1, s1 in enumerate(srcs):
+            for ii, ifreq in enumerate(ifreqs):
+                a = cc[s1][0,:,ifreq]
+                b = ss[s1][0,:,ifreq]
+                X = np.array([a,b]).T
+                key    = GaussCoefsKey(i1=i1, src1=s1, ifreq=ifreq)
+                pvals  = []
+                for trial in range(n_trials):
+                    pvals.append(Energy.test_gaussian(X,spec["n_perm"]))
+#                    pvals.append(0)
+                    DEBUG(f'{key=},{trial=}: {pvals[-1]}')                    
+                results[key] = GaussCoefsResult(pvals=pvals) 
+                    
+        return results
+    
 class TestAssumptions:
-    valid_tests = ["location_independence"]
+    valid_tests = {"location_independence":LocationIndependence,
+                   "gaussian_coefs":GaussianCoefs}
     def __init__(self, assm_yaml, fp_data):
         self.assm_spec = yaml.load(open(assm_yaml, 'r'), Loader=yaml.FullLoader)
         self.fp_data = fp_data
@@ -134,9 +192,8 @@ class TestAssumptions:
                 if not self.assm_spec[fld]["run"]:
                     DEBUG(f"Skipping {fld} test.")
                     continue
-                
-                if fld == "location_independence":
-                    results["location_independence"] = LocationIndependence.run(self.fp_data, self.assm_spec, ifreqs)
+
+                results[fld] = TestAssumptions.valid_tests[fld].run(self.fp_data, self.assm_spec, ifreqs)
 
         return results
         
