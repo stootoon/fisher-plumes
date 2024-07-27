@@ -7,6 +7,7 @@ import logging, utils
 from scipy.stats import wilcoxon
 from sklearn.preprocessing import KBinsDiscretizer
 from collections import Counter
+import pdb
 
 logger = utils.create_logger("assumptions")
 logger.setLevel(logging.DEBUG)
@@ -296,7 +297,9 @@ class ConditionalGaussian:
                     key = CondGaussKey(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq)
                     DEBUG(f'{key=}')
                     ab = np.vstack((a,b)).T
+                    assert ab.shape[1] == 2, f"Invalid shape for ab: {ab.shape}"
                     cd = np.vstack((c,d)).T
+                    assert cd.shape[1] == 2, f"Invalid shape for cd: {cd.shape}"
                     ab_binned = np.array([str(x) for x in kbins.fit_transform(ab).astype(int).tolist()])
                     counts = Counter(ab_binned)
                     DEBUG(f'{counts=}')
@@ -313,7 +316,7 @@ class ConditionalGaussian:
         return results
 
 # Need these outside the class to avoid pickling issues
-JointDistKey    = namedtuple("JointDistKey", ["i1", "i2", "src1", "src2", "dist", "ifreq"]) 
+JointDistKey    = namedtuple("JointDistKey", ["i1", "i2", "s11", "s12", "s21", "s22", "dist", "ifreq"]) 
 JointDistResult = namedtuple("JointDistResult", ["pval"])
 class JointDist:
     @staticmethod
@@ -340,7 +343,7 @@ class JointDist:
         ss, cc = ss[iprb], cc[iprb]
         
         srcs = sorted(list(ss.keys()))
-        assert len(srcs)>1, f"Need at least 2 sources to test conditional gaussianity, found {len(srcs)}."
+        assert len(srcs)>1, f"Need at least 2 sources to test distance dependence of joint distributions, found {len(srcs)}."
         
         n_freqs = ss[srcs[0]].shape[-1]
         if ifreqs is None:
@@ -353,8 +356,8 @@ class JointDist:
         DEBUG(f"{ifreqs=}")
 
         pairs_um = fp_data["pairs_um"]
-        pos_keys = sorted([k for k in pairs_um.keys() if k>0 and len(v)>1])
-        DEBUG(f"{len(pos_keys)} positive distance keys with greater than one pair: {pos_keys}")a
+        pos_keys = sorted([k for k,v in pairs_um.items() if k>0 and len(v)>1])
+        DEBUG(f"{len(pos_keys)} positive distance keys with greater than one pair: {pos_keys}")
 
         results = {}
         np.random.seed(spec["seed"])
@@ -362,12 +365,14 @@ class JointDist:
             k_pairs = pairs_um[k]
             for ii, ifreq in enumerate(ifreqs):
                 for i1, (s11,s12) in enumerate(k_pairs):
-                    abcd1 = np.vstack([cc[s11][:,ifreq], ss[s11][:,ifreq], cc[s12][:,ifreq], ss[s12][:,ifreq]]).T
+                    abcd1 = np.vstack([cc[s11][0,:,ifreq], ss[s11][0,:,ifreq], cc[s12][0,:,ifreq], ss[s12][0,:,ifreq]]).T # 0 is to take the raw data not the bootstraps
+                    assert abcd1.shape[1] == 4, f"Invalid shape: {abcd1.shape}"
                     for i2 in range(i1, len(k_pairs)):
                         s21, s22 = k_pairs[i2]                    
-                        abcd2 = np.vstack([cc[s21][:,ifreq], ss[s21][:,ifreq], cc[s22][:,ifreq], ss[s22][:,ifreq]]).T
+                        abcd2 = np.vstack([cc[s21][0,:,ifreq], ss[s21][0,:,ifreq], cc[s22][0,:,ifreq], ss[s22][0,:,ifreq]]).T
+                        assert abcd2.shape[1] == 4, f"Invalid shape: {abcd2.shape}"
                         key = JointDistKey(i1=i1, i2=i2, s11=s11, s12=s12, s21=s21, s22=s22, dist=k, ifreq=ifreq)
-                        pval = Energy.test_joint_dist(abcd1, abcd2, spec["n_perm"])
+                        pval = Energy.test(abcd1, abcd2, spec["n_perm"])
                         results[key] = JointDistResult(pval=pval)
                         DEBUG(f'{key=}: {pval}')
                     
