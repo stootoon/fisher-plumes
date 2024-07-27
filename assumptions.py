@@ -66,6 +66,16 @@ LocIndKey    = namedtuple("LocIndKey", ["i1", "i2", "src1", "src2", "ifreq"])
 LocIndResult = namedtuple("LocIndResult", ["pval"])
 class LocationIndependence:
     @staticmethod
+    def results_to_vec(results):
+        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
+        ifreqs = {k.ifreq for k in keys}
+        vec  = np.array([results[k].pval for k in keys])
+        assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
+        stride = len(vec) // len(ifreqs)
+        keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
+        ifreqs = [k[0].ifreq for k in keys]
+        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+    @staticmethod
     def run(fp_data, assm_spec, ifreqs):
         spec = assm_spec["location_independence"]
         DEBUG(f"Testing location independence for {spec=} and {ifreqs=}")
