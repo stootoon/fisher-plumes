@@ -5,6 +5,8 @@ from sklearn.preprocessing import KBinsDiscretizer
 from collections import namedtuple
 import logging, utils
 from scipy.stats import wilcoxon
+from sklearn.preprocessing import KBinsDiscretizer
+from collections import Counter
 
 logger = utils.create_logger("assumptions")
 logger.setLevel(logging.DEBUG)
@@ -234,6 +236,80 @@ class Stationarity:
                 )
 
                 DEBUG(f'{key=}: {results[key]}')
+                    
+        return results
+
+# Need these outside the class to avoid pickling issues
+CondGaussKey    = namedtuple("CondGaussKey", ["i1", "i2", "src1", "src2", "ifreq"]) 
+CondGaussResult = namedtuple("CondGaussResult", ["pval"])
+class ConditionalGaussian:
+    @staticmethod
+    def results_to_vec(results):
+        keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
+        ifreqs = {k.ifreq for k in keys}
+        vec  = np.array([results[k].pval for k in keys])
+        assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
+        stride = len(vec) // len(ifreqs)
+        keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
+        ifreqs = [k[0].ifreq for k in keys]
+        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+    @staticmethod
+    def run(fp_data, assm_spec, ifreqs):
+        spec = assm_spec["cond_gauss"]
+        DEBUG(f"Testing conditional gaussianity for {spec=} and {ifreqs=}")
+        iprb = spec["iprb"]
+
+        ss = fp_data["ss"]
+        cc = fp_data["cc"]
+
+        assert (iprb < len(ss)) and (iprb < len(cc)), f"Invalid probe index: {iprb}"
+
+        ss, cc = ss[iprb], cc[iprb]
+        
+        srcs = sorted(list(ss.keys()))
+        assert len(srcs)>1, f"Need at least 2 sources to test conditional gaussianity, found {len(srcs)}."
+
+        
+        n_freqs = ss[srcs[0]].shape[-1]
+        if ifreqs is None:
+            ifreqs = list(range(n_freqs))
+        else:
+            ifreqs = [i[0] for i in ifreqs]
+            assert all([0 <= i < n_freqs for i in ifreqs]), f"Invalid frequency indices: {ifreqs}"
+        
+        DEBUG(f"{len(srcs)} sources and {len(ifreqs)} frequencies.")
+        DEBUG(f"{ifreqs=}")
+
+        kbins = KBinsDiscretizer(n_bins=spec["n_bins"], encode='ordinal', strategy=spec["strategy"])
+        DEBUG(f"{kbins=}")
+        
+        results = {}
+        np.random.seed(spec["seed"])
+        for i1, s1 in enumerate(srcs):
+            for i2 in range(i1, len(srcs)):
+                s2 = srcs[i2]
+                for ii, ifreq in enumerate(ifreqs):
+                    a = cc[s1][0,:,ifreq]
+                    b = ss[s1][0,:,ifreq]
+                    c = cc[s2][0,:,ifreq]
+                    d = ss[s2][0,:,ifreq]
+                    key = CondGaussKey(i1=i1, i2=i2, src1=s1, src2=s2, ifreq=ifreq)
+                    DEBUG(f'{key=}')
+                    ab = np.vstack((a,b)).T
+                    cd = np.vstack((c,d)).T
+                    ab_binned = np.array([str(x) for x in kbins.fit_transform(ab).astype(int).tolist()])
+                    counts = Counter(ab_binned)
+                    DEBUG(f'{counts=}')
+                    cd_cond_ab = {lab:cd[ab_binned==lab] for lab in counts}
+                    pvals_per_bin = {lab:[] for lab in counts}
+                    for lab, vals in cd_cond_ab.items():
+                        for trial in range(spec["n_trials"]):
+                            pval = Energy.test_gaussian(vals, spec["n_perm"])
+                            pvals_per_bin[lab].append(pval)
+                            DEBUG(f'{lab=}, {trial=}: {pval=}')
+                
+                    results[key] = CondGaussResult(counts=counts, pvals_per_bin=pvals_per_bin)
+
                     
         return results
     
