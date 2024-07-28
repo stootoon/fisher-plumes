@@ -1,7 +1,10 @@
-import os, re, sys, gc
+import os, re, sys, gc, yaml
 from functools import reduce
 import logging
 from copy import deepcopy
+
+def load_yaml(fname):
+    return yaml.load(open(fname, "r"), Loader=yaml.FullLoader)
 
 def create_logger(name):
     logger = logging.getLogger(name)

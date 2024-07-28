@@ -245,15 +245,28 @@ CondGaussKey    = namedtuple("CondGaussKey", ["i1", "i2", "src1", "src2", "ifreq
 CondGaussResult = namedtuple("CondGaussResult", ["counts", "pvals_per_bin"])
 class ConditionalGaussian:
     @staticmethod
-    def results_to_vec(results):
+    def results_to_vec(results, n_bins, n_trials):
         keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
         ifreqs = {k.ifreq for k in keys}
-        vec  = np.array([results[k].pval for k in keys])
+        vec = []
+        bad_keys = []
+        Z = np.zeros((n_bins**2, n_trials))
+        for k in keys:
+            val = results[k].pvals_per_bin
+            if (len(val) != n_bins**2) or not all([len(vv) == n_trials for kk,vv in val.items()]):                    
+                bad_keys.append(k)
+                vec.append(Z + np.nan)
+                continue
+            else:
+                bins = sorted(val)                
+                vec.append(np.array([val[b] for b in bins]))
+        INFO(f"Nan'd {len(bad_keys)} keys due to missing or incomplete data.")
+        vec = np.array(vec)
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
         stride = len(vec) // len(ifreqs)
         keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
         ifreqs = [k[0].ifreq for k in keys]
-        return vec.reshape((len(ifreqs), -1)), ifreqs, keys
+        return vec.reshape((len(ifreqs), stride, -1, n_trials)), ifreqs, keys, bad_keys
     @staticmethod
     def run(fp_data, assm_spec, ifreqs):
         spec = assm_spec["cond_gauss"]
