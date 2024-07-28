@@ -364,6 +364,8 @@ if __name__ == "__main__":
                 random.shuffle(combos)
                 # Split the combinations into jobs.
                 jobs = np.array_split(combos, args.gen_jobs)
+                jobs = [j for j in jobs if len(j)>0]
+                # Take only the jobs that are not empty.                
                 INFO(f"Split into {len(jobs)} jobs.")
                 # Now, create a directory for the jobs.
                 # The directory will be that of the file, with /fit_corrs/search_spec_file/ appended.
