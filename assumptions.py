@@ -46,11 +46,17 @@ class Energy:
     def test_gaussian(X, n_rand = None, **kwargs):
         if n_rand is None:
             n_rand = len(X)
-    
-        Xm = np.mean(X, axis=0)
-        Xcov = np.cov(X.T)
-        Y = np.random.multivariate_normal(Xm, Xcov, n_rand)
-        return Energy.test(X,Y,**kwargs)
+
+        try:
+            Xm = np.mean(X, axis=0)
+            Xcov = np.cov(X.T)
+            Y = np.random.multivariate_normal(Xm, Xcov, n_rand)
+            pval = Energy.test(X,Y,**kwargs)
+        except Exception as e:
+            WARN("Error in Energy test: %s" % e)
+            return np.nan
+
+        return pval
     
 def squareform(vec, incl_diag=True):
     # Len(vec) = n(n+1)/2
@@ -245,7 +251,7 @@ CondGaussKey    = namedtuple("CondGaussKey", ["i1", "i2", "src1", "src2", "ifreq
 CondGaussResult = namedtuple("CondGaussResult", ["counts", "pvals_per_bin"])
 class ConditionalGaussian:
     @staticmethod
-    def results_to_vec(results, n_bins, n_trials):
+    def results_to_vec(results, n_bins, n_trials, min_count_per_bin=0):
         keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i2 + x.i1*10**4)
         ifreqs = {k.ifreq for k in keys}
         vec = []
@@ -253,13 +259,17 @@ class ConditionalGaussian:
         Z = np.zeros((n_bins**2, n_trials))
         for k in keys:
             val = results[k].pvals_per_bin
+            cnt = results[k].counts
+            bins = sorted(val)                
             if (len(val) != n_bins**2) or not all([len(vv) == n_trials for kk,vv in val.items()]):                    
                 bad_keys.append(k)
                 vec.append(Z + np.nan)
                 continue
             else:
-                bins = sorted(val)                
-                vec.append(np.array([val[b] for b in bins]))
+                v = np.array([val[b] for b in bins])
+                c = np.array([cnt[b] for b in bins])
+                v[c<min_count_per_bin] = np.nan
+                vec.append(v)
         INFO(f"Nan'd {len(bad_keys)} keys due to missing or incomplete data.")
         vec = np.array(vec)
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
