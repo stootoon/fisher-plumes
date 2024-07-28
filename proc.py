@@ -21,7 +21,7 @@ import hashlib
 import shutil
 import glob, re
 import warnings
-
+import pdb
 import corr_models
 corr_models.logger.setLevel("INFO")
 
@@ -79,24 +79,38 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     if registry is None:
         INFO("No registry given. Loading registry from proc/registry.p.")
         registry = pickle.load(open("proc/registry.p", "rb"))
+    else:
+        INFO("Using given registry.")
+        # If it's a string and ends in ".p", assume it's a file path.
+        if isinstance(registry, str) and registry.endswith(".p"):
+            INFO(f"Loading registry from {registry}.")
+            registry = pickle.load(open(registry, "rb"))
+        else: # Otherwise, assume it's a list of dictionaries.
+            INFO("Assuming registry is directly provided.")
+            
         
     matches = []
     # Check to see if the init filter has coordinates in it.
     x_m, y_m = None, None
+    if init_filter is None: init_filter = {}
+    if compute_filter is None: compute_filter = {}
     if "which_coords" in init_filter:
         x_m = init_filter["which_coords"][0].to("m").magnitude
         y_m = init_filter["which_coords"][1].to("m").magnitude
         INFO(f"Checking for {x_m=}, {y_m=}.")
     else:
         INFO("No coords in init_filter.")
-        
+
     for item in registry:
         init_match = True
         compute_match = True
-        item_x_m = item["init"]["which_coords"][0][0].to("m").magnitude
-        item_y_m = item["init"]["which_coords"][0][1].to("m").magnitude
-        if (len(x_coords) > 0) and (item_x_m not in x_coords): continue
-        if (len(y_coords) > 0) and (item_y_m not in y_coords): continue
+
+        if "which_coords" in item["init"]:
+            item_x_m = item["init"]["which_coords"][0][0].to("m").magnitude
+            item_y_m = item["init"]["which_coords"][0][1].to("m").magnitude
+            if (len(x_coords) > 0) and (item_x_m not in x_coords): continue
+            if (len(y_coords) > 0) and (item_y_m not in y_coords): continue
+            
         for k,v in init_filter.items():
             if k not in item["init"]:
                 init_match = False
@@ -173,7 +187,7 @@ def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None,
     INFO(f"Returning {len(results)} results.")
     return results if not return_matches else (results, matches)
 
-def load_spec(spec_file, verbose = False):
+def load_spec(spec_file, verbose = False, build_compute_list = True):
     """ Load the YAML file containing the specification for the runs to perform. """
     with open(spec_file, "r") as f:
         spec = yaml.load(f, Loader=yaml.FullLoader)
@@ -183,23 +197,24 @@ def load_spec(spec_file, verbose = False):
     spec    = eval_fields(spec, context=context)
     verbose and print(spec)
 
-    compute = spec["compute"]
-    
-    # Generate a list of dictionaries, each with the same fielda as compute, but with the values
-    # set by taking all combinations of the corresponding values in compute.
-    
-    # First, generate a list of all the keys in compute.
-    keys = list(compute.keys())
-    verbose and print(f"Found the following keys: {keys}.")
-    # Now, for each key generate a list of all the values.
-    # If a given value is not a list type, make it into a singleton list.
-    values = [compute[k] if hasattr(compute[k], "__len__") and not k.endswith("__") else [compute[k]] for k in keys]
-    # Now, generate a list of dictionaries, each with the same keys as compute, but with the values
-    # set by taking all combinations of the corresponding values in compute.
-    keys = [k if not k.endswith("__") else k[:-2] for k in keys]
-    compute_list = [{k:v for k,v in zip(keys, vals)} for vals in itertools.product(*values)]
-    
-    return spec, compute_list
+    if build_compute_list:
+        compute = spec["compute"]
+        
+        # Generate a list of dictionaries, each with the same fielda as compute, but with the values
+        # set by taking all combinations of the corresponding values in compute.
+        
+        # First, generate a list of all the keys in compute.
+        keys = list(compute.keys())
+        verbose and print(f"Found the following keys: {keys}.")
+        # Now, for each key generate a list of all the values.
+        # If a given value is not a list type, make it into a singleton list.
+        values = [compute[k] if hasattr(compute[k], "__len__") and not k.endswith("__") else [compute[k]] for k in keys]
+        # Now, generate a list of dictionaries, each with the same keys as compute, but with the values
+        # set by taking all combinations of the corresponding values in compute.
+        keys = [k if not k.endswith("__") else k[:-2] for k in keys]
+        compute_list = [{k:v for k,v in zip(keys, vals)} for vals in itertools.product(*values)]
+        
+    return (spec, compute_list) if build_compute_list else spec
 
 def check_file_exists(file_path):
     """ Check if a file exists. """
@@ -242,7 +257,11 @@ if __name__ == "__main__":
     parser.add_argument("--collect_assm_tests", help="Directory containing assumption tests to combine.", type=check_file_exists)
 
     parser.add_argument("--fp_data",      help="Pickle file or folder containing processed FisherPlumes data containing the correlations.", type=check_file_exists)
+    parser.add_argument("--filter_file",  help="YAML file containing a spec that all matches must satisfy.", type=check_file_exists)
     parser.add_argument("--pass_file",   help="Text file containing the list of files to process.", type=check_file_exists)
+    parser.add_argument("--list_only", action="store_true", help="Only list the files that would be processed.")
+    parser.add_argument("--show_spec", help="Whether to actually show the spec when listing the files.", action="store_true")
+    
     parser.add_argument("--search_spec", help="YAML file specifying the gridsearch to perform.", type=check_file_exists)
     parser.add_argument("--gen_jobs",    help="Number of jobs to split the FREQS x DISTS data of each file into .", type=check_positive, default=1)
     parser.add_argument("--fit_corrs",    help="Spec of a fit to correlations to perform.", type=check_file_exists)
@@ -264,14 +283,7 @@ if __name__ == "__main__":
         # Fitting correlation data or running tests of assumptions.
         if args.fp_data: # Generate yaml files to fit correlations for the fisher plumes data in this file.
             
-            assert args.search_spec or args.test_assm_spec, "Must specify a search spec file with --search_spec, or a test assembly spec file with --test_assm_spec."
-            mode = "corr_fits" if args.search_spec else "test_assm"
-            spec_file = args.search_spec if args.search_spec else args.test_assm_spec
-            INFO(f"Generating {mode=} spec files for {args.fp_data} using {spec_file}.")
-
-            # Get the search spec filename without the extension
-            spec_file = os.path.splitext(spec_file)[0]
-                        
+            assert args.search_spec or args.test_assm_spec or args.list_only, "Must specify a search spec file with --search_spec, or a test assembly spec file with --test_assm_spec, or --list_only."
             if os.path.isdir(args.fp_data):
                 # If the fp_data is a directory, then we need to find all the files in it.
                 fp_files = [os.path.join(args.fp_data, f) for f in os.listdir(args.fp_data) if f.endswith(".p")]
@@ -280,13 +292,51 @@ if __name__ == "__main__":
                 fp_files = [args.fp_data]
 
             INFO(f"Found {len(fp_files)} total files to process.")
+
+            pass_files = None
+            filter_files = None
+            if args.filter_file: # A yaml file that contains properties that the pass files must have.
+                assert os.path.exists(args.filter_file), f"Filter file {args.filter_file} does not exist."
+                INFO(f"Using filter file {args.filter_file}.")
+                filter_spec = load_spec(args.filter_file, build_compute_list = False)
+                INFO(f"Filter spec: {filter_spec}")
+                matches = find_registry_matches(init_filter = filter_spec["init"] if "init" in filter_spec else None,
+                                                compute_filter = filter_spec["compute"] if "compute" in filter_spec else None,
+                                                registry = args.registry)
+                INFO(f"Found {len(matches)} files that match the filter.")
+                filter_files = [m["file"] for m in matches]
+                
             if args.pass_file:
                 INFO(f"Using pass file {args.pass_file}.")
                 with open(args.pass_file, "r") as f:
                     pass_files = [l.strip() for l in f.readlines()]
+                
+            if pass_files is not None:
                 fp_files = [f for f in fp_files if f in pass_files]
                 INFO(f"Found {len(fp_files)} files to process after filtering by pass file.")
+                
+            if filter_files is not None:
+                fp_files = [f for f in fp_files if f in filter_files]
+                INFO(f"Found {len(fp_files)} files to process after filtering by filter file.")
+            
+            if args.list_only:
+                INFO("Listing files only.")
+                for f in fp_files:
+                    print(f)
+                    if args.show_spec:
+                        spec = pickle.load(open(f, "rb"))
+                        print("init:", spec["init"])
+                        print("compute:", spec["compute"])
+                sys.exit(0)
 
+            mode = "corr_fits" if args.search_spec else "test_assm"
+            spec_file = args.search_spec if args.search_spec else args.test_assm_spec
+            INFO(f"Generating {mode=} spec files for {args.fp_data} using {spec_file}.")
+
+            # Get the search spec filename without the extension
+            spec_file = os.path.splitext(spec_file)[0]
+                        
+                
             # Now, for each file, we need to split it into jobs.
             for fp_file in fp_files:
                 INFO(f"Splitting {fp_file} into {args.gen_jobs} jobs.")
