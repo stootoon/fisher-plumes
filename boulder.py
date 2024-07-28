@@ -21,7 +21,7 @@ from units import UNITS
 
 logging.basicConfig()
 logger = logging.getLogger("boulder")
-logger.setLevel(logging.INFO)
+#logger.setLevel(logging.INFO)
 INFO  = logger.info
 WARN  = logger.warning
 DEBUG = logger.debug
@@ -141,7 +141,7 @@ class BoulderSimulationData:
         Initialize this object from a dictionary.
         Only copy data fields, not methods.
         """
-        INFO(f"Attempting to copy data fields.")
+        DEBUG(f"Attempting to copy data fields.")
         copied = []
         for k,v in d.items():
             if not callable(v):
@@ -155,7 +155,7 @@ class BoulderSimulationData:
     
     def __init__(self, name, units = UNITS.m, pitch_units = UNITS.m, pitch_sym = "ϕ", tol = 0):
         if type(name) is dict:
-            INFO(f"Initializing from dictionary.")
+            DEBUG(f"Initializing from dictionary.")
             self.init_from_dict(name)
         else:
             self.tol = tol
