@@ -479,9 +479,11 @@ if __name__ == "__main__":
                     else:
                         to_combine[base_name].append(file_name)
 
+            INFO(f"Found {len(to_combine)} base names to combine.")
             # Now, for each base name, combine the data in the files
             # by merging the results dictionaries and the probe_dist_ifreq lists.
             for base_name, file_names in to_combine.items():
+                INFO(f"Combining {len(file_names)} files for {base_name}.")
                 # Load the first file.
                 results = pickle.load(open(file_names[0], "rb"))                
                 # For each subsequent file, load the results and append the probe_dist_ifreq list.
