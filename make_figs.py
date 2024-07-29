@@ -24,6 +24,7 @@ parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
 parser.add_argument("--x_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these x coordinates in meters.")
 parser.add_argument("--y_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these y coordinates in meters.")
+parser.add_argument("--n_cols", type=int, default=3, help="Number of columns in ProbesGeoms figure.")
 args = parser.parse_args()
 
 if len(args.x_coords)>0:
@@ -41,7 +42,7 @@ available_single = ["plumes_demo", "corr_decomp", "phase_example",
                     "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay",
                     "fisher_info", "length_vs_freq", "elbow", "spectrum"]
 
-available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_decay_elbow"]
+available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_decay_elbow", "multi_probes_geoms"]
 
 plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
@@ -1026,6 +1027,103 @@ class FigMultiDecayElbow:
             
         return ax
 ("multi_decay_elbow" in plots_list) and FigMultiDecayElbow().plot(args.datasets)
+
+class FigMultiProbesGeoms:
+    def __init__(self):
+        self.t_snap = lambda ds: (40 + (0.01)*("16" in ds)) * UNITS.s
+        
+    def plot(self, which_ds, n_cols = 3):
+        n_ds   = len(which_ds)
+        n_rows = int(np.ceil(n_ds / n_cols))
+
+        plt.figure(figsize=(8, 2.5 * n_rows))
+        loaded = {}
+        ax = []
+        x_coords = lambda ds: [0.35, 0.4, 0.45] if "bw" in ds else [0.9, 1.0, 1.1]
+        y_coords = lambda ds: [0.3, 0.5, 0.7]
+        for i, ds in enumerate(which_ds):            
+            # Load the data for this compute_filter, and for all the coords in the probe_locs
+            init_filter = {"sim_name":sim_names[ds]}
+            matches = proc.find_registry_matches(init_filter = {"sim_name":sim_names[ds]},
+                                                 compute_filter = compute_filter,
+                                                 x_coords = x_coords(ds),
+                                                 y_coords = y_coords(ds),
+                                                 )
+
+            assert len(matches) > 0, f"Found no matches for {ds}."
+            print(f"Found {len(matches)} matches for {ds}.")
+            
+            ds_base = ds.split("_")[0]
+            loaded = {}
+            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            coords_for_probe = {}
+            for m in matches:
+                if "which_coords" not in m["init"]:
+                    continue
+                coords = m["init"]["which_coords"][0]                
+                probe_name = probe_name_(ds_base, coords)
+                coords_for_probe[probe_name] = coords
+                # Only load the data for the probe "0"
+            
+                print(f"Loading data for {ds} at {probe_name}.")
+                loaded[probe_name] = utils.safe_load(proc.load_data(strict = True,
+                                                                    init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
+                                                                    compute_filter = compute_filter,
+                                                                    load_sims = srcs if probe_name == "0" else [0],
+                                                                    load_only = (["sims"] if probe_name == "0" else []) + ['sim0', 'pitch_string', 'pitch'],
+                                                                ))
+                print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
+            assert "0" in loaded, f"Could not find data for {ds} at probe location 0, found only {list(loaded.keys())}."
+                
+            D = {}
+            for k, d in loaded.items():
+                print(f"Initializing FisherPlumes for {k}.")
+                D[k] = FisherPlumes(d)
+                D[k].used_probe_coords = D[k].sim0.get_used_probe_coords()
+                D[k].y_lim = D[k].sim0.y_lim
+                if k != "0":
+                    del D[k].sim0
+                print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
+
+            ax_plume = plt.subplot(n_rows, n_cols, i+1)
+            ax.append(ax_plume)
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+    
+            (i < n_rows - 1) and ax_plume.set_xlabel(None)
+                    
+            #for j,(k,F) in enumerate(sorted(D.items())):
+            for j,(k,F) in enumerate(sorted(D.items())):
+                x,y = F.used_probe_coords[0]                                
+                x_p = x.to(F.pitch).magnitude
+                y_p = y.to(F.pitch).magnitude
+                dy  = ((F.y_lim[1] + F.y_lim[0])/2).to(F.pitch).magnitude
+                col = cm.tab10(j) if j < 10 else cm.Set3(j-10)
+                ax_plume.plot(x_p, y_p - dy, "x", markersize=10, color=col, markeredgewidth=2)
+
+            print(f"Memory usage after plotting {ds}: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
+    
+        plt.tight_layout(w_pad=0, h_pad=0, pad = 0)
+
+        fpft.label_axes(ax, "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+                        fontsize=12,
+                        fontweight="bold",
+#                        dy=0,
+#                        dx = bsum([[0, -0.025,0]]*len(which_ds), []),
+#                        align_x = [list(range(i,len(ax),n_cols)) for i in range(n_rows)],
+#                        align_y = list(list([i + j] for j in range(n_cols)) for i in range(0,len(ax),3)),                        
+                        )
+
+        name = "_".join([d.replace("_","") for d in which_ds])
+        fig_name = f"probe_geom_{name}.pdf"
+        fig_dir_top = fpft.get_fig_dir()
+        fig_full_path = os.path.join(fig_dir_top, fig_name)
+        print(f"Saving figure to {fig_full_path}")
+        plt.savefig(fig_full_path, bbox_inches="tight")
+            
+        return ax
+("multi_probes_geoms" in plots_list) and FigMultiProbesGeoms().plot(args.datasets, args.n_cols)
+
+
 
 class FigIls:
     def plot(self):

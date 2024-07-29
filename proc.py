@@ -88,7 +88,8 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
         else: # Otherwise, assume it's a list of dictionaries.
             INFO("Assuming registry is directly provided.")
             
-        
+    len(x_coords) and INFO(f"Filtering x_coords: {x_coords}.")
+    len(y_coords) and INFO(f"Filtering y_coords: {y_coords}.")
     matches = []
     # Check to see if the init filter has coordinates in it.
     x_m, y_m = None, None
