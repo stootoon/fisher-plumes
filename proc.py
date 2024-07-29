@@ -131,6 +131,17 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
     return matches
 
 
+def fix_sim_keys(sims, keys):
+    # Sims are dicts indexed by integers.
+    # We want the possibilty to use negative keys
+    # to index from the end.
+    # This function will convert negative keys to
+    # positive keys.
+    for key in keys:
+        if key < 0:
+            keys[keys.index(key)] = len(sims) + key
+    return keys
+
 def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None, return_matches = False, fit_corrs = None, strict = False, load_sims = True, load_only = [], **kwargs):
     """ Load data from the file in the registry that matches the given init and compute filters. """
     if registry is None: registry = get_registry(data_dir)
@@ -175,9 +186,12 @@ def load_data(init_filter, compute_filter, data_dir = "./proc", registry = None,
             del resi["sims"]
         elif type(load_sims) is list:
             INFO(f"Returning only specified sims {load_sims} and sim0.")
+            load_sims_fixed = fix_sim_keys(resi["sims"], load_sims)            
+            INFO(f"Fixed keys: {load_sims_fixed}.")
             sim0 = resi["sim0"]
             sims = resi["sims"]
-            resi["sims"] = {k:sims[k] for k in load_sims}
+        
+            resi["sims"] = {k:sims[k] for k in load_sims_fixed}
 
         if len(load_only) > 0:
             INFO(f"Returning only specified keys {load_only}.")

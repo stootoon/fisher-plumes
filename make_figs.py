@@ -1055,7 +1055,8 @@ class FigMultiProbesGeoms:
             
             ds_base = ds.split("_")[0]
             loaded = {}
-            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            #srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            srcs = [0, -1]
             coords_for_probe = {}
             for m in matches:
                 if "which_coords" not in m["init"]:
@@ -1070,7 +1071,7 @@ class FigMultiProbesGeoms:
                                                                     init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
                                                                     compute_filter = compute_filter,
                                                                     load_sims = srcs if probe_name == "0" else [0],
-                                                                    load_only = (["sims"] if probe_name == "0" else []) + ['sim0', 'pitch_string', 'pitch'],
+                                                                    load_only = (["sims"] if probe_name == "0" else []) + ['sim0', 'pitch_string', 'pitch', 'svals_um', 'source_line'],
                                                                 ))
                 print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
             assert "0" in loaded, f"Could not find data for {ds} at probe location 0, found only {list(loaded.keys())}."
@@ -1087,7 +1088,11 @@ class FigMultiProbesGeoms:
 
             ax_plume = plt.subplot(n_rows, n_cols, i+1)
             ax.append(ax_plume)
-            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+            INFO(f"Plotting plumes from sources {srcs} for {ds}.")
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume,
+                                     plot_source_locations = {"which_sources":srcs,
+                                                              "s":20, "c":"w", "marker":"o", "edgecolor":"k", "linewidth":1},
+                                     );
     
             (i < n_rows - 1) and ax_plume.set_xlabel(None)
                     
