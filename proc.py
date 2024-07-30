@@ -106,13 +106,18 @@ def find_registry_matches(registry = None, init_filter = {}, compute_filter = {}
         init_match = True
         compute_match = True
 
+        is_surrogate = ("surr" in item["init"]["sim_name"]) or ("surrogate_k" in item["init"])
+        
         if "which_coords" in item["init"]:
             item_x_m = item["init"]["which_coords"][0][0].to("m").magnitude
             item_y_m = item["init"]["which_coords"][0][1].to("m").magnitude
-            if (len(x_coords) > 0) and (item_x_m not in x_coords): continue
-            if (len(y_coords) > 0) and (item_y_m not in y_coords): continue
+            if (len(x_coords) > 0) and (item_x_m not in x_coords) and not is_surrogate: continue
+            if (len(y_coords) > 0) and (item_y_m not in y_coords) and not is_surrogate: continue
             
         for k,v in init_filter.items():
+            if k == "which_coords" and is_surrogate:
+                continue
+            
             if k not in item["init"]:
                 init_match = False
             elif k == "which_coords":
