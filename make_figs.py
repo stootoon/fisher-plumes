@@ -160,6 +160,8 @@ FisherPlumes = fp.FisherPlumes
 crick.logger.setLevel(logging.DEBUG)
 fp.logger.setLevel(logging.INFO)
 
+is_surrogate = lambda x: (x["sim_name"].startswith("surr") or "surrogate_k" in x)
+
 # Load datasets
 if not all(["multi" in k for k in plots_list]):
     [f.logger.setLevel(logging.WARN) for f in [crick, boulder,fp]];
@@ -176,15 +178,19 @@ if not all(["multi" in k for k in plots_list]):
                                           y_coords = args.y_coords,
                                  )
         assert payload is not None, f"No data loaded for {k}."
-        if len(payload) == 1:
-            loaded[k] = payload[0]
-            INFO(f"Loaded {k}.")
-        else:
-            for p,m in zip(payload, matches):
+#        if len(payload) == 1:
+#            loaded[k] = payload[0]
+#            INFO(f"Loaded {k}.")
+#        else:
+        for p,m in zip(payload, matches):
+            name = k
+            
+            if not is_surrogate(m["init"]) and ("which_coords" in m["init"]):
                 coords = m["init"]["which_coords"][0]
+                print(f"{k=}, {coords=}")
                 name = f"{k}__{probe_name_(k, coords)}"
-                loaded[name] = p
-                INFO(f"Loaded {name}.")
+            loaded[name] = p
+            INFO(f"Loaded {name}.")
     
     data =  {k:FisherPlumes(d) for k,d in loaded.items() if d is not None}
     
