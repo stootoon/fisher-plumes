@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os, sys, yaml, logging
 from importlib import reload
 from argparse import ArgumentParser
@@ -12,8 +13,15 @@ INFO = logger.info
 DEBUG = logger.debug
 WARN = logger.warning
 
+available_single = ["plumes_demo", "corr_decomp", "phase_example",
+                    "mvg_fits", "mvg_supp_fits",
+                    "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay",
+                    "fisher_info", "length_vs_freq", "elbow", "spectrum"]
+
+available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_decay_elbow", "multi_probes_geoms"]
+
 parser = ArgumentParser()
-parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot.")
+parser.add_argument("which_figs", type=lambda x: x.split(","), default=[], help="Which figures to plot. Available: all, " + str(available_plots))
 parser.add_argument('--datasets', type=lambda x: x.split(","), default=[], help="CSV file listing datasets to plot, or comma separated list of aliases.")
 parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
@@ -36,13 +44,6 @@ if len(args.y_coords)>0:
     INFO(f"Only loading probes with y coordinates {args.y_coords}.")
 else:
     INFO("Loading all available probes regardless of y-coordinates.")
-
-available_single = ["plumes_demo", "corr_decomp", "phase_example",
-                    "mvg_fits", "mvg_supp_fits",
-                    "scattergrams", "phase_heatmaps", "alap_fits", "rho_decay",
-                    "fisher_info", "length_vs_freq", "elbow", "spectrum"]
-
-available_plots = available_single + ["windowing", "ils", "multi_elbow","multi_decay_elbow", "multi_probes_geoms"]
 
 plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
@@ -661,7 +662,7 @@ def get_paired_ds(paired_ds, data):
 
 class FigLengthVsFreq:
     def __init__(self):
-        self.which_corr_freqs_Hz = defaultdict(lambda: [2, 5, 10, 15, 20])
+        self.which_corr_freqs_Hz = defaultdict(lambda: [2, 5, 10, 20])
         self.paired_ds = defaultdict(lambda: "s=p_0")
 
     def plot(self):
@@ -909,7 +910,7 @@ class FigMultiDecayElbow:
             
             ds_base = ds.split("_")[0]
             loaded = {}
-            srcs = [np.mod(w,16) for w in which_srcs[ds]]
+            srcs = [0, -1] #[np.mod(w,16) for w in which_srcs[ds]]
             coords_for_probe = {}
             for m in matches:
                 if "which_coords" not in m["init"]:
@@ -922,7 +923,7 @@ class FigMultiDecayElbow:
                                                                         init_filter = {"sim_name":init_filter["sim_name"],"which_coords":coords},
                                                                         compute_filter = compute_filter,
                                                                         load_sims = srcs if probe_name == "0" else [0],
-                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd', 'reg_coefs', 'I_dists',],
+                                                                        load_only = (["sims"] if probe_name == "0" else [])+ ['sim0', 'rho', 'coef_γ_vs_freq', 'pitch_string', 'pitch', 'fs', 'wnd', 'reg_coefs', 'I_dists', 'svals_um','source_line'],
                                                                     ))
                 print(f"Memory usage: {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024} MB")
             assert "0" in loaded, f"Could not find data for {ds} at probe location 0, found only {list(loaded.keys())}."
@@ -940,7 +941,10 @@ class FigMultiDecayElbow:
             ax_plume = plt.subplot(gs[irow:irow+n_rows[ds],:col_width])
             ax.append(ax_plume)
 
-            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume);
+            fpf.plot_plumes_snapshot(D["0"], self.t_snap(ds), srcs, data_dir = snapshots_dir[ds], ax_plume = ax_plume,
+                                     plot_source_locations = {"which_sources":srcs,
+                                                              "s":20, "c":"w", "marker":"o", "edgecolor":"k", "linewidth":1},
+                                     );
     
             (i < n_ds - 1) and ax_plume.set_xlabel(None)
                     
