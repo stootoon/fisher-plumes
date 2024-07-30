@@ -695,7 +695,7 @@ class FigLengthVsFreq:
 
 class FigElbow:
     def __init__(self):
-        self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(4)])
+        self.other_ds = defaultdict(lambda: [f"s=p_{i}" for i in range(10)])
 
     def plot(self):
         print("\nPLOTTING ELBOW.")
