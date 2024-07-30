@@ -33,6 +33,7 @@ parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
 parser.add_argument("--x_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these x coordinates in meters.")
 parser.add_argument("--y_coords", type=lambda x: [float(xi) for xi in x.split(",")], default=[], help="Load only probes with these y coordinates in meters.")
+parser.add_argument("--probe0", action='store_true', help="Use probe0 only.")
 parser.add_argument("--n_cols", type=int, default=3, help="Number of columns in ProbesGeoms figure.")
 args = parser.parse_args()
 
@@ -45,6 +46,9 @@ if len(args.y_coords)>0:
     INFO(f"Only loading probes with y coordinates {args.y_coords}.")
 else:
     INFO("Loading all available probes regardless of y-coordinates.")
+
+if args.probe0:
+    INFO("Using probe0 only.")
 
 plots_list = available_single if ((len(args.which_figs)>0) and args.which_figs[0] == "all") else args.which_figs
 
@@ -171,6 +175,11 @@ if not all(["multi" in k for k in plots_list]):
     proc.logger.setLevel(logging.INFO)
     loaded = {}
     for k, v in to_use.items():
+        if not surrQ(k):
+            if args.probe0:
+                old_coords = "(none provided)" if "which_coords" not in v else v["which_coords"]
+                INFO(f"Using probe0 coordinates for {k} instead of {old_coords}.")
+                v["which_coords"] = probe0[k]
         payload, matches = proc.load_data(strict = surrQ(k),
                                  init_filter = v,
                                  compute_filter = compute_filter if not surrQ(k) else compute_surr,
@@ -237,7 +246,7 @@ infos = {"16Ts": Info(name="Supp. dataset",               color = "dodgerblue"),
          "s=p_0":  Info(name="Surrogate (all =)",     color = "pink"),
          "s=w":  Info(name="Surrogate (all =, white)",    color = "green"),
          "shw":  Info(name="Surrogate (high>low, white)", color = "silver"),
-         "shp":  Info(name="Surrogate (high>low)",  color = "violet"),
+         "shp_0":  Info(name="Surrogate (high>low)",  color = "violet"),
          "s=w_q0":  Info(name="Surrogate (quad, ϕ=0, white)", color="blue"),
          "s=w_q1":  Info(name="Surrogate (quad, ϕ=π/3, white)", color="green"),
 }
@@ -1195,7 +1204,9 @@ class FigSpectrum:
             kall = kfull.split("__")
             k = kall[0]
             k1 = f"({kall[1]})" if len(kall) > 1 else ""
-            if k not in infos: continue
+            if k not in infos:
+                WARN(f"Skipping {kfull} because it doesn't have a corresponding info entry.")
+                continue
             f = []
             for _, s in F.stft.items():
                 fr, tt, S = s[0]
@@ -1205,9 +1216,10 @@ class FigSpectrum:
             f = np.array(f)
             a = np.mean(f,axis=-1).mean(axis=0)    
             plt.loglog(fr[fr<fs/2][1:],a[fr<fs/2][1:]/a[1] * (10**0),
-                   label=infos[k].name + k1,
+                   label=infos[k].name + (k1 if k1 != "(0)" else ""),
                    color=infos[k].color)
         plt.legend(borderpad=0)
+        plt.xlim(0.85, 30)
         plt.xlabel("Frequency (Hz)")
         plt.ylabel("Normalized amplitude")
         plt.title("Plume spectra averaged over windows and source locations")
