@@ -553,7 +553,6 @@ class FigAlapFits:
             d = np.array(list(F.rho[iprb].keys()))
             d = np.sort(d[d>=0])
             for f, xl in zip([1,5,10] * UNITS.hertz, [[-0.25, 1.0], [-0.02, 0.05], [-0.02, 0.05]]):
-                if f != 5 * UNITS.hertz: continue
                 which_freq = defaultdict(lambda: f)
                 ax_cdf, ax_dcdf, ax_hm = fpf.plot_alaplace_fits(F, d[self.idist[name]],
                                                                 which_probe = iprb,
