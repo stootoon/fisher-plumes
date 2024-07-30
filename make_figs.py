@@ -27,6 +27,7 @@ parser.add_argument('--surrogates', help="CSV file listing surrogate datasets.")
 parser.add_argument('--window_length',  type=str, help="Window length to use.", default="1*UNITS.sec")
 parser.add_argument('--window_shape',   type=str,  help="Window shape to use.", default="kaiser_9")
 parser.add_argument("--fitk", action="store_true", help="Fit k.")
+parser.add_argument("--fit_corrs", type=lambda x: x.split(","), help = "Comma-separated list fit_corrs search yamls to use, e.g. search.1.", default=[])
 parser.add_argument("--dontfitb", action="store_true", help="Don't fit k.")
 parser.add_argument("--figsize", type=str, default="(8,3)", help="Figure size.")
 parser.add_argument("--iprb", type=int, default=0, help="Index of probe to use.")
@@ -121,6 +122,7 @@ INFO(f"Window shape: {window_shape}")
 INFO(f"Window length: {window_length}")
 INFO(f"Fit k: {fit_k}")
 INFO(f"Fit b: {fit_b}")
+INFO(f"Fit corrs: {args.fit_corrs}")
 
 compute_filter = {
     "window_shape": window_shape,
@@ -128,8 +130,9 @@ compute_filter = {
     "fit_k": fit_k,
     "fit_b": fit_b,
     "dmax_um": "1 * PITCH",
+#    "fit_corrs": [args.fit_corrs] if args.fit_corrs else []    
 }
-compute_surr = dict(**compute_filter); del compute_surr["dmax_um"]
+compute_surr = dict(**compute_filter); del compute_surr["dmax_um"]; #del compute_surr["fit_corrs"]
 
 INFO(f"Datasets: {to_use}")
 INFO(f"Compute filter: {compute_filter}")
@@ -172,7 +175,7 @@ if not all(["multi" in k for k in plots_list]):
                                  init_filter = v,
                                  compute_filter = compute_filter if not surrQ(k) else compute_surr,
                                  # fit_corrs = ["search.1"],
-                                 fit_corrs = [],
+                                 fit_corrs = args.fit_corrs if not surrQ(k) else [],
                                           return_matches = True,
                                           x_coords = args.x_coords,
                                           y_coords = args.y_coords,
@@ -539,7 +542,7 @@ class FigAlapFits:
         self.freq_max  = dict_update_from_field({"bw":21 * UNITS.hertz}, su_ds + all_but_bw, "bw")
         self.vmin      = dict_update_from_field({"bw":[0,0]},            su_ds + all_but_bw, "bw")
         self.vmax      = dict_update_from_field({"bw":[1,1]},            su_ds + all_but_bw, "bw")
-        self.fit_corrs = defaultdict(lambda: None)
+        self.fit_corrs = defaultdict(lambda: None, {"bw":"search.1", "16Ts":"search.1"})
     
     def plot(self):
         print("\nPLOTTING ASYMMETRIC LAPLACIAN FITS.")
