@@ -190,18 +190,19 @@ class GaussianCoefs:
 
 # Need these outside the class to avoid pickling issues
 StationarityKey    = namedtuple("StationarityKey",    ["i1", "src1", "ifreq"]) 
-StationarityResult = namedtuple("StationarityResult", ["same_dist", "sin_mean_0","cos_mean_0","sin_cos_corr"])
+StationarityResult = namedtuple("StationarityResult", ["same_dist", "sin_mean_0","cos_mean_0","sin_cos_corr", "sin_cos_0"])
 class Stationarity:
     @staticmethod
     def results_to_vec(results, summary = np.mean):
         keys = sorted(list(results.keys()),key=lambda x: x.ifreq*10**8 + x.i1*10**4)
         ifreqs = {k.ifreq for k in keys}
-        vec  = np.array([[results[k].same_dist, results[k].sin_mean_0, results[k].cos_mean_0, results[k].sin_cos_corr] for k in keys])
+        vec  = np.array([[results[k].same_dist, results[k].sin_mean_0, results[k].cos_mean_0, results[k].sin_cos_corr, results[k].sin_cos_0] for k in keys])
         assert len(vec) % len(ifreqs) == 0, f"Number of results ({len(vec)}) not a multiple of number of frequencies ({len(ifreqs)})."
         stride = len(vec) // len(ifreqs)
         keys=[keys[i*stride:(i+1)*stride] for i in range(len(ifreqs))]
         ifreqs = [k[0].ifreq for k in keys]
-        return vec.reshape((len(ifreqs), -1, 4)), ifreqs, keys # 4 is the number of statistics
+        n_stats = len(StationarityResult._fields)
+        return vec.reshape((len(ifreqs), -1, n_stats)), ifreqs, keys
     @staticmethod
     def run(fp_data, assm_spec, ifreqs):
         spec = assm_spec["stationarity"]
@@ -233,6 +234,7 @@ class Stationarity:
             for ii, ifreq in enumerate(ifreqs):
                 a = cc[s1][0,:,ifreq]
                 b = ss[s1][0,:,ifreq]
+                ab = a*b
                 key = StationarityKey(i1=i1, src1=s1, ifreq=ifreq)
                 
                 results[key] = StationarityResult(
@@ -240,6 +242,7 @@ class Stationarity:
                     cos_mean_0   = 1. if np.allclose(a,0) else wilcoxon(a).pvalue, # This is a hack to avoid the case where a is all zeros and the Wilcoxon test fails
                     sin_mean_0   = 1. if np.allclose(b,0) else wilcoxon(b).pvalue,
                     sin_cos_corr = np.dot(a,b),
+                    sin_cos_0    = 1. if np.allclose(ab,0) else wilcoxon(ab).pvalue,
                 )
 
                 DEBUG(f'{key=}: {results[key]}')
