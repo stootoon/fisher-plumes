@@ -607,7 +607,10 @@ class FigRhoDecayFits:
                                                   log_scale = True,
                                                   scatter_size=1.5,
                                                   max_bs = 10,
-                                                  which_ifreqs = F.freqs2inds(self.freqs[k]))
+                                                  which_ifreqs = F.freqs2inds(self.freqs[k]),
+                                                  plot_full_fit = True,
+                                                  mark_dfit = True,
+                                                  )
             [((i>1) and axi.set_xlabel(f"Intersource Distance $s$ ({fpf.pitch_sym})")) for i, axi in enumerate(ax[:4])]
             plt.tight_layout(h_pad=1,w_pad=0.5)
             fpft.label_axes(ax, "ABCDEFGHIJK",

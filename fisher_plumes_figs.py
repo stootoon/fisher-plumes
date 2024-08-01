@@ -842,6 +842,8 @@ def plot_la_gen_fits_vs_distance(F,
                                  figsize = None, legloc = None, xl = None,
                                  colfun = lambda f: freq2col(f, 10),
                                  max_bs = 5,
+                                 plot_full_fit = False,
+                                 mark_dfit = False,
                                  **kwargs
 ):
 
@@ -874,15 +876,20 @@ def plot_la_gen_fits_vs_distance(F,
         
         ax[-1].plot(dx, ρ_med, "o-", color=colfun(freq_hz), linewidth=1, markersize=2, label=f"{freq_hz:g} Hz")
         ax[-1].plot([dx,dx], [ρ_lo, ρ_hi], "-", color=fpft.set_alpha(colfun(freq_hz),0.5), linewidth=1)
+        d_full = np.linspace(dx[0], dx[-1], 100)  * d_scale
+        d_use  = d_full if plot_full_fit else F.dd_fit
+        print(f"Plotting {len(d_use)} points from {d_use[0]} to {d_use[-1]}")
         for j in range(min(max_bs, F.n_bootstraps)):
-            la_fit = fpt.gen_exp(F.dd_fit, *(F.fit_params[which_probe][1+j][fi]))
+            params = F.fit_params[which_probe][1+j][fi]
+            la_fit = fpt.gen_exp(d_use, *params)
             ρ_fit  = la_fit / va[j] - 1
-            ax[-1].plot(F.dd_fit/d_scale, ρ_fit,
+            ax[-1].plot(d_use/d_scale, ρ_fit,
                         color="lightgray", #fpft.set_alpha(colfun(fi),0.5),
                         linewidth=1, zorder=-5)
         (row == 1) and plt.xlabel(f"Distance $s$ {pitch_sym}")
         (col == 0) and plt.ylabel("$\\rho_n(s)$")        
         (xl is not None) and plt.xlim(xl)
+        mark_dfit and ax[-1].axvline(F.dd_fit[-1]/d_scale, color="gray", linestyle=":", linewidth=1)
         plt.title(f"{freqs[fi].magnitude:g} Hz", pad=-2)
         fpft.spines_off(plt.gca())
 
