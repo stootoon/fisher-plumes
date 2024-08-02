@@ -1118,7 +1118,7 @@ class FigMultiProbesGeoms:
                                                               "s":20, "c":"w", "marker":"o", "edgecolor":"k", "linewidth":1},
                                      );
     
-            (i < n_rows - 1) and ax_plume.set_xlabel(None)
+            # (i < n_rows - 1) and ax_plume.set_xlabel(None)
                     
             #for j,(k,F) in enumerate(sorted(D.items())):
             for j,(k,F) in enumerate(sorted(D.items())):
