@@ -63,3 +63,11 @@ Fisher information is computed for each combination of values for each key. The 
 Before the computation starts, a registry containing the list of all existing data is consulted to see whether data already exists for the specified initialization and computation parameters. If so, the computation is either skipped, or optionally overwritten by using the `--overwrite` flag.
 
 The registry can be rebuilt from scratch by calling `proc.py` with the `--rebuild` flag. The registry can then be consulted by the plotting scripts to extract the data that they need.
+
+## Use cases
+### Figures
+#### Multi figures
+Some figures pool data across multiple simulations. The resulting data for these `multi' figures can take up a lot of RAM, so it's best to create these figures one at a time.
+
+*multi_probes_geoms*: Plots a grid showing snapshots of the specified plumes, as well as showing the probe locations.
+`./make_figs.py multi_probes_geoms bw,bw_45,bw_X,16Ts,16Ts_45,16Ts_X --n_cols 3`
