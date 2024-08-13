@@ -66,8 +66,12 @@ The registry can be rebuilt from scratch by calling `proc.py` with the `--rebuil
 
 ## Use cases
 ### Figures
-#### Multi figures
-Some figures pool data across multiple simulations. The resulting data for these `multi' figures can take up a lot of RAM, so it's best to create these figures one at a time.
+#### 'Multi' figures
+Some figures pool data across multiple simulations. The resulting data for these 'multi' figures can take up a lot of RAM, so it's best to create these figures one at a time.
 
-*multi_probes_geoms*: Plots a grid showing snapshots of the specified plumes, as well as showing the probe locations.
-`./make_figs.py multi_probes_geoms bw,bw_45,bw_X,16Ts,16Ts_45,16Ts_X --n_cols 3`
+##### multi\_probes\_geoms
+Plots a grid showing snapshots of the specified plumes, as well as showing the probe locations. The example below plots the plumes and probes for the cross-stream, oblique, and streamwise plumes for both the Main and Supplementary simulations, in rows consisting of three columns at a time. The corresponding function uses the main probe locations for each set of simulations, skipping some of the additional ones we used.
+`./make_figs.py multi_probes_geoms --datasets bw,bw_45,bw_X,16Ts,16Ts_45,16Ts_X --n_cols 3`
+
+
+
